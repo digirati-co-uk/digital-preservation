@@ -458,9 +458,9 @@ function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatem
     // The chosen category rides in otherAccessConditions under the profile's type (issue #433).
     const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.categoryAxis : null;
     if (axis) {
-        const other = { ...(range.otherAccessConditions ?? {}) };
-        if (accessCategory) other[axis.type] = accessCategory; else delete other[axis.type];
-        range.otherAccessConditions = Object.keys(other).length > 0 ? other : null;
+        const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => type !== axis.type);
+        if (accessCategory) kept.push([axis.type, accessCategory]);
+        range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
     }
     range.rightsStatement = rightsStatementUri || null;
     range.recordInfo = recordIdentifiers.length > 0
