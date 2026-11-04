@@ -9,8 +9,15 @@ namespace XmlGen.Tests.AccessConditions;
 /// </summary>
 public static class TestProfiles
 {
-    /// <summary>The Leeds profile as deployed to dev, minus the wildcard rights group.</summary>
-    public static AccessConditionProfile Leeds(bool wildcardGroup = false) => new()
+    /// <summary>The Leeds profile as deployed to dev, minus the wildcard rights group and wildcard row unless asked for.</summary>
+    public static AccessConditionProfile Leeds(bool wildcardGroup = false, bool wildcardRow = false)
+    {
+        var profile = LeedsCore(wildcardGroup);
+        if (wildcardRow) profile.Derived[0].Matrix["*"] = new Dictionary<string, string> { ["*"] = "5" };
+        return profile;
+    }
+
+    private static AccessConditionProfile LeedsCore(bool wildcardGroup) => new()
     {
         RestrictionAxis = new AccessAxis
         {

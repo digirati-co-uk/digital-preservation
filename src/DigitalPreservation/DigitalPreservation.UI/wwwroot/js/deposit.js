@@ -104,6 +104,13 @@ function bestDerivedValue(derived, rows, column) {
     return best;
 }
 
+// Labels come from configuration, which is trusted, but there is no reason to parse them as HTML.
+function setDerivedPreview(target, tag, text) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    target.replaceChildren(el);
+}
+
 function updateDerivedPreview() {
     const section = document.getElementById("derivedAccessConditionsSection");
     if (!section || !accessConditionProfile?.derived?.length) return;
@@ -115,15 +122,14 @@ function updateDerivedPreview() {
         const target = section.querySelector(`.derived-access-condition[data-derived-type="${derived.type}"]`);
         if (!target) continue;
         if (!rowsKnown || !columnKnown) {
-            target.innerHTML = "<em>(inherits; determined on save)</em>";
+            setDerivedPreview(target, "em", "(inherits; determined on save)");
             continue;
         }
         const best = bestDerivedValue(derived, rows, column);
         if (best === null) {
-            target.innerHTML = "<em>(no value for this combination)</em>";
+            setDerivedPreview(target, "em", "(no value for this combination)");
         } else {
-            const label = derived.values.find(v => v.value === best)?.label ?? best;
-            target.innerHTML = `<strong>${label}</strong>`;
+            setDerivedPreview(target, "strong", derived.values.find(v => v.value === best)?.label ?? best);
         }
     }
 }

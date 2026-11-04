@@ -72,8 +72,19 @@ public class MetsManager(
     {
         // Every write recomputes the derived access conditions for the whole document first (issue
         // #433), so a change to an ancestor's chosen values can never leave a stale derived value on
-        // a descendant. A no-op where nothing is configured to be derived.
-        await ApplyDerivedAccessConditions(fullMets);
+        // a descendant. A no-op where nothing is configured to be derived - but a provider that
+        // EXPECTS a profile and cannot get one fails the write, since writing without recomputing
+        // would leave the old derived values beside the new chosen ones.
+        try
+        {
+            await ApplyDerivedAccessConditions(fullMets);
+        }
+        catch (AccessConditionProfileUnavailableException e)
+        {
+            logger?.LogError(e, "Refusing to write {MetsUri}: the access condition profile is unavailable, so its derived access conditions cannot be recomputed", fullMets.Uri);
+            return Result.Fail(ErrorCodes.UpstreamUnavailable,
+                "The access condition profile could not be fetched, so the METS file was not written: " + e.Message);
+        }
 
         if (NormaliseOnWrite)
         {
@@ -1059,14 +1070,22 @@ public class MetsManager(
             $"The descriptive metadata for div '{div.Id}' could not be read or created as MODS.");
 
     /// <summary>
-    /// Rewrite the derived access conditions (issue #433) across the whole document: on every
-    /// physical and logical div that carries an explicit <c>restriction on access</c> or
-    /// <c>use and reproduction</c> element, the resolver's value for the div's EFFECTIVE chosen
-    /// conditions is written as <c>mods:accessCondition type="{managed type}"</c>; on a div with
-    /// neither, any managed type is removed so it inherits like everything else. Only the
-    /// resolver's managed types are ever touched - a document's other typed access conditions,
-    /// and derived values written under a type no longer configured, are left exactly as found.
-    /// Called from <see cref="WriteMets"/>; a no-op without a resolver or with nothing derived.
+    /// Rewrite the derived access conditions (issue #433) across the whole document from each div's
+    /// EFFECTIVE chosen conditions, so that what is written agrees with what the parser reads back
+    /// for every node. The writer OWNS the managed types (for Leeds, <c>tier</c>) on:
+    /// <list type="bullet">
+    /// <item>every div that carries a chosen element of its own (<c>restriction on access</c> or
+    /// <c>use and reproduction</c>): the value for its effective inputs is written;</item>
+    /// <item>every FILE div whose effective inputs come partly from its logical range - the parser
+    /// falls back to the range for whichever axis the physical tree is silent on, so such a file
+    /// cannot inherit the right value from its folder and is given its own;</item>
+    /// <item>every div whose dmdSec the platform itself minted: a managed type left there by an
+    /// earlier write, now without inputs, is removed so the div inherits like everything else.</item>
+    /// </list>
+    /// A div with a THIRD PARTY's dmdSec and no chosen inputs is left exactly as found - a Goobi
+    /// export carrying only its resulting tier keeps it - as is every non-managed typed condition
+    /// everywhere. Called from <see cref="WriteMets"/>; a no-op without a resolver or with nothing
+    /// derived.
     /// </summary>
     /// <returns>The IDs of the divs whose MODS changed.</returns>
     public async Task<List<string>> ApplyDerivedAccessConditions(FullMets fullMets)
@@ -1076,18 +1095,28 @@ public class MetsManager(
         var managed = await derivedAccessConditionResolver.GetManagedTypesAsync();
         if (managed.Count == 0) return changed;
 
-        // Logical ranges inherit from the physical root (MetsParser.ComputeEffectiveMetadata), so
-        // the physical tree is walked first and its root's effective inputs seed each logical one.
-        var rootInputs = new EffectiveAccessInputs([], null);
+        var pass = new DerivedPass(fullMets, managed, changed, PathsByDiv(fullMets));
+
+        // Logical ranges inherit from the physical root (MetsParser.ComputeEffectiveMetadata) and
+        // files fall back to their range, so: directories first, then ranges, then files.
+        var rootInputs = EffectiveAccessInputs.None;
+        var fileDivs = new List<(DivType Div, EffectiveAccessInputs Parent)>();
         var physRoot = fullMets.Mets.StructMap.FirstOrDefault(sm => sm.Type == Constants.Physical)?.Div;
         if (physRoot != null)
         {
-            rootInputs = await ApplyDerivedToDivTree(fullMets, physRoot, rootInputs, managed, changed);
+            rootInputs = await ApplyDerivedToDirectoryTree(pass, physRoot, rootInputs, fileDivs);
         }
+        var logicalInputs = new Dictionary<DivType, EffectiveAccessInputs>(ReferenceEqualityComparer.Instance);
         foreach (var logical in fullMets.Mets.StructMap.Where(sm => sm.Type == Constants.Logical && sm.Div != null))
         {
-            await ApplyDerivedToDivTree(fullMets, logical.Div, rootInputs, managed, changed);
+            await ApplyDerivedToLogicalTree(pass, logical.Div, rootInputs, logicalInputs);
         }
+        var wholeFileRanges = WholeFileRangesByFileId(logicalInputs.Keys);
+        foreach (var (div, parent) in fileDivs)
+        {
+            await ApplyDerivedToFileDiv(pass, div, parent, wholeFileRanges, logicalInputs);
+        }
+
         if (changed.Count > 0 && logger?.IsEnabled(LogLevel.Information) == true)
         {
             logger.LogInformation("Derived access conditions rewritten on {Count} div(s) in {MetsUri}",
@@ -1096,79 +1125,203 @@ public class MetsManager(
         return changed;
     }
 
-    /// <returns>The div's effective chosen inputs, for its children (and, for the physical root, for the logical structMaps).</returns>
-    private async Task<EffectiveAccessInputs> ApplyDerivedToDivTree(
-        FullMets fullMets, DivType div, EffectiveAccessInputs parent,
-        IReadOnlyCollection<string> managed, List<string> changed)
-    {
-        var effective = parent;
-        var mods = ModsManager.GetModsForDiv(fullMets.Mets, div);
-        if (mods != null)
-        {
-            effective = await ApplyDerivedToMods(fullMets, div, mods, parent, managed, changed);
-        }
+    /// <summary>Everything one derived pass needs, so that the helpers stay small.</summary>
+    private sealed record DerivedPass(
+        FullMets Mets,
+        IReadOnlyCollection<string> Managed,
+        List<string> Changed,
+        Dictionary<DivType, string> PathByDiv);
 
+    /// <summary>The chosen elements a div carries itself.</summary>
+    private sealed record ChosenInputs(List<string> Restrictions, bool RightsPresent, Uri? Rights)
+    {
+        public static readonly ChosenInputs Nothing = new([], false, null);
+
+        public bool Any => Restrictions.Count > 0 || RightsPresent;
+
+        /// <summary>The div's effective inputs: its own where set, else its parent's.</summary>
+        public EffectiveAccessInputs ApplyTo(EffectiveAccessInputs parent) => new(
+            Restrictions.Count > 0 ? Restrictions : parent.Restrictions,
+            RightsPresent ? Rights : parent.RightsStatement);
+    }
+
+    private static ChosenInputs ReadChosenInputs(XmlGen.Mods.V3.ModsDefinition mods)
+    {
+        // Only the platform's own chosen elements are inputs. A Goobi "status" element, which the
+        // parser DISPLAYS as a restriction, is not: the writer never derives from a div it did not
+        // itself set access metadata on.
+        var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
+        var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
+        Uri? rights = null;
+        if (rightsElements.Count > 0)
+        {
+            // Present but not a URI is the "explicitly none" sentinel: effective rights null, and
+            // inheritance stops here - the same reading as the parser's.
+            Uri.TryCreate(rightsElements[0], UriKind.Absolute, out rights);
+        }
+        return new ChosenInputs(restrictions, rightsElements.Count > 0, rights);
+    }
+
+    private async Task<EffectiveAccessInputs> ApplyDerivedToDirectoryTree(
+        DerivedPass pass, DivType div, EffectiveAccessInputs parent, List<(DivType Div, EffectiveAccessInputs Parent)> fileDivs)
+    {
+        if (div.Fptr.Count > 0)
+        {
+            // A file: handled last, once the logical ranges it may fall back to are known.
+            fileDivs.Add((div, parent));
+            return parent;
+        }
+        var effective = await ApplyDerivedToDiv(pass, div, parent);
         foreach (var child in div.Div)
         {
-            await ApplyDerivedToDivTree(fullMets, child, effective, managed, changed);
+            await ApplyDerivedToDirectoryTree(pass, child, effective, fileDivs);
         }
+        return effective;
+    }
+
+    private async Task ApplyDerivedToLogicalTree(
+        DerivedPass pass, DivType div, EffectiveAccessInputs parent, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
+    {
+        var effective = await ApplyDerivedToDiv(pass, div, parent);
+        logicalInputs[div] = effective;
+        foreach (var child in div.Div)
+        {
+            await ApplyDerivedToLogicalTree(pass, child, effective, logicalInputs);
+        }
+    }
+
+    /// <summary>A directory or logical div: its managed types follow its own chosen inputs.</summary>
+    private async Task<EffectiveAccessInputs> ApplyDerivedToDiv(DerivedPass pass, DivType div, EffectiveAccessInputs parent)
+    {
+        var mods = ModsManager.GetModsForDiv(pass.Mets.Mets, div);
+        if (mods == null) return parent;
+        var chosen = ReadChosenInputs(mods);
+        var effective = chosen.ApplyTo(parent);
+        await RewriteManaged(pass, div, mods, chosen.Any ? effective : null);
         return effective;
     }
 
     /// <summary>
-    /// Rewrites one div's managed derived elements from its effective chosen inputs.
+    /// A file div: for an axis the physical tree is silent on, its effective input comes from its
+    /// single whole-file logical range (MetsParser.SetFileEffective), in which case it is given
+    /// its own managed types even without chosen inputs, since it cannot inherit the right value.
     /// </summary>
-    /// <returns>The div's effective chosen inputs.</returns>
-    private async Task<EffectiveAccessInputs> ApplyDerivedToMods(
-        FullMets fullMets, DivType div, XmlGen.Mods.V3.ModsDefinition mods, EffectiveAccessInputs parent,
-        IReadOnlyCollection<string> managed, List<string> changed)
+    private async Task ApplyDerivedToFileDiv(
+        DerivedPass pass, DivType div, EffectiveAccessInputs parent,
+        Dictionary<string, List<DivType>> wholeFileRanges, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
     {
-        // Only the platform's own chosen elements are inputs. A Goobi "status" element, which
-        // the parser DISPLAYS as a restriction, is not: the writer never derives from, or
-        // rewrites the MODS of, a div it did not itself set access metadata on.
-        var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
-        var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
-        var rightsPresent = rightsElements.Count > 0;
-        Uri? rights = null;
-        if (rightsPresent)
+        var mods = ModsManager.GetModsForDiv(pass.Mets.Mets, div);
+        var chosen = mods == null ? ChosenInputs.Nothing : ReadChosenInputs(mods);
+        var physical = chosen.ApplyTo(parent);
+        var effective = WithLogicalFallback(physical, chosen, div, wholeFileRanges, logicalInputs);
+
+        if (chosen.Any || !effective.SameAs(physical))
         {
-            // Present but not a URI is the "explicitly none" sentinel: effective rights null,
-            // and inheritance stops here - the same reading as the parser's.
-            Uri.TryCreate(rightsElements[0], UriKind.Absolute, out rights);
+            mods ??= ModsManager.GetModsForDiv(pass.Mets.Mets, div, createDmd: true, pass.PathByDiv.GetValueOrDefault(div));
+            if (mods == null) return;
+            await RewriteManaged(pass, div, mods, effective);
         }
+        else if (mods != null)
+        {
+            await RewriteManaged(pass, div, mods, null);
+        }
+    }
 
-        var effective = new EffectiveAccessInputs(
-            restrictions.Count > 0 ? restrictions : parent.Restrictions,
-            rightsPresent ? rights : parent.RightsStatement);
+    private static EffectiveAccessInputs WithLogicalFallback(
+        EffectiveAccessInputs physical, ChosenInputs chosen, DivType div,
+        Dictionary<string, List<DivType>> wholeFileRanges, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
+    {
+        var fileId = div.Fptr[0].Fileid;
+        if (fileId == null || !wholeFileRanges.TryGetValue(fileId, out var ranges) || ranges.Count != 1)
+        {
+            return physical;
+        }
+        var range = logicalInputs[ranges[0]];
+        // Access: the physical tree (own, then ancestors) wins whenever it says anything at all.
+        var restrictions = physical.Restrictions.Count > 0 ? physical.Restrictions : range.Restrictions;
+        // Rights: the file's own element (including the "none" sentinel) wins; else the nearest
+        // ancestor with a rights statement; else the range's.
+        var rights = chosen.RightsPresent ? physical.RightsStatement : physical.RightsStatement ?? range.RightsStatement;
+        return new EffectiveAccessInputs(restrictions, rights);
+    }
 
-        var before = ManagedSnapshot(mods, managed);
-        foreach (var type in managed)
+    /// <summary>FILEID -> the logical divs that paint the whole file (an fptr with no area).</summary>
+    private static Dictionary<string, List<DivType>> WholeFileRangesByFileId(IEnumerable<DivType> logicalDivs)
+    {
+        var map = new Dictionary<string, List<DivType>>(StringComparer.Ordinal);
+        foreach (var div in logicalDivs)
+        {
+            foreach (var fileId in div.Fptr.Where(f => f.Area == null && f.Fileid != null).Select(f => f.Fileid).Distinct())
+            {
+                if (!map.TryGetValue(fileId, out var list))
+                {
+                    map[fileId] = list = [];
+                }
+                if (!list.Contains(div)) list.Add(div);
+            }
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// Writes the managed types for <paramref name="inputs"/>; or, when that is null because the
+    /// div has no inputs of its own, removes them if the platform minted this div's dmdSec and
+    /// otherwise leaves the div as found.
+    /// </summary>
+    private async Task RewriteManaged(DerivedPass pass, DivType div, XmlGen.Mods.V3.ModsDefinition mods, EffectiveAccessInputs? inputs)
+    {
+        if (inputs == null && !IsPlatformMintedDmd(pass, div)) return;
+
+        var before = ManagedSnapshot(mods, pass.Managed);
+        foreach (var type in pass.Managed)
         {
             mods.RemoveAccessConditions(type);
         }
-        if (restrictions.Count > 0 || rightsPresent)
+        if (inputs != null)
         {
-            await WriteDerived(mods, effective, managed);
-        }
-        if (!ManagedSnapshot(mods, managed).SequenceEqual(before))
-        {
-            ModsManager.SetModsForDiv(fullMets.Mets, div, mods);
-            changed.Add(div.Id ?? string.Empty);
-        }
-        return effective;
-    }
-
-    private async Task WriteDerived(
-        XmlGen.Mods.V3.ModsDefinition mods, EffectiveAccessInputs effective, IReadOnlyCollection<string> managed)
-    {
-        var derived = await derivedAccessConditionResolver!.ResolveAsync(effective);
-        foreach (var type in managed)
-        {
-            if (derived.TryGetValue(type, out var value))
+            var derived = await derivedAccessConditionResolver!.ResolveAsync(inputs);
+            foreach (var type in pass.Managed)
             {
-                mods.AddAccessCondition(value, type);
+                if (derived.TryGetValue(type, out var value)) mods.AddAccessCondition(value, type);
             }
         }
+        if (!ManagedSnapshot(mods, pass.Managed).SequenceEqual(before))
+        {
+            ModsManager.SetModsForDiv(pass.Mets.Mets, div, mods);
+            pass.Changed.Add(div.Id ?? string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Whether this div's dmdSec is one the platform minted - <see cref="MetsIds.Dmd"/> of its
+    /// path, <see cref="MetsIds.DmdFromDivId"/> of a logical div's ID, the root's, or an anonymous
+    /// one. The writer owns the managed types in those and only those: a third party's dmdSec is
+    /// never stripped of a value it arrived with.
+    /// </summary>
+    private static bool IsPlatformMintedDmd(DerivedPass pass, DivType div)
+    {
+        var dmdId = IdRefs.ResolveSingle(div.Dmdid, id => pass.Mets.Mets.DmdSec.FirstOrDefault(x => x.Id == id))?.Id;
+        if (dmdId == null) return false;
+        if (dmdId == Constants.DmdPhysRoot || dmdId.StartsWith(Constants.DmdIdPrefix + "ANON_", StringComparison.Ordinal))
+        {
+            return true;
+        }
+        if (pass.PathByDiv.TryGetValue(div, out var path))
+        {
+            return dmdId == MetsIds.Dmd(path);
+        }
+        return div.Id.HasText() && dmdId == MetsIds.DmdFromDivId(div.Id);
+    }
+
+    private static Dictionary<DivType, string> PathsByDiv(FullMets fullMets)
+    {
+        EnsureCache(fullMets);
+        var map = new Dictionary<DivType, string>(ReferenceEqualityComparer.Instance);
+        foreach (var (path, div) in fullMets.PhysicalDivsByPath)
+        {
+            map[div] = path;
+        }
+        return map;
     }
 
     private static List<string> ManagedSnapshot(XmlGen.Mods.V3.ModsDefinition mods, IReadOnlyCollection<string> managed) =>

@@ -82,11 +82,18 @@ derives, so a third party's other typed conditions (`dz`, `player`...) appear he
 | D4 | `{}` | No source found |
 
 Inheritance is **per type**, merged: a file carrying only `tier` still inherits its folder's
-`dz`. The logical fallback (D3) is all-or-nothing on the physical result, mirroring A4. Because
-`MetsManager` rewrites the configured derived types on every div that has an explicit chosen
-element - from that div's *effective* chosen inputs, on every write - the explicit and effective
-derived values are consistent with the chosen ones by construction; D1-D4 matter for documents
-written elsewhere. See `DerivedAccessConditionsParsingTests` and `DerivedAccessConditionsWriterTests`.
+`dz`. The logical fallback (D3) is all-or-nothing on the physical result, mirroring A4.
+
+`MetsManager` keeps the explicit and effective derived values consistent with the chosen ones by
+construction, on every write: it rewrites the configured derived types from the *effective* chosen
+inputs on every div that has an explicit chosen element, **and on every file div whose effective
+inputs come partly from its logical range** (A4a / rights step 3 supplied an axis the folders were
+silent on - such a file could not inherit the right value through D2). It removes a derived element
+whose source has gone from any dmdSec it minted itself, and leaves a third party's dmdSec alone. D1-D4
+therefore matter for documents written elsewhere, and D3 is never needed for the platform's own. See
+`DerivedAccessConditionsParsingTests` and `DerivedAccessConditionsWriterTests` (whose
+`AssertDerivedInvariant` checks, for every node with an effective input, that what is read back equals
+the lookup of its effective inputs).
 
 ### Physical files — Record Info
 

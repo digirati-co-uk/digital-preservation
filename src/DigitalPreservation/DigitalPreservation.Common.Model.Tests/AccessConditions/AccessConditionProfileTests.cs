@@ -75,21 +75,73 @@ public class AccessConditionProfileTests
         ]
     };
 
-    [Theory]
-    [InlineData("PA1", "http://rightsstatements.org/vocab/NoC-US/1.0/", "0")]
-    [InlineData("PA1", "https://creativecommons.org/licenses/by/4.0/", "0")]
-    [InlineData("PA1", "http://rightsstatements.org/vocab/InC-EDU/1.0/", "1")]
-    [InlineData("PA1", "http://rightsstatements.org/vocab/InC/1.0/", "2")]
-    [InlineData("PA1", "http://rightsstatements.org/vocab/CNE/1.0/", "2")]
-    [InlineData("PA1", null, "2")]
-    [InlineData("PA2", "http://rightsstatements.org/vocab/NoC-US/1.0/", "3")]
-    [InlineData("PA3", "http://rightsstatements.org/vocab/InC/1.0/", "3")]
-    [InlineData("PA4", null, "4")]
-    [InlineData("PA-unassessed", "http://rightsstatements.org/vocab/NoC-US/1.0/", "5")]
-    public void Every_cell_of_the_Leeds_matrix_resolves_to_the_agreed_tier(string pa, string? rights, string expectedTier)
+    /// <summary>
+    /// The Leeds profile EXACTLY as deployed to dev (Preservation.API/appsettings.json), including
+    /// every rights statement's group. Kept separate from <see cref="Leeds"/>, whose reduced groups
+    /// leave statements unplaced on purpose for the no-group tests.
+    /// </summary>
+    public static AccessConditionProfile LeedsAsDeployed()
     {
-        var derived = Leeds().ResolveDerived([pa], rights == null ? null : new Uri(rights));
+        var profile = Leeds(wildcardGroup: true);
+        profile.RightsAxis.Groups[0].Members = ["NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0", "CC-BY", "CC-BY-SA"];
+        profile.RightsAxis.Groups[1].Members = ["InC-EDU", "InC-NC", "CC-BY-NC", "CC-BY-ND", "CC-BY-NC-SA", "CC-BY-NC-ND"];
+        profile.RightsAxis.Groups[2].Members = ["InC", "InC-OW-EU", "InC-RUU"];
+        profile.RightsAxis.Groups[3].Members = ["CNE", "UND", "__none__", "*"];
+        profile.Derived[0].Matrix["*"] = new Dictionary<string, string> { ["*"] = "5" };
+        return profile;
+    }
+
+    /// <summary>
+    /// The grouping assumed on issue #433, restated here independently of the profile so that a
+    /// change to either fails loudly: PA 1 is the only row where the group matters.
+    /// </summary>
+    private static readonly Dictionary<string, string> AssumedPa1TierByShortLabel = new()
+    {
+        ["NoC-US"] = "0", ["NoC-NC"] = "0", ["NoC-OKLR"] = "0", ["NoC-CR"] = "0", ["NKC"] = "0", ["CC0"] = "0", ["CC-BY"] = "0", ["CC-BY-SA"] = "0",
+        ["InC-EDU"] = "1", ["InC-NC"] = "1", ["CC-BY-NC"] = "1", ["CC-BY-ND"] = "1", ["CC-BY-NC-SA"] = "1", ["CC-BY-NC-ND"] = "1",
+        ["InC"] = "2", ["InC-OW-EU"] = "2", ["InC-RUU"] = "2",
+        ["CNE"] = "2", ["UND"] = "2"
+    };
+
+    public static IEnumerable<object?[]> EveryCell()
+    {
+        string?[] restrictions = ["PA1", "PA2", "PA3", "PA4", "PA-unassessed", null, "dlip-open"];
+        var statements = RightsStatement.ByShortLabel.Keys.Select(k => (string?)k).Append(null).Append("https://example.org/unknown");
+        foreach (var pa in restrictions)
+        {
+            foreach (var statement in statements)
+            {
+                var expected = pa switch
+                {
+                    "PA1" => statement != null && AssumedPa1TierByShortLabel.TryGetValue(statement, out var t) ? t : "2",
+                    "PA2" or "PA3" => "3",
+                    "PA4" => "4",
+                    "PA-unassessed" or null => "5",
+                    _ => "5" // a value outside the vocabulary: the '*' row
+                };
+                yield return [pa, statement, expected];
+            }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryCell))]
+    public void Every_cell_of_the_deployed_Leeds_matrix_resolves_to_the_assumed_tier(string? pa, string? statement, string expectedTier)
+    {
+        RightsStatement.ByShortLabel.Should().HaveCount(19, "the table above must cover the whole vocabulary");
+        var rights = statement == null ? null
+            : RightsStatement.ByShortLabel.TryGetValue(statement, out var rs) ? rs.Value : new Uri(statement);
+        var derived = LeedsAsDeployed().ResolveDerived(pa == null ? [] : [pa], rights);
         derived.Should().Equal(new Dictionary<string, string> { ["tier"] = expectedTier });
+    }
+
+    [Fact]
+    public void The_deployed_Leeds_profile_is_valid_and_places_every_rights_statement()
+    {
+        var profile = LeedsAsDeployed();
+        profile.Validate().Should().BeEmpty();
+        var placed = profile.RightsAxis.Groups.SelectMany(g => g.Members).Where(m => m is not ("__none__" or "*"));
+        placed.Should().BeEquivalentTo(RightsStatement.ByShortLabel.Keys);
     }
 
     [Fact]
@@ -116,10 +168,12 @@ public class AccessConditionProfileTests
     }
 
     [Fact]
-    public void A_restriction_value_outside_the_vocabulary_has_no_row_and_no_derived_value()
+    public void A_restriction_value_outside_the_vocabulary_has_no_row_and_no_derived_value_without_a_wildcard_row()
     {
-        // Legacy content written before the vocabulary changed: the matrix has no row for it.
+        // Legacy content written before the vocabulary changed: the matrix has no row for it...
         Leeds().ResolveDerived(["dlip-open"], NoCUs).Should().BeEmpty();
+        // ...unless the profile says what any other value gets, as the deployed one does.
+        LeedsAsDeployed().ResolveDerived(["dlip-open"], NoCUs).Should().Equal(new Dictionary<string, string> { ["tier"] = "5" });
     }
 
     [Fact]
@@ -177,6 +231,24 @@ public class AccessConditionProfileTests
         errors.Should().Contain(e => e.Contains("row 'PA9'"));
         errors.Should().Contain(e => e.Contains("column 'medium-risk'"));
         errors.Should().Contain(e => e.Contains("= '9'"));
+    }
+
+    [Fact]
+    public void A_matrix_must_give_every_restriction_a_value_for_every_rights_group()
+    {
+        var profile = Leeds();
+        profile.Derived[0].Matrix["PA1"].Remove("low-risk");
+        profile.Validate().Should().ContainSingle(e => e.Contains("no value for restriction 'PA1' with rights group 'low-risk'"));
+
+        profile = Leeds();
+        profile.Derived[0].Matrix.Remove("__none__");
+        profile.Validate().Should().HaveCount(4, "no restriction at all must resolve for each of the four groups")
+            .And.AllSatisfy(e => e.Should().Contain("restriction '__none__'"));
+
+        profile = Leeds();
+        profile.Derived[0].Matrix.Remove("__none__");
+        profile.Derived[0].Matrix["*"] = new Dictionary<string, string> { ["*"] = "5" };
+        profile.Validate().Should().BeEmpty("a wildcard row covers the gap");
     }
 
     [Fact]

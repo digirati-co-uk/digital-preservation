@@ -14,7 +14,7 @@ and the optional extension at [Derived access conditions](https://digirati-co-uk
 | Service | Reads the section? |
 |---|---|
 | Preservation API | **Yes.** Binds it at startup, validates it (a bad profile stops the service, with the reasons in the log), serves it at `GET /access-conditions`, and uses it when writing METS. |
-| Preservation UI | No. It fetches the API's profile and caches it for five minutes, so a change needs only the API redeployed. |
+| Preservation UI | No. It fetches the API's profile and caches it for five minutes, so a change needs only the API redeployed. If the API cannot be reached it uses the last profile this process fetched; if there has never been one, a METS write is **refused** (503, nothing written) rather than saved with derived values that no longer match the chosen ones. |
 | Pipeline API, Deposit Archiver | No. Both write METS through the same `MetsManager`, but with no profile, which means they derive nothing and leave any derived elements they find untouched. |
 | Storage API, Storage API Importer | No. They never look inside METS. |
 
@@ -87,21 +87,30 @@ This needs two more parts of the profile:
 | `Derived` | A list of `{ Type, Label, Values, Matrix }`. `Type` is the METS `type` attribute. `Values` are the possible results, in order from least to most restrictive (used to pick a single value for legacy content that carries several restrictions). `Matrix` maps restriction value → group key → derived value; a row key or column key of `*` matches anything a more specific key does not. |
 
 Validation at startup rejects: a matrix row that is not a restriction value, `__none__` or `*`; a column
-that is not a group key or `*`; a cell that is not one of the `Values`; a group member that is not a
-known rights short label or a reserved key, or that appears in two groups; a group with no members;
-duplicate restriction values, group keys or derived types; a derived `Type` of `restriction on access` or
-`use and reproduction`; an empty `Values` or `Matrix`; and `AllowMultipleRestrictions` set together with
-`Derived`. The error lists every problem it found.
+that is not a group key or `*`; a cell that is not one of the `Values`; a **gap** - any restriction value
+(or `__none__`) that resolves to nothing for any group, which a `*` row or column fills; a group member
+that is not a known rights short label or a reserved key, or that appears in two groups; a group with no
+members; duplicate restriction values, group keys or derived types; a derived `Type` of
+`restriction on access` or `use and reproduction`; an empty `Values` or `Matrix`; and
+`AllowMultipleRestrictions` set together with `Derived`. The error lists every problem it found.
 
 What then happens, in brief (the detail is on the documentation site and in
 [effective-metadata-inheritance.md](../effective-metadata-inheritance.md)):
 
 - Every div, physical or logical, that carries an explicit restriction or rights element gets each
   derived element too, computed from that div's **effective** inputs.
+- So does every **file** whose effective inputs come partly from its logical range: the parser falls
+  back to the range for an axis the folders are silent on (a folder sets only a rights statement, the
+  range sets the restriction), and such a file could not inherit the right value from its folder.
 - Every write recomputes every derived value in the document, so changing a folder's restriction
-  changes the tier of everything beneath it that carries one.
+  changes the tier of everything beneath it that carries one, and a derived element whose source has
+  gone is removed - from any dmdSec the platform itself minted. A dmdSec the platform did **not** mint
+  (a Goobi export's, say) that carries a derived element and no chosen ones is left exactly as found:
+  Leeds intend Goobi to hand over only the resulting tier, and the platform must not strip it.
 - Only the types currently in `Derived` are touched. Other typed `accessCondition` elements - a third
   party's, or a type you used to derive - are left as found.
+- Nothing is written for a node with no effective input at all (nothing chosen on or above it); the
+  `__none__` row is for a node with a rights statement but no restriction.
 - The UI shows the derived value in the tree and recomputes it live in the metadata dialogue.
 
 ## Worked example: the Leeds Access Tier
@@ -154,7 +163,8 @@ statement), and derives an **Access Tier** 0-5 from their agreed matrix. The con
         "PA3":           { "*": "3" },
         "PA4":           { "*": "4" },
         "PA-unassessed": { "*": "5" },
-        "__none__":      { "*": "5" }
+        "__none__":      { "*": "5" },
+        "*":             { "*": "5" }
       }
     }
   ]
@@ -172,6 +182,7 @@ Reading the matrix:
 | `PA2` | anything | - (`*`) | 3 |
 | `PA4` | anything | - | 4 |
 | none | anything | `__none__` row | 5 |
+| `dlip-open` (a value outside the vocabulary) | anything | `*` row | 5 |
 
 Configuration keys are case-insensitive, so this block is also, key for key, what `GET /access-conditions`
 returns (in camelCase). The documentation site's
@@ -179,16 +190,19 @@ returns (in camelCase). The documentation site's
 page shows the same example from the caller's side.
 
 **Assumptions in this example, pending confirmation from Leeds** (tracked on
-[issue #433](https://github.com/digirati-co-uk/digital-preservation/issues/433)): the `tier` type name,
-the `PA1`..`PA-unassessed` restriction values, and the placing of CNE and UND. The matrix cannot
-distinguish Leeds' "medium risk" and "high risk" copyright categories, because a rights statement URI
-does not carry a risk assessment; both land in `restricted`.
+[issue #433](https://github.com/digirati-co-uk/digital-preservation/issues/433), where the grouping is
+laid out statement by statement): the `tier` type name, the `PA1`..`PA-unassessed` restriction values,
+and the group each rights statement sits in - nothing in the wiki thread allocates statements to
+columns, so every placing here is inferred. In particular the master matrix has six copyright columns
+and gives PA 1 x *High Risk* = 3; a rights statement URI carries no risk assessment, so the grouping
+cannot express that, and `InC` currently yields 2.
 
 ## Changing a profile that is already in use
 
 - **Adding or relabelling** restriction values or groups is safe. Labels are presentation only; a value
   that no longer exists in the vocabulary still reads back and still appears in the UI, it just cannot be
-  chosen afresh.
+  chosen afresh - and the `*` row says what such a value derives (for Leeds, 5). Without one, validation
+  would pass but the value would silently derive nothing.
 - **Changing a matrix** does not rewrite preserved METS. Each deposit's derived values are recomputed the
   next time *that* METS is written, so a corrected matrix reaches existing content only when it is next
   edited and preserved. Plan a re-save campaign if the change must be universal.

@@ -24,6 +24,13 @@ public static class ErrorCodes
     /// </summary>
     public const string UpstreamUnauthorized = nameof(UpstreamUnauthorized);
 
+    /// <summary>
+    /// Something WE depend on could not be reached, so the operation was refused rather than done
+    /// half-right - the UI's METS write when the Preservation API's access condition profile cannot
+    /// be fetched (issue #433). A 503 to the caller: retry later, nothing was changed.
+    /// </summary>
+    public const string UpstreamUnavailable = nameof(UpstreamUnavailable);
+
     public static string GetErrorCode(int? statusCode)
     {
         var errorCode = statusCode switch

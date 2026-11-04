@@ -7,20 +7,41 @@ namespace DigitalPreservation.UI.Infrastructure;
 /// <summary>
 /// The UI writes METS through the same <c>MetsManager</c> as the Preservation API, so it must
 /// derive access conditions from the SAME profile (issue #433). It has no copy of its own: it
-/// fetches the API's, which the client caches briefly. If the API cannot be reached the write goes
-/// ahead with nothing derived rather than failing - the next successful write recomputes the whole
-/// document anyway.
+/// fetches the API's, which the client caches briefly. If the API cannot be reached the last
+/// profile this process fetched successfully is used; if there has never been one, the write is
+/// refused (<see cref="AccessConditionProfileUnavailableException"/>) rather than allowed to go
+/// ahead with stale derived values beside freshly changed chosen ones.
 /// </summary>
 public class UiAccessConditionProfileProvider(
     IPreservationApiClient preservationApiClient,
     ILogger<UiAccessConditionProfileProvider> logger) : IAccessConditionProfileProvider
 {
+    // Process-wide on purpose: the provider is a singleton, but a profile fetched by any instance
+    // is a valid fallback for all of them, and a profile changes only when the API is redeployed.
+    private static volatile AccessConditionProfile? lastKnownGood;
+
     public async Task<AccessConditionProfile?> GetProfileAsync(CancellationToken cancellationToken = default)
     {
         var result = await preservationApiClient.GetAccessConditions(cancellationToken);
-        if (result.Success) return result.Value;
-        logger.LogWarning("Could not fetch the access condition profile from the Preservation API ({Error}); nothing will be derived on this write",
+        if (result is { Success: true, Value: not null })
+        {
+            lastKnownGood = result.Value;
+            return result.Value;
+        }
+
+        var fallback = lastKnownGood;
+        if (fallback != null)
+        {
+            logger.LogWarning(
+                "Could not fetch the access condition profile from the Preservation API ({Error}); using the profile fetched earlier in this process",
+                result.ErrorMessage);
+            return fallback;
+        }
+
+        logger.LogError(
+            "Could not fetch the access condition profile from the Preservation API ({Error}) and none was fetched earlier; refusing to write METS",
             result.ErrorMessage);
-        return null;
+        throw new AccessConditionProfileUnavailableException(
+            $"The Preservation API's access condition profile could not be fetched: {result.ErrorMessage}");
     }
 }

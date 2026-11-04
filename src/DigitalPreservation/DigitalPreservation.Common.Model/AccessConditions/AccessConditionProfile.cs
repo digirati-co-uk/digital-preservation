@@ -125,6 +125,29 @@ public class AccessConditionProfile
                 errors.Add($"{name}: matrix row '{row}' is not a restriction value, '{NoneKey}' or '{Wildcard}'.");
             ValidateMatrixRow(errors, name, row, cells, validColumns, validValues);
         }
+        if (derived.Matrix.Count > 0)
+        {
+            ValidateMatrixCoverage(errors, derived, name, validRows.Where(r => r != Wildcard), validColumns.Where(c => c != Wildcard));
+        }
+    }
+
+    /// <summary>
+    /// Every restriction value (and no restriction) must resolve for every rights group (or, with
+    /// no groups, for the wildcard column): a gap would silently leave a node with no derived
+    /// value, which is what a legacy restriction value did before this check (review of #434).
+    /// </summary>
+    private static void ValidateMatrixCoverage(
+        List<string> errors, DerivedAccessCondition derived, string name, IEnumerable<string> rows, IEnumerable<string> groupKeys)
+    {
+        var columns = groupKeys.Cast<string?>().DefaultIfEmpty(null).ToList();
+        foreach (var row in rows)
+        {
+            foreach (var column in columns)
+            {
+                if (derived.Lookup(row, column) == null)
+                    errors.Add($"{name}: no value for restriction '{row}' with rights group '{column ?? Wildcard}' (add the cell, or a '{Wildcard}' row or column).");
+            }
+        }
     }
 
     private static void ValidateMatrixRow(

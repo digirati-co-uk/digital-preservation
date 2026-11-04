@@ -8,7 +8,15 @@ namespace DigitalPreservation.Mets.AccessConditions;
 /// </summary>
 /// <param name="Restrictions">Effective <c>restriction on access</c> values; empty when none applies.</param>
 /// <param name="RightsStatement">Effective <c>use and reproduction</c> URI; null when absent or explicitly suppressed.</param>
-public record EffectiveAccessInputs(IReadOnlyList<string> Restrictions, Uri? RightsStatement);
+public record EffectiveAccessInputs(IReadOnlyList<string> Restrictions, Uri? RightsStatement)
+{
+    /// <summary>No restriction and no rights statement: the physical root's parent, so to speak.</summary>
+    public static readonly EffectiveAccessInputs None = new([], null);
+
+    /// <summary>Value equality - the record's own compares the restriction lists by reference.</summary>
+    public bool SameAs(EffectiveAccessInputs other) =>
+        Restrictions.SequenceEqual(other.Restrictions, StringComparer.Ordinal) && RightsStatement == other.RightsStatement;
+}
 
 /// <summary>
 /// Computes the derived access conditions (for Leeds, the Access Tier) a div should carry, from its
