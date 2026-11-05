@@ -13,8 +13,9 @@ namespace Storage.API.Tests.Features.Import;
 /// <summary>
 /// QueueImportJobHandler judges a job before saving or queuing anything:
 /// <list type="bullet">
-/// <item>PreProcessValidateImportJob runs first, so a job that fails it - a rename, among other
-/// things (issue #260) - is refused with 400 without ever touching the store or the queue.</item>
+/// <item>PreProcessValidateImportJob runs first, so a job that fails it - a rename to an empty
+/// name, among other things (issue #347) - is refused with 400 without ever touching the store or
+/// the queue.</item>
 /// <item>A direct caller of the Storage API (the Preservation API always fills CreatedBy itself
 /// first) could queue a job with lastModifiedBy but no createdBy: it passed the queue check, then
 /// ExecuteImportJobHandler dereferenced the null CreatedBy and NullReferenceException'd. And the
@@ -42,7 +43,7 @@ public class QueueImportJobHandlerTests
     }
 
     [Fact]
-    public async Task A_Job_With_A_Rename_Is_Refused_And_Nothing_Is_Saved_Or_Queued()
+    public async Task A_Job_With_A_Rename_To_An_Empty_Name_Is_Refused_And_Nothing_Is_Saved_Or_Queued()
     {
         var job = new ImportJob
         {
@@ -55,7 +56,7 @@ public class QueueImportJobHandlerTests
 
         result.Failure.Should().BeTrue();
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
-        result.ErrorMessage.Should().Contain("Renaming is not supported yet");
+        result.ErrorMessage.Should().Contain("empty name");
         A.CallTo(importJobResultStore).MustNotHaveHappened();
         A.CallTo(importJobQueue).MustNotHaveHappened();
     }
