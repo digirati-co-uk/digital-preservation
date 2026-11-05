@@ -1484,7 +1484,8 @@ public class MetsManager(
         if (mods is null) return ModsUnavailable(div);
 
         mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
-        foreach (var accessRestriction in accessRestrictions)
+        // A blank value is the single-select "(inherit from parent)" choice: write nothing for it.
+        foreach (var accessRestriction in accessRestrictions.Where(r => r.HasText()))
         {
             mods.AddAccessCondition(accessRestriction, Constants.RestrictionOnAccess);
         }
