@@ -647,7 +647,8 @@ function openModsModalForRange(structmapId, rangeId) {
 function readAccessRestrictionsFromForm() {
     const sel = document.getElementById('accessRestrictionsSelect');
     if (!sel) return [];
-    return Array.from(sel.selectedOptions).map(o => o.value);
+    // A single-select's "(inherit from parent)" option has an empty value (issue #433).
+    return Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
 function readAccessCategoryFromForm() {
