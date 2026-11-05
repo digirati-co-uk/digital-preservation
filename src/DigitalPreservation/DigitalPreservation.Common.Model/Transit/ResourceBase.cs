@@ -47,6 +47,28 @@ public abstract class ResourceBase
     [JsonPropertyOrder(12)]
     public bool RightsStatementSuppressed { get; set; }
 
+    /// <summary>
+    /// Every <c>mods:accessCondition</c> on this resource of a type OTHER than <c>restriction on
+    /// access</c> and <c>use and reproduction</c>, keyed by <c>@type</c>, first value per type. On an
+    /// installation with an access condition profile this holds its chosen category (for Leeds the
+    /// copyright status, under the profile's configured type) and its derived conditions (the access
+    /// tier); the profile says which is which. The parser cannot know a configuration's types, so a
+    /// third-party document's other typed conditions appear here too. Derived values are recomputed
+    /// from the chosen ones on every write (issue #433).
+    /// </summary>
+    [JsonPropertyName("otherAccessConditions")]
+    [JsonPropertyOrder(13)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? OtherAccessConditions { get; set; }
+
+    /// <summary>
+    /// <see cref="OtherAccessConditions"/> after inheritance, per type: a type set here overrides
+    /// the ancestor's value for that type and inherits the rest.
+    /// </summary>
+    [JsonPropertyName("effectiveOtherAccessConditions")]
+    [JsonPropertyOrder(14)]
+    public Dictionary<string, string> EffectiveOtherAccessConditions { get; set; } = [];
+
     [JsonPropertyName("recordInfo")]
     [JsonPropertyOrder(15)]
     public RecordInfo? RecordInfo { get; set; }

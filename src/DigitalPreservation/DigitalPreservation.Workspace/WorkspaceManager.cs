@@ -59,10 +59,11 @@ public class WorkspaceManager(
         Uri? rootRightsStatement,
         bool suppressRightsInheritance,
         IEnumerable<RecordIdentifier> recordIdentifiers,
-        List<FileLink>? fileLinks = null)
+        List<FileLink>? fileLinks = null,
+        string? accessCategory = null)
     {
         var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!,
-            rootAccessRestrictions, rootRightsStatement, suppressRightsInheritance, recordIdentifiers, fileLinks));
+            rootAccessRestrictions, rootRightsStatement, suppressRightsInheritance, recordIdentifiers, fileLinks, accessCategory));
         return result;
     }
 

@@ -67,6 +67,38 @@ edge case (step 1): if a file's physical div has a `use and reproduction` elemen
 unrecognised or empty value, the file's own (null) rights are used rather than inheriting —
 the explicit presence of the element is treated as an intentional override.
 
+### Physical files — Other typed access conditions (issue #433)
+
+Every `accessCondition` whose `type` is neither of the two above (nor Goobi's `status`) lands in
+`OtherAccessConditions`, a `type → value` map. On an installation with a two-axis access condition
+profile this holds the chosen category (the Leeds `copyright status`) and the derived conditions
+(the Leeds `tier`); the parser cannot know which types a configuration uses, so a third party's
+other typed conditions (`dz`, `player`...) appear here too.
+
+| Step | Source | Condition |
+|------|--------|-----------|
+| D1 | File's own DMDID, per type | Own value for that type present |
+| D2 | Walk up the physical directory tree, per type | Ancestor has a value for that type |
+| D3 | The file's single whole-file fptr logical range, then its structLink-associated range, per type | The merged physical result lacks that type |
+| D4 | `{}` | No source found |
+
+Inheritance is **per type**, merged, at every step: a file carrying only `tier` still inherits its
+folder's `dz`, and a type the whole physical chain lacks (the chosen category, when only the range
+sets it) comes from the range even when the chain supplies other types. The writer's category axis
+therefore inherits exactly like the restriction, including the logical fallback.
+
+`MetsManager` keeps the explicit and effective derived values consistent with the chosen ones by
+construction, on every write: it rewrites the configured derived types from the *effective* chosen
+inputs (restriction and category) on every div that has an explicit chosen element, **and on every
+file div whose effective inputs come partly from its logical range** (A4a, or D3 for the category,
+supplied an axis the folders were silent on - such a file could not inherit the right value through
+D2). It removes a derived element
+whose source has gone from any dmdSec it minted itself, and leaves a third party's dmdSec alone. D1-D4
+therefore matter for documents written elsewhere, and D3 is never needed for the platform's own. See
+`DerivedAccessConditionsParsingTests` and `DerivedAccessConditionsWriterTests` (whose
+`AssertDerivedInvariant` checks, for every node with an effective input, that what is read back equals
+the lookup of its effective inputs).
+
 ### Physical files — Record Info
 
 | Step | Source | Condition |
