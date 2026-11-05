@@ -71,8 +71,8 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
             {
                 return Result.FailNotNull<ItemsAffected>(
                     writeMetsResult.ErrorCode!,
-                    $"DeleteItems failed after {goodResult.Items.Count} items. Unable to update METS file.");
-                
+                    $"AddItemsToMets failed after {goodResult.Items.Count} items. Unable to write the updated METS file: {writeMetsResult.ErrorMessage}");
+
             }
         }
         return Result.OkNotNull(goodResult);
