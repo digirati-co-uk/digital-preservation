@@ -923,6 +923,9 @@ public class MetsParser(
             var condType = accessConditionEl.Attribute("type")?.Value;
             if (condType is Constants.RestrictionOnAccess or Constants.GoobiStatus)
             {
+                // An empty element is no restriction: read it as absent, so the div inherits. This is
+                // the writer's reading too (ModsManager.GetAccessConditions skips it; issue #433).
+                if (!accessConditionEl.Value.HasText()) continue;
                 accessRestrictions ??= [];
                 accessRestrictions.Add(accessConditionEl.Value);
             }

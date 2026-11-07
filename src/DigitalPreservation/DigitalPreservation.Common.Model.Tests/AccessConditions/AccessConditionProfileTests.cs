@@ -246,6 +246,25 @@ public class AccessConditionProfileTests
         profile.Validate().Should().BeEmpty("the wildcard row covers the gap");
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_value_is_refused_on_every_axis(string blank)
+    {
+        // "" is what the forms post for "(inherit from parent)", so no configured value may be blank.
+        var profile = Leeds();
+        profile.RestrictionAxis.Values.Add(new AccessRestriction { Value = blank, Label = "Blank" });
+        profile.Validate().Should().Contain(e => e.StartsWith("RestrictionAxis.Values contains a blank value"));
+
+        profile = Leeds();
+        profile.CategoryAxis!.Values.Add(new AccessCategory { Value = blank, Label = "Blank" });
+        profile.Validate().Should().Contain(e => e.StartsWith("CategoryAxis.Values contains a blank value"));
+
+        profile = Leeds();
+        profile.Derived[0].Values.Add(new AccessRestriction { Value = blank, Label = "Blank" });
+        profile.Validate().Should().Contain(e => e.StartsWith("Derived 'tier' Values contains a blank value"));
+    }
+
     [Fact]
     public void A_derived_type_may_not_be_a_chosen_type_and_types_are_distinct()
     {

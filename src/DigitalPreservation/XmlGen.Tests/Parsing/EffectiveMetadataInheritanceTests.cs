@@ -466,6 +466,92 @@ public class EffectiveMetadataInheritanceTests : MetsParserTestBase
         file.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("Closed");
     }
 
+    [Theory]
+    [InlineData("""<mods:accessCondition type="restriction on access"/>""")]
+    [InlineData("""<mods:accessCondition type="restriction on access">   </mods:accessCondition>""")]
+    [InlineData("""<mods:accessCondition type="status"/>""")]
+    public void File_with_an_empty_access_restriction_inherits_from_physical_parent(string emptyElement)
+    {
+        // An empty element (written by the access-tiers branch before the "(inherit from parent)"
+        // fix, issue #433) is no restriction. The parser must read it as the writer does - absent -
+        // rather than as a blank restriction that stops inheritance.
+        var xml = $$"""
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">Level1</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_objects/file.wav">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      {{emptyElement}}
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects">
+                <mets:techMD ID="TECH_objects">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics/>
+                        <premis:originalName>objects</premis:originalName>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:amdSec ID="ADM_objects/file.wav">
+                <mets:techMD ID="TECH_objects/file.wav">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_file" MIMETYPE="audio/x-wav">
+                    <mets:FLocat xlink:href="objects/file.wav"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects"
+                          DMDID="DMD_objects" ADMID="ADM_objects">
+                  <mets:div ID="PHYS_objects/file.wav" TYPE="Item"
+                            DMDID="DMD_objects/file.wav">
+                    <mets:fptr FILEID="FILE_file"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/file.wav");
+        file.AccessRestrictions.Should().BeNull("an empty element is no restriction of the file's own");
+        file.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("Level1");
+    }
+
     [Fact]
     public void Directory_EffectiveAccessRestrictions_equals_its_own_direct_value()
     {

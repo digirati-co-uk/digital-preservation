@@ -92,6 +92,7 @@ public class AccessConditionProfile
         // No restriction values at all is allowed (an absent section is a usable, if bare, profile:
         // the dropdown then offers only "inherit"); what is not allowed is an inconsistent one.
         AddDuplicates(errors, RestrictionAxis.Values.Select(v => v.Value), "RestrictionAxis.Values");
+        AddBlanks(errors, RestrictionAxis.Values.Select(v => v.Value), "RestrictionAxis.Values");
         if (RestrictionAxis.Values.Any(v => v.Value is NoneKey or Wildcard))
             errors.Add($"RestrictionAxis.Values may not use the reserved keys '{NoneKey}' or '{Wildcard}'.");
     }
@@ -106,6 +107,7 @@ public class AccessConditionProfile
         if (CategoryAxis.Values.Count == 0)
             errors.Add("CategoryAxis.Values is empty.");
         AddDuplicates(errors, CategoryAxis.Values.Select(v => v.Value), "CategoryAxis.Values");
+        AddBlanks(errors, CategoryAxis.Values.Select(v => v.Value), "CategoryAxis.Values");
         if (CategoryAxis.Values.Any(v => v.Value is NoneKey or Wildcard))
             errors.Add($"CategoryAxis.Values may not use the reserved keys '{NoneKey}' or '{Wildcard}'.");
         foreach (var category in CategoryAxis.Values)
@@ -139,6 +141,7 @@ public class AccessConditionProfile
         if (derived.Values.Count == 0)
             errors.Add($"{name} has no Values.");
         AddDuplicates(errors, derived.Values.Select(v => v.Value), $"{name} Values");
+        AddBlanks(errors, derived.Values.Select(v => v.Value), $"{name} Values");
         var validValues = derived.Values.Select(v => v.Value).ToHashSet(StringComparer.Ordinal);
         if (derived.Matrix.Count == 0)
             errors.Add($"{name} has an empty Matrix.");
@@ -232,6 +235,17 @@ public class AccessConditionProfile
         if (CategoryAxis == null || rightsStatement == null || !RightsStatement.ByUri.TryGetValue(rightsStatement, out var rs))
             return [];
         return CategoryAxis.Values.Where(c => c.RightsStatements.Contains(rs.ShortLabel)).Select(c => c.Value).ToList();
+    }
+
+    /// <summary>
+    /// A blank value is refused on every axis: the forms post "" for "(inherit from parent)", so a
+    /// blank chosen value could not be told apart from inherit, and a blank derived value would be
+    /// written as an empty <c>mods:accessCondition</c>, which reads back as absent (issue #433).
+    /// </summary>
+    private static void AddBlanks(List<string> errors, IEnumerable<string?> values, string what)
+    {
+        if (values.Any(string.IsNullOrWhiteSpace))
+            errors.Add($"{what} contains a blank value; a blank means \"(inherit from parent)\".");
     }
 
     private static void AddDuplicates(List<string> errors, IEnumerable<string> keys, string what)
