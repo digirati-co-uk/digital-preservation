@@ -25,4 +25,10 @@ public sealed class WhoAmIResult
     /// configured, otherwise the API's default working bucket. Callers may interact with it directly.
     /// </summary>
     public required string DepositBucket { get; init; }
+
+    /// <summary>
+    /// Whether deposits in <see cref="DepositBucket"/> may run the pipeline (issue #410). Set by the
+    /// Preservation API, which owns that policy; null where it was not determined.
+    /// </summary>
+    public bool? PipelineAllowed { get; set; }
 }

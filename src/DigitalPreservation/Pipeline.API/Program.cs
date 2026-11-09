@@ -34,6 +34,8 @@ try
 
     builder.Services.Configure<StorageOptions>(
         builder.Configuration.GetSection("StorageOptions"));
+    builder.Services.Configure<PipelineFeatureFlags>(
+        builder.Configuration.GetSection("FeatureFlags"));
 
     builder.Services.Configure<PipelineToolOptions>(
         builder.Configuration.GetSection("PipelineToolOptions"));
@@ -124,6 +126,8 @@ try
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
 
     builder.Services.AddStorageAwsAccess(builder.Configuration);
+    // The mount for the default working bucket, a scratch copy for a caller's own bucket (issue #410).
+    builder.Services.AddSingleton<IDepositFileSource, DepositFileSource>();
     builder.Services.AddDepositWorkspace(builder.Configuration);
 
     var app = builder.Build();
