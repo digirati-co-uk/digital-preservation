@@ -36,7 +36,7 @@ public class ExecuteImportJobCancellationTests(DatabaseFixture fixture)
         Preservation = "https://preservation.test"
     }));
 
-    private async Task<DepositEntity> SeedDeposit(Preservation.API.Data.PreservationContext context)
+    private static async Task<DepositEntity> SeedDeposit(Preservation.API.Data.PreservationContext context)
     {
         var deposit = new DepositEntity
         {

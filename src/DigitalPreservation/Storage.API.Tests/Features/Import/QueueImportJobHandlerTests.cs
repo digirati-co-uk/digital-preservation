@@ -101,7 +101,7 @@ public class QueueImportJobHandlerTests
             "a missing attribution field is a malformed request, not a credential problem");
     }
 
-    private (IImportJobResultStore Store, IImportJobQueue Queue, QueueImportJobHandler Handler) Accepting()
+    private static (IImportJobResultStore Store, IImportJobQueue Queue, QueueImportJobHandler Handler) Accepting()
     {
         var store = A.Fake<IImportJobResultStore>();
         A.CallTo(() => store.GetActiveJobsForArchivalGroup(ArchivalGroup, A<CancellationToken>._))
