@@ -123,17 +123,19 @@ public class DepositFileSource(
         // A copy left by a job that crashed before its clean-up ran is stale, never reused.
         DeleteIfPresent(target);
         Directory.CreateDirectory(target);
-        logger.LogInformation("Copying {Count} objects ({Bytes} bytes) of deposit {DepositSlug} from {Bucket} to {Target}",
-            objects.Count, totalBytes, depositSlug, bucket, target);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Copying {Count} objects ({Bytes} bytes) of deposit {DepositSlug} from {Bucket} to {Target}",
+                objects.Count, totalBytes, depositSlug, bucket, target);
+        }
         try
         {
-            foreach (var s3Object in objects)
+            foreach (var (objectKey, relative) in objects.Select(o => (o.Key, o.Key[prefix.Length..])))
             {
-                var relative = s3Object.Key[prefix.Length..];
                 var destination = Path.Combine(target, relative.Replace('/', Path.DirectorySeparatorChar));
                 if (!PathX.IsUnderRoot(target, destination))
                 {
-                    throw new InvalidOperationException($"Object key {s3Object.Key} would be copied outside {target}.");
+                    throw new InvalidOperationException($"Object key {objectKey} would be copied outside {target}.");
                 }
                 if (relative.Length == 0 || relative.EndsWith('/'))
                 {
@@ -141,11 +143,13 @@ public class DepositFileSource(
                     continue;
                 }
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                // ChecksumMode makes the SDK verify the object's stored checksum as it reads.
+                // ChecksumMode makes the SDK verify the object's additional checksum as it reads, where
+                // the object was uploaded with one; an object uploaded without one is copied unchecked.
+                // Brunnhilde's SHA-256, compared later against the METS, still catches corruption.
                 using var response = await s3Client.GetObjectAsync(new GetObjectRequest
                 {
                     BucketName = bucket,
-                    Key = s3Object.Key,
+                    Key = objectKey,
                     ChecksumMode = ChecksumMode.ENABLED
                 }, cancellationToken);
                 await using var file = File.Create(destination);
@@ -203,7 +207,10 @@ public class DepositFileSource(
             if (Directory.Exists(path))
             {
                 Directory.Delete(path, true);
-                logger.LogInformation("Deleted scratch copy {Path}", path);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Deleted scratch copy {Path}", path);
+                }
             }
         }
         catch (Exception e)

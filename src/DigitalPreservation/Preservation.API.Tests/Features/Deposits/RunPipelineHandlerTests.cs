@@ -31,7 +31,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     private const string GoobiBucket = "leeds-goobi-deposits";
 
     // An eTheses-class caller whose deposits may run the pipeline, and a Goobi-class one whose may not (issue #410).
-    private static IClientDirectory Clients() => new ClientDirectory(new Dictionary<string, ClientProfile>
+    private static ClientDirectory Clients() => new(new Dictionary<string, ClientProfile>
     {
         ["33333333-3333-3333-3333-333333333333"] = new() { Name = "etheses", DepositBucket = EthesesBucket, AllowPipeline = true },
         ["22222222-2222-2222-2222-222222222222"] = new() { Name = "goobi", DepositBucket = GoobiBucket }
