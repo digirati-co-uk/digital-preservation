@@ -21,4 +21,13 @@ public interface IClientDirectory
     /// export destination without a separate allow-list (issue #288).
     /// </summary>
     IReadOnlyCollection<string> DepositBuckets { get; }
+
+    /// <summary>
+    /// Whether deposits in <paramref name="bucket"/>, a caller's <see cref="ClientProfile.DepositBucket"/>,
+    /// may run the pipeline (issue #410): true only when at least one known client routes to it and
+    /// every client that does has <see cref="ClientProfile.AllowPipeline"/>, so a bucket shared with a
+    /// caller that should stay excluded is never opened by another. False for a bucket no client
+    /// routes to - including the default working bucket, which the caller checks separately.
+    /// </summary>
+    bool IsPipelineAllowedForDepositBucket(string? bucket);
 }

@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
+using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Features.Pipeline.Requests;
 using Preservation.Client;
 using Xunit;
@@ -40,10 +41,10 @@ public class ExecutePipelineJobDotsDepositIdTests
 
     private ProcessPipelineJobHandler CreateHandler() =>
         new(NullLogger<ProcessPipelineJobHandler>.Instance,
-            Options.Create(new StorageOptions()),
             Options.Create(new PipelineToolOptions()),
             new WorkspaceManagerFactory(A.Fake<IMediator>(), A.Fake<IMetsParser>()),
-            preservationApiClient);
+            preservationApiClient,
+            A.Fake<IDepositFileSource>());
 
     [Fact]
     public async Task A_Dots_Only_DepositId_Is_Refused_Because_No_Such_Deposit_Is_Ever_Found()
