@@ -46,7 +46,22 @@ public class DepositFileSource(
                 $"Deposit {depositSlug} has no S3 location for its files.");
         }
 
-        if (s3Uri.Bucket == awsStorageOptions.Value.DefaultWorkingBucket)
+        var defaultBucket = awsStorageOptions.Value.DefaultWorkingBucket;
+        if (string.IsNullOrEmpty(defaultBucket))
+        {
+            // Without AwsStorage:DefaultWorkingBucket there is no telling which deposits the mount
+            // serves, so read every deposit through it, as before #410. Copying from caller buckets
+            // needs the setting.
+            if (featureFlags.Value.AllowPipelineForCallerBuckets)
+            {
+                logger.LogWarning(
+                    "AllowPipelineForCallerBuckets is on but AwsStorage:DefaultWorkingBucket is not set; reading deposit {DepositSlug} from the mount",
+                    depositSlug);
+            }
+            return Mounted(depositSlug);
+        }
+
+        if (s3Uri.Bucket == defaultBucket)
         {
             return Mounted(depositSlug);
         }

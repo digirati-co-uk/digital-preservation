@@ -41,7 +41,8 @@ public sealed class DepositFileSourceTests : IDisposable
             Directory.Delete(root, true);
     }
 
-    private DepositFileSource Source(bool allowCallerBuckets = true, long maxBytes = 1024 * 1024, string? scratch = "<default>") =>
+    private DepositFileSource Source(bool allowCallerBuckets = true, long maxBytes = 1024 * 1024, string? scratch = "<default>",
+        string? defaultBucket = DefaultBucket) =>
         new(NullLogger<DepositFileSource>.Instance,
             s3,
             Options.Create(new StorageOptions
@@ -50,7 +51,7 @@ public sealed class DepositFileSourceTests : IDisposable
                 ScratchCopyPath = scratch == "<default>" ? scratchPath : scratch,
                 ScratchCopyMaxBytes = maxBytes
             }),
-            Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket }),
+            Options.Create(new AwsStorageOptions { DefaultWorkingBucket = defaultBucket! }),
             Options.Create(new PipelineToolOptions { DirectorySeparator = Path.DirectorySeparatorChar.ToString() }),
             Options.Create(new PipelineFeatureFlags { AllowPipelineForCallerBuckets = allowCallerBuckets }));
 
@@ -77,6 +78,21 @@ public sealed class DepositFileSourceTests : IDisposable
         result.Success.Should().BeTrue(result.ErrorMessage);
         result.Value!.Path.Should().Be(mountPath + Path.DirectorySeparatorChar + "dep-1");
         result.Value.ScratchCopy.Should().BeNull("nothing was copied, so there is nothing to delete");
+        A.CallTo(s3).MustNotHaveHappened();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Without_A_Configured_Default_Bucket_Every_Deposit_Is_Read_From_The_Mount_As_Before(bool allowCallerBuckets)
+    {
+        // The Pipeline API has never needed AwsStorage:DefaultWorkingBucket; a deployment without
+        // it must keep running the pipeline from the mount, not refuse every deposit.
+        var result = await Source(allowCallerBuckets, defaultBucket: null)
+            .PrepareAsync(new Uri($"s3://{DefaultBucket}/deposits/dep-1/"), "dep-1", TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeTrue(result.ErrorMessage);
+        result.Value!.Path.Should().Be(mountPath + Path.DirectorySeparatorChar + "dep-1");
         A.CallTo(s3).MustNotHaveHappened();
     }
 
