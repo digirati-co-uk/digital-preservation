@@ -9,7 +9,7 @@ and [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (the PO
 
 ## Ladder status
 
-**As of 2026-09-22 (the v1.3.0 cut).** The configuration *is* the authority — this table is a
+**As of 2026-11-09**, checked against the live ECS task definitions and ECR images that day. The configuration *is* the authority — this table is a
 reader's index to it, not a substitute: verify with the secret `jq` check and `terraform plan`
 before acting, and **update this table as rungs are climbed**. "Committed" means merged to
 `preservation-ops` `main`; "applied" means `terraform apply` has actually run against the
@@ -19,10 +19,11 @@ environment (there is no apply pipeline — it is a manual, local step).
 |---|---|---|---|
 | Phase 0 Entra admin (role, scope, `idtyp`) | **done 2026-09-23** (steps 1.1-1.5 completed by the Leeds administrator; `Assignment required` was already `Yes` and was deliberately left untouched per the admin doc; the §1.5 existing-assignments list was reported - four named human users plus the iiif-builder-dev and Playwright service accounts - and stays in place as the start of the Phase 3 user list) | **not yet requested** | **not yet requested** |
 | Rung 1: four audience keys in the `preservation-api` `oauth_azure` secret | in place, verified 2026-09-21 | in place, verified 2026-09-22 | in place, verified 2026-09-22 |
-| Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed (ops PR #75); **not yet applied** | committed (ops PR #76); **not yet applied** |
-| Rung 3: `KnownClients` (Goobi, Phase 1) | not started | not started | not started |
+| Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed 2026-09-22 (ops PR #75) **and applied**: both APIs' live task definitions carry all four entries | committed 2026-09-22 (ops PR #76) **and applied**: likewise |
+| Rung 3: `KnownClients` (Goobi, Phase 1) | **prepared, not climbed.** The Goobi deposit bucket and intranda's scoped IAM user are in place (ops PR #78, 2026-10-01). The `KnownClients` entries are committed but commented out in **both** API task definitions (ops PR #79), waiting for the Goobi registration's app ID; no live task definition has a `KnownClients` entry. The registration was requested with [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md) (PR #337) and is **not created yet**: Leeds have internal procedural hurdles to clear first (2026-11-09) | not started: needs its own Goobi bucket and IAM first | not started: likewise |
 | Rung 4: `TokenProvider__ResourceUri` repoints | not started | not started | not started |
-| Deployed build | `main` (auto-deploys) | `v1.2.1` | `V1.0.1` (2025-10-24); `v1.3.0` is the cut for the next deploy |
+| Phase 4 flags (`RequireKnownCaller`, `RequireCallerRole`) | not built yet: PR #438 (issue #293), off by default once merged | likewise | likewise |
+| Deployed build | `main` (auto-deploys) | `v1.3.2` (its image was pushed by the `v1.3.2` build on 2026-10-14) | `v1.3.4` (its image was pushed by the `v1.3.4` build on 2026-10-27). Every build from `v1.3.0` on is the complete dual-mode build, so rungs 1-4 need no further release |
 
 Three facts a newcomer cannot otherwise infer. First: **audit enterprise-app assignment lists
 by UPN, never by display name** - the portal's Users-and-groups blade shows display names, its
