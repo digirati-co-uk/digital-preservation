@@ -255,10 +255,19 @@ against `V1.0.1`'s binding as well as `v1.2.1`'s (both pin Microsoft.Identity.We
 identical `AddMicrosoftIdentityWebApi` call).
 
 **Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
-enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
-off by default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293); the
-flag-gated code is PR #438, not yet merged, and is needed only before the first environment
-enforces). That is the
+enforcing `Preservation.Call`-role-or-delegated-scope — are **configuration flags, off by default**
+([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293)):
+`FeatureFlags__RequireKnownCaller` and `FeatureFlags__RequireCallerRole`, read by both the
+Preservation API and the Storage API. They are independent, and each is turned on per environment,
+on both APIs, only when `/whoami` shows its precondition for **every** caller, people through the UI
+and the e2e suite's machine caller included:
+- `RequireKnownCaller`: every machine caller shows `source: token`. Turning it on refuses (403) any
+  machine whose signed `azp`/`appid` isn't in `KnownClients`, and stops reading `X-Client-Identity`
+  for identity.
+- `RequireCallerRole`: every caller shows `hasCallerPermission: true` (the `Preservation.Call` app role,
+  or the `access_as_user` delegated scope). Turning it on refuses (403) a token carrying neither.
+
+Turning a flag off again restores the previous behaviour at once, with no deploy. That is the
 standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
 flags on and one that has not started the ladder, so no future release can strand production behind
 the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after
