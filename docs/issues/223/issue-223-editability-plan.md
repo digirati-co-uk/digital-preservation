@@ -2,6 +2,9 @@
 
 **Status:** agreed direction, 2026-08-21. Classification and mutate-on-save confirmed by Tom;
 awaiting Leeds' agreement on the parts marked for them below.
+**Progress (10 November 2026):** Phases 1 and 2 are written, and Phase 3's judges are built but
+still in draft PR #238. Phase 4 has not started: its first gate is met, its second is not. See
+the status block at the start of Phase 4.
 **Issue:** [#223 — Decide METS editability by conformance to a profile, not by the mets:agent name](https://github.com/digirati-co-uk/digital-preservation/issues/223)
 **Builds on:** the measured conformance data in #223's comments (harness: #227, `SurveyMetsCorpus`),
 the #188 ID migration (step 3 merged to `main` 2026-08-21 via PR #232), and the shape documentation
@@ -205,6 +208,30 @@ conversation is had.
 
 *(Rewritten 2026-08-21, after Phases 1–3 delivered and the prerequisites they surfaced.)*
 
+**Status at 10 November 2026:**
+
+- **Gate 1 is met.** #232's migration has run in both environments, and #188 closed on
+  2026-10-29.
+  - Dev: migrated on 2026-09-03 (2,402 groups). The 27 that failed are dev test residue: 12 hit
+    bugs since fixed (#243, #245) and 15 hit #246. Dev will be wiped rather than tidied.
+  - Production: all 168 candidates migrated on 2026-10-29 and 2026-11-02, and every one verified
+    as conforming.
+  - New items are healthy: the production survey on 2026-10-29 found that all 1,302 groups
+    preserved since the 2026-10-27 release already conform.
+- **Gate 2 is not met.** RFC 008 is on the docs repo's `main`, still marked "for agreement".
+- **Prerequisites:**
+  - #236 closed on 2026-10-15, and #237 on 2026-10-27.
+  - P5 is in #254, which is open.
+  - M10 has no issue of its own. #254 asks whether #434's parser changes already cover it.
+  - P6, P7 and P8 are in #253, which is open.
+- **Order:** #434 (access conditions derived from a profile) rewrites the same `MetsManager` and
+  `MetsParser` code as P5, P6 and M10, so those wait for it. #434 is parked until the Leeds access
+  tier workshop on 2026-11-11. P7 and P8 can be done now.
+- **The judge** is still draft PR #238, so wiring step 2 below has nothing to use until it merges.
+- **eTheses (#455)** depends on this phase only if the eTheses script writes its own METS. If the
+  platform writes it, today's rule already allows editing. That choice is on the 2026-11-11
+  workshop agenda.
+
 **Gates — all must hold before any Phase 4 behaviour ships:**
 
 1. #232 bedded in on dev **and** prod; the dev (2,430) and prod (139) migration campaigns run;
@@ -214,18 +241,20 @@ conversation is had.
 **Prerequisite fixes** — parser/platform work the wiring depends on. These can merge earlier and
 independently; each was found by measuring the judge against the real machinery:
 
-- **#236** — `MetsParser` reads any `premis:storage` regardless of `storageMedium`, and throws on
+- **#236** (closed 2026-10-15) — `MetsParser` reads any `premis:storage` regardless of `storageMedium`, and throws on
   two. An edited-then-exported EPrints item contains exactly two, so this crashes the parser the
   moment editing is enabled.
-- **#237** — EPrints record identifiers (including the `id.library.leeds.ac.uk` PID) sit in the
+- **#237** (closed 2026-10-27) — EPrints record identifiers (including the `id.library.leeds.ac.uk` PID) sit in the
   METS namespace and are invisible to the parser.
 - **Audit M10** — the parser reads only the *first-resolving* dmdSec of a div's DMDID. The
   agreed foreign-dmdSec rule (edit = append a platform dmdSec ID to the IDREFS) depends on
   effective-metadata resolution reading every resolved section.
 - **Audit P5** — `MetsManager` overwrites a shared dmdSec in place. The judge refuses such
   documents meanwhile (`SHARED_DMDSEC`), but the platform-side guard should exist regardless.
+  Tracked in #254.
 - Recommended in the same tranche: the audit's degrade-don't-crash items (P6, P7, P8) — the
-  judge guards P7 and aligns with P6, but the parser hardening stands on its own.
+  judge guards P7 and aligns with P6, but the parser hardening stands on its own. Tracked in
+  #253.
 
 **The wiring, in order:**
 
