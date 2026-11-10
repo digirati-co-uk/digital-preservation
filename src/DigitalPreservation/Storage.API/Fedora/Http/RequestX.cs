@@ -130,9 +130,16 @@ public static class RequestX
     /// <summary>
     /// Replaces the resource's dc:title with <paramref name="title"/> - a rename (issue #347). Every
     /// existing title is deleted, not just one, so a resource that accumulated several (Archival
-    /// Groups did before #347) ends up with exactly one. The OPTIONAL lets the INSERT still happen
-    /// when the resource has no title yet. For a Binary, send this to its fcr:metadata.
+    /// Groups did before #347) ends up with exactly one, and a resource with none gets this one.
+    /// For a Binary, send this to its fcr:metadata.
     /// </summary>
+    /// <remarks>
+    /// Two operations, DELETE WHERE then INSERT DATA, not one DELETE/INSERT ... WHERE: Fedora 6.5.1
+    /// accepted that single form with WHERE { OPTIONAL { &lt;&gt; dc:title ?title } } but applied only
+    /// the INSERT, so the old title stayed beside the new one. Without the OPTIONAL it deleted, but
+    /// then a resource with no title matched nothing and got no new title either. This form does
+    /// all three cases, inside a transaction too (ReplaceTitleAgainstFedoraTests).
+    /// </remarks>
     public static HttpRequestMessage AsReplaceTitlePatch(this HttpRequestMessage requestMessage, string title, string callerIdentity)
     {
         var escapedTitle = title.EscapeForLiteralRdf(true);
@@ -140,14 +147,13 @@ public static class RequestX
         var sparql = $$"""
                        PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
                        PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
-                       DELETE {
+                       DELETE WHERE {
                         <> dc:title ?title .
-                       }
-                       INSERT {
+                       } ;
+                       INSERT DATA {
                         <> dc:title "{{escapedTitle}}" .
                         <> fedora:lastModifiedBy "{{escapedCallerIdentity}}" .
                        }
-                       WHERE { OPTIONAL { <> dc:title ?title } }
                        """;
 
         requestMessage.Content = new StringContent(sparql)
