@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Core.Configuration;
+using FakeItEasy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -47,12 +49,20 @@ public class PipelinePolicyTests
         var controller = new WhoAmIController(
             Clients,
             Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket }),
-            Options.Create(new PipelineDeliveryFlags { AllowPipelineForCallerBuckets = allowCallerBuckets }))
+            Options.Create(new PipelineDeliveryFlags { AllowPipelineForCallerBuckets = allowCallerBuckets }),
+            FeatureFlags())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } }
         };
         var ok = controller.Get(header: null).Should().BeOfType<OkObjectResult>().Subject;
         return ok.Value.Should().BeOfType<WhoAmIResult>().Subject;
+    }
+
+    private static IOptionsMonitor<FeatureFlagOptions> FeatureFlags()
+    {
+        var monitor = A.Fake<IOptionsMonitor<FeatureFlagOptions>>();
+        A.CallTo(() => monitor.CurrentValue).Returns(new FeatureFlagOptions());
+        return monitor;
     }
 
     private static ClaimsPrincipal Machine(string appId) =>

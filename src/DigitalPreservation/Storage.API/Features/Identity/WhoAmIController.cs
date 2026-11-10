@@ -1,4 +1,5 @@
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Core.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Storage.Repository.Common;
@@ -12,13 +13,17 @@ namespace Storage.API.Features.Identity;
 /// </summary>
 [ApiController]
 [Route("whoami")]
-public class WhoAmIController(IClientDirectory clients, IOptions<AwsStorageOptions> storageOptions) : ControllerBase
+public class WhoAmIController(
+    IClientDirectory clients,
+    IOptions<AwsStorageOptions> storageOptions,
+    IOptionsMonitor<FeatureFlagOptions> featureFlags) : ControllerBase
 {
     [HttpGet(Name = "WhoAmI")]
     [ProducesResponseType(typeof(WhoAmIResult), 200)]
     public IActionResult Get([FromHeader(Name = AuthFilterIdentifier.MachineHeaderName)] string? header)
     {
-        var result = CallerResolver.Resolve(User, header, clients, storageOptions.Value.DefaultWorkingBucket);
+        var result = CallerResolver.Resolve(User, header, clients, storageOptions.Value.DefaultWorkingBucket,
+            featureFlags.CurrentValue.RequireKnownCaller);
         return Ok(result);
     }
 }
