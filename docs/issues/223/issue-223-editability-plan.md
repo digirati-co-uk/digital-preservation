@@ -8,7 +8,8 @@ the status block at the start of Phase 4.
 **Issue:** [#223 — Decide METS editability by conformance to a profile, not by the mets:agent name](https://github.com/digirati-co-uk/digital-preservation/issues/223)
 **Builds on:** the measured conformance data in #223's comments (harness: #227, `SurveyMetsCorpus`),
 the #188 ID migration (step 3 merged to `main` 2026-08-21 via PR #232), and the shape documentation
-in [digital-preservation-docs `mets-profiles`](https://github.com/digirati-co-uk/digital-preservation-docs/tree/mets-profiles/documentation).
+in the docs repo, written on its `mets-profiles` branch (since merged and deleted) and now the
+[METS pages of the docs site](https://digirati-co-uk.github.io/digital-preservation-docs/mets/overview/).
 
 ## Why now
 
@@ -168,7 +169,7 @@ via the #227 harness on the .NET side and equivalent fixtures on the Python side
 
 ## Phases
 
-### Phase 1 — finish the shape documentation (docs repo, `mets-profiles` branch)
+### Phase 1 — finish the shape documentation (docs repo, `mets-profiles` branch, since merged)
 
 - Reconcile `02a-Shape-of-METS.md` with the newer 02b/02c (02a predates them; decide supersede vs
   merge).
