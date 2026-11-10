@@ -1,5 +1,9 @@
 # RFC-0001 Phase 1 — Entra admin instructions: the Goobi registration (dev)
 
+**Done for dev, 2026-11-10:** `Library-Preservation-Goobi-Dev`, Application (client) ID
+`33e27ba5-b5d6-4453-9223-0cc5b591688e`. It also exposes an Application ID URI; a calling app
+doesn't need one, but it does no harm.
+
 **For:** an administrator with rights to create app registrations in the Leeds Entra tenant —
 the Part 3 "we will come back to you" follow-up promised in
 [`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md), whose Part 1 you have
