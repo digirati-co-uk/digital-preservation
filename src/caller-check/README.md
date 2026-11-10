@@ -14,8 +14,10 @@ python check_caller.py --deposit --export library/some-real-ag   # + E: the pull
 
 Stage A's failure messages decode the common `AADSTS` errors into which admin-doc step was
 missed (consent not granted, wrong secret value, wrong tenant). Stage C deliberately sends no
-`X-Client-Identity`: it shows what the platform resolves from the signed token alone — the
-fallback before the `KnownClients` config is applied, the caller's profile name after. Stages D
+`X-Client-Identity`: it shows what the platform resolves from the signed token alone. Once the
+caller's `KnownClients` entry is applied, that's the caller's profile name. Before then, the API
+accepts the token but refuses the call (401, "No valid user name or machine header"), and C reports
+that as a missing `KnownClients` entry, not a token problem. Stages D
 and E create only deposits, and delete them; E's Archival Group is read, never written.
 
 The script refuses any `PRESERVATION_API` that isn't a dev host (`-dev.` in the hostname) or
