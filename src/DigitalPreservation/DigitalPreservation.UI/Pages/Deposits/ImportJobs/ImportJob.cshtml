@@ -144,7 +144,7 @@ ViewData["section"] = "deposits";
                     <dt class="col-sm-3">Deposit</dt>
                     <dd class="col-sm-9" data-testid="deposit"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
                     <dt class="col-sm-3">Archival Group</dt>
-                    <dd class="col-sm-9" data-testid="archival group"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
+                    <dd class="col-sm-9" data-testid="archival group"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot(true)</a></dd>
 
                     <dt class="col-sm-3">Date Begun</dt>
                     <dd class="col-sm-9" data-testid="date begun">@jobResult.DateBegun.GetDateDisplay()</dd>
@@ -172,7 +172,7 @@ ViewData["section"] = "deposits";
                         <ul class="list-unstyled" aria-label="containers added">
                             @foreach (var container in jobResult.ContainersAdded)
                             {
-                                <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
@@ -181,7 +181,7 @@ ViewData["section"] = "deposits";
                         <ul class="list-unstyled" aria-label="binaries added">
                             @foreach (var binary in jobResult.BinariesAdded)
                             {
-                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
@@ -190,7 +190,7 @@ ViewData["section"] = "deposits";
                         <ul aria-label="binaries patched">
                             @foreach (var binary in jobResult.BinariesPatched)
                             {
-                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
@@ -199,7 +199,7 @@ ViewData["section"] = "deposits";
                         <ul aria-label="containers deleted">
                             @foreach (var container in jobResult.ContainersDeleted)
                             {
-                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()</li>
+                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot(true)</li>
                             }
                         </ul>
                     </dd>
@@ -208,7 +208,7 @@ ViewData["section"] = "deposits";
                         <ul aria-label="binaries deleted">
                             @foreach (var binary in jobResult.BinariesDeleted)
                             {
-                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()</li>
+                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)</li>
                             }
                         </ul>
                     </dd>
@@ -217,7 +217,7 @@ ViewData["section"] = "deposits";
                         <ul aria-label="containers renamed">
                             @foreach (var container in jobResult.ContainersRenamed)
                             {
-                            <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                            <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
@@ -226,7 +226,7 @@ ViewData["section"] = "deposits";
                         <ul aria-label="binaries renamed">
                             @foreach (var binary in jobResult.BinariesRenamed)
                             {
-                            <li> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                            <li> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
