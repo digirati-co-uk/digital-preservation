@@ -360,7 +360,8 @@ resolved it:
   "source": "token",                  // user | token | header-fallback | unknown
   "appId": "2222…",                   // signed azp/appid, when present
   "depositBucket": "leeds-goobi-deposits", // profile bucket, else the API's default working bucket
-  "pipelineAllowed": false            // Preservation API only: may this caller's deposits run the pipeline (#410)
+  "pipelineAllowed": false,           // Preservation API only: may this caller's deposits run the pipeline (#410)
+  "hasCallerPermission": true         // holds the Preservation.Call role or the access_as_user scope (RequireCallerRole's precondition)
 }
 ```
 
