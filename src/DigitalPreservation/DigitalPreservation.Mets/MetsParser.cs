@@ -433,7 +433,7 @@ public class MetsParser(
         // to rely on the AMD premis:originalName as the local path.
         foreach (var div in parent.Elements(XNames.MetsDiv))
         {
-            var (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet) = GetDmdForDiv(div, lookupMaps);
+            var (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet, otherAccessConditions) = GetDmdForDiv(div, lookupMaps);
 
             var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
             var label = div.Attribute("LABEL")?.Value;
@@ -486,6 +486,7 @@ public class MetsParser(
                                 workingDirectory.AccessRestrictions = accessRestrictions;
                                 workingDirectory.RightsStatement = rightsStatement;
                                 workingDirectory.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
+                                workingDirectory.OtherAccessConditions = otherAccessConditions;
                                 workingDirectory.RecordInfo = recordInfo;
                             }
                         }
@@ -503,6 +504,8 @@ public class MetsParser(
                         mets.PhysicalStructure!.RightsStatement ??= rightsStatement;
                     if (recordInfo != null)
                         mets.PhysicalStructure!.RecordInfo ??= recordInfo;
+                    if (otherAccessConditions != null)
+                        mets.PhysicalStructure!.OtherAccessConditions ??= otherAccessConditions;
                 }
             }
             else if (type == null && !div.Elements(XNames.MetsFptr).Any())
@@ -522,6 +525,8 @@ public class MetsParser(
                     mets.PhysicalStructure!.RightsStatement ??= rightsStatement;
                 if (recordInfo != null)
                     mets.PhysicalStructure!.RecordInfo ??= recordInfo;
+                if (otherAccessConditions != null)
+                    mets.PhysicalStructure!.OtherAccessConditions ??= otherAccessConditions;
             }
 
             // type may be Directory, we need to match them up to file paths
@@ -806,6 +811,7 @@ public class MetsParser(
                 file.RightsStatement = rightsStatement;
                 // An explicit-but-empty rights element (present, no valid URI) suppresses inheritance.
                 file.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
+                file.OtherAccessConditions = otherAccessConditions;
                 file.RecordInfo = recordInfo;
 
                 mets.Files.Add(file);
@@ -880,25 +886,46 @@ public class MetsParser(
     }
 
 
-    private static (List<string>?, Uri?, RecordInfo?, bool) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    /// <summary>
+    /// What a div's MODS says about access and identity, gathered sparsely from optional elements.
+    /// </summary>
+    /// <param name="OtherAccessConditions">
+    /// Every <c>mods:accessCondition</c> of a type other than the restriction, Goobi status and
+    /// rights types, keyed by type (first value wins). This is where the platform's configured
+    /// derived conditions - the Leeds access tier (issue #433) - are found; the parser does not
+    /// know which types a configuration derives, so it reports them all.
+    /// </param>
+    private readonly record struct DmdInfo(
+        List<string>? AccessRestrictions,
+        Uri? RightsStatement,
+        RecordInfo? RecordInfo,
+        bool RightsExplicitlySet,
+        Dictionary<string, string>? OtherAccessConditions)
     {
-        // data gathered sparsely from optional MODS
-        // We assume that the DMD is always linked from the mets:Div, never from a file
+        public static readonly DmdInfo Empty = new(null, null, null, false, null);
+    }
+
+    /// <summary>
+    /// The access conditions in one dmdSec: the restriction values (the platform's own type and
+    /// Goobi's <c>status</c>), the rights statement with whether it was explicitly addressed at all,
+    /// and every other typed condition (see <see cref="DmdInfo.OtherAccessConditions"/>).
+    /// </summary>
+    private static (List<string>? Restrictions, Uri? Rights, bool RightsExplicitlySet, Dictionary<string, string>? Other)
+        ReadAccessConditions(XElement dmd)
+    {
         List<string>? accessRestrictions = null;
         Uri? rightsStatement = null;
-        RecordInfo? recordInfo = null;
         bool rightsExplicitlySet = false;
-
-        var dmdId = div.Attribute("DMDID")?.Value;
-        if (!dmdId.HasText()) return (null, null, null, false);
-        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
-        if (dmd == null) return (null, null, null, false);
+        Dictionary<string, string>? otherAccessConditions = null;
 
         foreach (var accessConditionEl in dmd.Descendants(XNames.ModsAccessCondition))
         {
             var condType = accessConditionEl.Attribute("type")?.Value;
-            if (condType is Constants.RestrictionOnAccess or "status") // "status" is Goobi access cond
+            if (condType is Constants.RestrictionOnAccess or Constants.GoobiStatus)
             {
+                // An empty element is no restriction: read it as absent, so the div inherits. This is
+                // the writer's reading too (ModsManager.GetAccessConditions skips it; issue #433).
+                if (!accessConditionEl.Value.HasText()) continue;
                 accessRestrictions ??= [];
                 accessRestrictions.Add(accessConditionEl.Value);
             }
@@ -910,7 +937,27 @@ public class MetsParser(
                 rightsExplicitlySet = true;
                 Uri.TryCreate(accessConditionEl.Value, UriKind.Absolute, out rightsStatement);
             }
+            else if (condType.HasText())
+            {
+                otherAccessConditions ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                otherAccessConditions.TryAdd(condType, accessConditionEl.Value);
+            }
         }
+        return (accessRestrictions, rightsStatement, rightsExplicitlySet, otherAccessConditions);
+    }
+
+    private static DmdInfo GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    {
+        // data gathered sparsely from optional MODS
+        // We assume that the DMD is always linked from the mets:Div, never from a file
+        RecordInfo? recordInfo = null;
+
+        var dmdId = div.Attribute("DMDID")?.Value;
+        if (!dmdId.HasText()) return DmdInfo.Empty;
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        if (dmd == null) return DmdInfo.Empty;
+
+        var (accessRestrictions, rightsStatement, rightsExplicitlySet, otherAccessConditions) = ReadAccessConditions(dmd);
 
         foreach (var recordIdentifierEl in dmd.Descendants(XNames.ModsRecordIdentifier))
         {
@@ -948,7 +995,7 @@ public class MetsParser(
             }
         }
 
-        return (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet);
+        return new DmdInfo(accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet, otherAccessConditions);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1167,7 +1214,7 @@ public class MetsParser(
         var label = div.Attribute("LABEL")?.Value;
         var name = GetNameFromDmd(div, lookupMaps) ?? label;
 
-        var (accessRestrictions, rightsStatement, recordInfo, _) = GetDmdForDiv(div, lookupMaps);
+        var (accessRestrictions, rightsStatement, recordInfo, _, otherAccessConditions) = GetDmdForDiv(div, lookupMaps);
 
         var range = new LogicalRange
         {
@@ -1176,7 +1223,8 @@ public class MetsParser(
             Name = name,
             AccessRestrictions = accessRestrictions,
             RightsStatement = rightsStatement,
-            RecordInfo = recordInfo
+            RecordInfo = recordInfo,
+            OtherAccessConditions = otherAccessConditions
         };
 
         foreach (var fptr in div.Elements(XNames.MetsFptr))
@@ -1371,6 +1419,98 @@ public class MetsParser(
             ComputeEffectiveForDirectory(dir, rootAccess, rootRights, rootRecordInfo,
                 fileToWholeFileRanges, fileToAssociatedRange);
         }
+
+        ComputeEffectiveDerived(mets, fileToWholeFileRanges, fileToAssociatedRange);
+    }
+
+    /// <summary>
+    /// Inheritance for the other typed access conditions (<see cref="ResourceBase.OtherAccessConditions"/>,
+    /// issue #433), as a separate pass over the same trees. Per TYPE: a value set on a node
+    /// overrides the ancestor's value for that type and the rest are inherited; a file whose
+    /// physical chain is silent falls back to its logical range the same way access does.
+    /// </summary>
+    private static void ComputeEffectiveDerived(
+        MetsFileWrapper mets,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
+    {
+        var physRoot = mets.PhysicalStructure!;
+        var rootDerived = MergeDerived(new Dictionary<string, string>(StringComparer.Ordinal), physRoot.OtherAccessConditions);
+        physRoot.EffectiveOtherAccessConditions = rootDerived;
+
+        foreach (var range in mets.LogicalStructures)
+        {
+            ComputeEffectiveDerivedForLogicalRange(range, rootDerived);
+        }
+        foreach (var file in physRoot.Files)
+        {
+            SetFileEffectiveDerived(file, rootDerived, fileToWholeFileRanges, fileToAssociatedRange);
+        }
+        foreach (var dir in physRoot.Directories)
+        {
+            ComputeEffectiveDerivedForDirectory(dir, rootDerived, fileToWholeFileRanges, fileToAssociatedRange);
+        }
+    }
+
+    private static void ComputeEffectiveDerivedForDirectory(
+        WorkingDirectory dir,
+        Dictionary<string, string> parentDerived,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
+    {
+        var effective = MergeDerived(parentDerived, dir.OtherAccessConditions);
+        dir.EffectiveOtherAccessConditions = effective;
+        foreach (var file in dir.Files)
+        {
+            SetFileEffectiveDerived(file, effective, fileToWholeFileRanges, fileToAssociatedRange);
+        }
+        foreach (var subDir in dir.Directories)
+        {
+            ComputeEffectiveDerivedForDirectory(subDir, effective, fileToWholeFileRanges, fileToAssociatedRange);
+        }
+    }
+
+    private static void SetFileEffectiveDerived(
+        WorkingFile file,
+        Dictionary<string, string> parentDerived,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
+    {
+        // Per TYPE: own → physical parent → exactly-one whole-file fptr range → smLink-associated
+        // range. A type the physical chain lacks (the chosen category when only the range sets it,
+        // review of #434) comes from the range even when the chain supplies other types.
+        var effective = MergeDerived(parentDerived, file.OtherAccessConditions);
+        if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRanges) && wholeRanges.Count == 1)
+        {
+            foreach (var (type, value) in wholeRanges[0].EffectiveOtherAccessConditions) effective.TryAdd(type, value);
+        }
+        if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assoc))
+        {
+            foreach (var (type, value) in assoc.EffectiveOtherAccessConditions) effective.TryAdd(type, value);
+        }
+        file.EffectiveOtherAccessConditions = effective;
+    }
+
+    private static void ComputeEffectiveDerivedForLogicalRange(LogicalRange range, Dictionary<string, string> parentDerived)
+    {
+        range.EffectiveOtherAccessConditions = MergeDerived(parentDerived, range.OtherAccessConditions);
+        foreach (var child in range.Ranges)
+        {
+            ComputeEffectiveDerivedForLogicalRange(child, range.EffectiveOtherAccessConditions);
+        }
+    }
+
+    private static Dictionary<string, string> MergeDerived(Dictionary<string, string> parent, Dictionary<string, string>? own)
+    {
+        var merged = new Dictionary<string, string>(parent, StringComparer.Ordinal);
+        if (own != null)
+        {
+            foreach (var (type, value) in own)
+            {
+                merged[type] = value;
+            }
+        }
+        return merged;
     }
 
     private static void ComputeEffectiveForDirectory(

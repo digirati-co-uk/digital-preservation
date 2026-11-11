@@ -10,16 +10,221 @@ function populateModsModalFromAttributes(launcher){
 
     document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
 
+    const other = parseJsonOrEmpty(launcher.dataset.other);
     applyAccessRestrictions(accessConditionList);
+    applyAccessCategory(categoryAxis() ? other[categoryAxis().type] : null);
     applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
+    derivedPreviewContext = {
+        ownAccess: accessConditionList ? accessConditionList.split(',') : [],
+        effAccess: launcher.dataset.effAccess ?? '',
+        effRights: launcher.dataset.effRights ?? '',
+        ownRights: rightsStatement ?? '',
+        ownRightsSuppressed: rightsSuppressed,
+        ownOther: other,
+        effOther: parseJsonOrEmpty(launcher.dataset.effOther)
+    };
+    updateDerivedPreview();
 }
+
+// ---- The chosen category and the derived conditions (issue #433) -------------------------------
+// The profile (const accessConditionProfile, from the Preservation API) may have a third chosen
+// axis - for Leeds the copyright status - and conditions that are never chosen but computed from
+// restriction x category: for Leeds, the Access Tier. The server writes the real derived value
+// from the node's EFFECTIVE inputs on save; this preview mirrors that lookup so the archivist sees
+// the consequence of a choice before saving. Where an input would be inherited and the parent's
+// value cannot be known here, the preview says so instead of guessing.
+
+let derivedPreviewContext = null;
+
+// The profile's key for "no value": no effective restriction or category. Mirrors
+// AccessConditionProfile.NoneKey.
+const noneKey = '__none__';
+
+function parseJsonOrEmpty(text) {
+    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+}
+
+function selectedRestrictions() {
+    const select = document.getElementById("accessRestrictionsSelect");
+    if (!select) return null;
+    return Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+function categoryAxis() {
+    return accessConditionProfile?.categoryAxis ?? null;
+}
+
+// Select the node's own category, or "(inherit from parent)" when it has none.
+function applyAccessCategory(category) {
+    const select = document.getElementById("accessCategorySelect");
+    if (!select) return;
+    select.selectedIndex = -1;
+    if (!category) {
+        selectOptionByValue(select, "");
+    } else {
+        if (!Array.from(select.options).some(o => o.value === category)) {
+            const option = document.createElement("option");
+            option.value = category;
+            option.text = category;
+            select.appendChild(option);
+        }
+        selectOptionByValue(select, category);
+    }
+    arrangeRightsOptions();
+}
+
+// With a category chosen, the rights statements the profile permits under it come first, under a
+// heading; everything else stays available below. Nothing is enforced.
+function arrangeRightsOptions() {
+    const rightsSelect = document.getElementById("rightsStatementSelect");
+    const axis = categoryAxis();
+    if (!rightsSelect || !axis) return;
+    const chosenCategory = document.getElementById("accessCategorySelect")?.value || null;
+    const category = axis.values.find(v => v.value === chosenCategory);
+    const permitted = new Set(category?.rightsStatements ?? []);
+    const current = rightsSelect.value;
+
+    const special = Array.from(rightsSelect.options).filter(o => o.value === '' || o.value === rightsDoNotInheritSentinel);
+    const statements = Array.from(rightsSelect.querySelectorAll('option'))
+        .filter(o => !special.includes(o))
+        .sort((a, b) => a.dataset.order - b.dataset.order);
+    rightsSelect.replaceChildren(...special);
+    if (permitted.size === 0) {
+        rightsSelect.append(...statements);
+    } else {
+        const first = document.createElement("optgroup");
+        first.label = `For ${category.label}`;
+        first.append(...statements.filter(o => permitted.has(o.dataset.shortLabel)));
+        const rest = document.createElement("optgroup");
+        rest.label = "Other rights statements";
+        rest.append(...statements.filter(o => !permitted.has(o.dataset.shortLabel)));
+        rightsSelect.append(first, rest);
+    }
+    selectOptionByValue(rightsSelect, current);
+    updateRightsCategoryWarning();
+}
+
+// Say so when the chosen statement is not one the profile lists for the chosen category - an
+// In Copyright statement under a public-domain status, say. It can still be saved: the lists are
+// advisory, and the effective pair on save may differ anyway where either value is inherited.
+function updateRightsCategoryWarning() {
+    const warning = document.getElementById("rightsCategoryMismatch");
+    const axis = categoryAxis();
+    if (!warning || !axis) return;
+    const chosenCategory = document.getElementById("accessCategorySelect")?.value || null;
+    const category = axis.values.find(v => v.value === chosenCategory);
+    const option = document.getElementById("rightsStatementSelect")?.selectedOptions[0];
+    const shortLabel = option?.dataset.shortLabel;
+    const mismatch = category && (category.rightsStatements ?? []).length > 0 && shortLabel
+        && !category.rightsStatements.includes(shortLabel);
+    warning.textContent = mismatch
+        ? `${shortLabel} is not one of the statements listed for ${category.label}. It can still be saved.`
+        : "";
+    warning.hidden = !mismatch;
+}
+
+// A statement permitted under exactly one category preselects that category, when the node has no
+// category of its own yet.
+function preselectCategoryForRights() {
+    const axis = categoryAxis();
+    const categorySelect = document.getElementById("accessCategorySelect");
+    const rightsSelect = document.getElementById("rightsStatementSelect");
+    if (!axis || !categorySelect || !rightsSelect || categorySelect.value) return;
+    const shortLabel = rightsSelect.selectedOptions[0]?.dataset.shortLabel;
+    if (!shortLabel) return;
+    const permitting = axis.values.filter(v => v.rightsStatements.includes(shortLabel));
+    if (permitting.length === 1) {
+        selectOptionByValue(categorySelect, permitting[0].value);
+        arrangeRightsOptions();
+    }
+}
+
+function lookupDerived(derived, row, column) {
+    const cells = derived.matrix[row] ?? derived.matrix['*'];
+    if (!cells) return null;
+    if (column && cells[column] !== undefined) return cells[column];
+    return cells['*'] ?? null;
+}
+
+// The matrix row(s) for the preview: the chosen restriction(s), else what the node currently
+// inherits. If the node's own value has just been cleared, what it will inherit is not known here.
+function derivedPreviewRows(ctx) {
+    const chosen = selectedRestrictions() ?? [];
+    const ownValueCleared = chosen.length === 0 && (ctx.ownAccess ?? []).length > 0;
+    let rows = chosen;
+    if (rows.length === 0 && ctx.effAccess) rows = ctx.effAccess.split(',');
+    if (rows.length === 0) rows = [noneKey];
+    return { rows, known: !ownValueCleared };
+}
+
+// The matrix column for the preview: the chosen category, else what the node currently inherits,
+// unless the node's own category has just been cleared, in which case the parent's is not known here.
+function derivedPreviewColumn(ctx) {
+    const axis = categoryAxis();
+    const chosen = document.getElementById("accessCategorySelect")?.value || null;
+    if (chosen) return { column: chosen, known: true };
+    const own = axis ? ctx.ownOther?.[axis.type] : null;
+    if (own) return { column: undefined, known: false };
+    const inherited = axis ? ctx.effOther?.[axis.type] : null;
+    return { column: inherited ?? noneKey, known: true };
+}
+
+// The value latest in the derived condition's values order (least to most restrictive) over the rows.
+function bestDerivedValue(derived, rows, column) {
+    let best = null, bestRank = -1;
+    for (const row of rows) {
+        const value = lookupDerived(derived, row, column);
+        if (value === null) continue;
+        const rank = derived.values.findIndex(v => v.value === value);
+        if (rank > bestRank) { best = value; bestRank = rank; }
+    }
+    return best;
+}
+
+// Labels come from configuration, which is trusted, but there is no reason to parse them as HTML.
+function setDerivedPreview(target, tag, text) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    target.replaceChildren(el);
+}
+
+function updateDerivedPreview() {
+    const section = document.getElementById("derivedAccessConditionsSection");
+    if (!section || !accessConditionProfile?.derived?.length) return;
+    const ctx = derivedPreviewContext ?? {};
+    const { rows, known: rowsKnown } = derivedPreviewRows(ctx);
+    const { column, known: columnKnown } = derivedPreviewColumn(ctx);
+
+    for (const derived of accessConditionProfile.derived) {
+        const target = section.querySelector(`.derived-access-condition[data-derived-type="${derived.type}"]`);
+        if (!target) continue;
+        if (!rowsKnown || !columnKnown) {
+            setDerivedPreview(target, "em", "(inherits; determined on save)");
+            continue;
+        }
+        const best = bestDerivedValue(derived, rows, column);
+        if (best === null) {
+            setDerivedPreview(target, "em", "(no value for this combination)");
+        } else {
+            setDerivedPreview(target, "strong", `${derived.values.find(v => v.value === best)?.label ?? best} (computed)`);
+        }
+    }
+}
+
+document.getElementById("accessRestrictionsSelect")?.addEventListener('change', updateDerivedPreview);
+document.getElementById("accessCategorySelect")?.addEventListener('change', () => { arrangeRightsOptions(); updateDerivedPreview(); });
+document.getElementById("rightsStatementSelect")?.addEventListener('change', () => { preselectCategoryForRights(); updateRightsCategoryWarning(); updateDerivedPreview(); });
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
     if(accessRestrictionsSelect){
         accessRestrictionsSelect.selectedIndex = -1;
+        if(accessConditionList.length === 0 && !accessRestrictionsSelect.multiple){
+            // Single-select (issue #433): no explicit value is the "(inherit from parent)" option.
+            selectOptionByValue(accessRestrictionsSelect, "");
+        }
         if(accessConditionList.length > 0){
             const accessConditions = new Set(accessConditionList.split(","));
             const existingValues = new Set(Array.from(accessRestrictionsSelect.options).map(o => o.value));
@@ -59,7 +264,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
         if(rightsSuppressed){
-            // Explicit "no rights — do not inherit": select the sentinel option.
+            // Explicit "not chosen — do not inherit": select the sentinel option.
             selectOptionByValue(rightsStatementSelect, rightsDoNotInheritSentinel);
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
@@ -78,7 +283,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
         }
     } else if (nonEditableRightsStatement){
         if(rightsSuppressed){
-            nonEditableRightsStatement.innerHTML = "<ul><li><em>no rights (not inherited)</em></li></ul>";
+            nonEditableRightsStatement.innerHTML = "<ul><li><em>not chosen (not inherited)</em></li></ul>";
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
             const rsUri = rsEntry ? rsEntry.value : rightsStatement;

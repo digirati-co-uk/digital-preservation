@@ -14,7 +14,8 @@ public class SetModsInformation(
     Uri? rightsStatement,
     bool suppressRightsInheritance,
     IEnumerable<RecordIdentifier> recordIdentifiers,
-    List<FileLink>? fileLinks = null) : IRequest<Result>
+    List<FileLink>? fileLinks = null,
+    string? accessCategory = null) : IRequest<Result>
 {
     public Uri DepositFiles { get; } = depositFiles;
 
@@ -28,6 +29,13 @@ public class SetModsInformation(
     /// is applied directly — a null value clears the explicit rights and lets the parent's rights flow through.
     /// </summary>
     public bool SuppressRightsInheritance { get; } = suppressRightsInheritance;
+
+    /// <summary>
+    /// The chosen category on an installation whose access condition profile has a category axis
+    /// (for Leeds, the copyright status); null clears the node's own value so it inherits. Ignored
+    /// when null on an installation without one, refused otherwise (issue #433).
+    /// </summary>
+    public string? AccessCategory { get; } = accessCategory;
 
     public RecordInfo RecordInfo { get; } = new(){ RecordIdentifiers = recordIdentifiers.ToList() };
     public string DepositETag { get; } = depositETag;
@@ -43,6 +51,10 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
         {
             var fullMets = metsResult.Value;
             var setResult = metsManager.SetAccessRestrictionsByPath(fullMets, request.LocalPath, request.AccessRestrictions);
+            if (setResult.Failure) return setResult;
+
+            var categoryType = await metsManager.GetAccessCategoryTypeAsync();
+            setResult = metsManager.SetAccessCategoryByPath(fullMets, request.LocalPath, categoryType, request.AccessCategory);
             if (setResult.Failure) return setResult;
 
             setResult = request.SuppressRightsInheritance

@@ -294,6 +294,18 @@ function buildMetadataSummaryText(range) {
         const label = getRightsShortLabel(range.rightsStatement);
         if (label) parts.push(label);
     }
+    // The chosen category and the derived conditions (issue #433), the latter as last saved; the
+    // server recomputes them when the structMap is saved.
+    const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
+    const axis = profile?.categoryAxis;
+    const category = axis ? range.otherAccessConditions?.[axis.type] : undefined;
+    if (category !== undefined)
+        parts.push(axis.values.find(v => v.value === category)?.label ?? category);
+    for (const derived of profile?.derived ?? []) {
+        const value = range.otherAccessConditions?.[derived.type];
+        if (value !== undefined)
+            parts.push(derived.values.find(v => v.value === value)?.label ?? value);
+    }
     if (range.recordInfo?.recordIdentifiers?.length > 0) {
         const ri = range.recordInfo.recordIdentifiers;
         parts.push(ri.length === 1 ? `${ri[0].value} (${ri[0].source})` : `${ri.length} IDs`);
@@ -438,11 +450,18 @@ function removeFileFromRange(structmapId, rangeId, fp) {
     renderLogicalStructMap(structmapId);
 }
 
-function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers) {
+function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers, accessCategory) {
     const root = logicalStructMapState[structmapId];
     const range = findRange(root, rangeId);
     if (!range) return;
     range.accessRestrictions = accessRestrictions.length > 0 ? accessRestrictions : null;
+    // The chosen category rides in otherAccessConditions under the profile's type (issue #433).
+    const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.categoryAxis : null;
+    if (axis) {
+        const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => type !== axis.type);
+        if (accessCategory) kept.push([axis.type, accessCategory]);
+        range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
+    }
     range.rightsStatement = rightsStatementUri || null;
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }
@@ -568,8 +587,9 @@ function wireModsModalIntercept() {
         const accessRestrictions = readAccessRestrictionsFromForm();
         const rightsStatementUri = readRightsStatementUriFromForm();
         const recordIdentifiers = readRecordIdentifiersFromForm();
+        const accessCategory = readAccessCategoryFromForm();
 
-        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers);
+        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers, accessCategory);
         hideModsModal(modsModal);
     }, { capture: true });
 }
@@ -605,7 +625,11 @@ function openModsModalForRange(structmapId, rangeId) {
     const range = root ? findRange(root, rangeId) : null;
     const launcher = document.createElement('span');
     launcher.dataset.access = (range?.accessRestrictions ?? []).join(',');
+    launcher.dataset.effAccess = (range?.effectiveAccessRestrictions ?? []).join(',');
     launcher.dataset.rights = getRightsShortLabel(range?.rightsStatement) ?? '';
+    launcher.dataset.effRights = getRightsShortLabel(range?.effectiveRightsStatement) ?? '';
+    launcher.dataset.other = JSON.stringify(range?.otherAccessConditions ?? {});
+    launcher.dataset.effOther = JSON.stringify(range?.effectiveOtherAccessConditions ?? {});
     launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
     launcher.dataset.toolOutput = '';
 
@@ -623,7 +647,13 @@ function openModsModalForRange(structmapId, rangeId) {
 function readAccessRestrictionsFromForm() {
     const sel = document.getElementById('accessRestrictionsSelect');
     if (!sel) return [];
-    return Array.from(sel.selectedOptions).map(o => o.value);
+    // A single-select's "(inherit from parent)" option has an empty value (issue #433).
+    return Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+function readAccessCategoryFromForm() {
+    const sel = document.getElementById('accessCategorySelect');
+    return sel?.value || null;
 }
 
 function readRightsStatementUriFromForm() {

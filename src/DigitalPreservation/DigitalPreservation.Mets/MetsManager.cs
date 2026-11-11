@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Mets.AccessConditions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,8 @@ public class MetsManager(
     IMetsStorage metsStorage,
     MetadataManager metadataManager,
     IOptions<MetsManagerOptions>? options = null,
-    ILogger<MetsManager>? logger = null) : IMetsManager
+    ILogger<MetsManager>? logger = null,
+    IDerivedAccessConditionResolver? derivedAccessConditionResolver = null) : IMetsManager
 {
     private bool NormaliseOnWrite => options?.Value.NormaliseMetsIdsOnWrite ?? false;
 
@@ -68,6 +70,22 @@ public class MetsManager(
     /// </remarks>
     public async Task<Result> WriteMets(FullMets fullMets)
     {
+        // Every write recomputes the derived access conditions for the whole document first (issue
+        // #433), so a change to an ancestor's chosen values can never leave a stale derived value on
+        // a descendant. A no-op where nothing is configured to be derived - but a provider that
+        // EXPECTS a profile and cannot get one fails the write, since writing without recomputing
+        // would leave the old derived values beside the new chosen ones.
+        try
+        {
+            await ApplyDerivedAccessConditions(fullMets);
+        }
+        catch (AccessConditionProfileUnavailableException e)
+        {
+            logger?.LogError(e, "Refusing to write {MetsUri}: the access condition profile is unavailable, so its derived access conditions cannot be recomputed", fullMets.Uri);
+            return Result.Fail(ErrorCodes.UpstreamUnavailable,
+                "The access condition profile could not be fetched, so the METS file was not written: " + e.Message);
+        }
+
         if (NormaliseOnWrite)
         {
             var normalisation = NormaliseIds(fullMets);
@@ -1051,6 +1069,310 @@ public class MetsManager(
         Result.Fail(ErrorCodes.BadRequest,
             $"The descriptive metadata for div '{div.Id}' could not be read or created as MODS.");
 
+    /// <summary>
+    /// Rewrite the derived access conditions (issue #433) across the whole document from each div's
+    /// EFFECTIVE chosen conditions - restriction, category and rights statement - so that what is
+    /// written agrees with what the parser reads back for every node. The writer OWNS the managed
+    /// types (for Leeds, <c>tier</c>) on:
+    /// <list type="bullet">
+    /// <item>every div that carries a chosen element of its own: the value for its effective inputs
+    /// is written;</item>
+    /// <item>every FILE div whose effective inputs come partly from its logical range - the parser
+    /// falls back to the range for whichever axis the physical tree is silent on, so such a file
+    /// cannot inherit the right value from its folder and is given its own;</item>
+    /// <item>every div whose dmdSec the platform itself minted: a managed type left there by an
+    /// earlier write, now without inputs, is removed so the div inherits like everything else.</item>
+    /// </list>
+    /// A div with a THIRD PARTY's dmdSec and no chosen inputs is left exactly as found - a Goobi
+    /// export carrying only its resulting tier keeps it - as is every non-managed typed condition
+    /// everywhere. Called from <see cref="WriteMets"/>; a no-op without a resolver or with nothing
+    /// derived.
+    /// </summary>
+    /// <returns>The IDs of the divs whose MODS changed.</returns>
+    public async Task<List<string>> ApplyDerivedAccessConditions(FullMets fullMets)
+    {
+        var changed = new List<string>();
+        if (derivedAccessConditionResolver == null) return changed;
+        var managed = await derivedAccessConditionResolver.GetManagedTypesAsync();
+        if (managed.Count == 0) return changed;
+        var categoryType = await derivedAccessConditionResolver.GetCategoryTypeAsync();
+
+        var pass = new DerivedPass(fullMets, managed, categoryType, changed, PathsByDiv(fullMets));
+
+        // Logical ranges inherit from the physical root (MetsParser.ComputeEffectiveMetadata) and
+        // files fall back to their range, so: directories first, then ranges, then files.
+        var rootInputs = EffectiveAccessInputs.None;
+        var fileDivs = new List<(DivType Div, EffectiveAccessInputs Parent)>();
+        var physRoot = fullMets.Mets.StructMap.FirstOrDefault(sm => sm.Type == Constants.Physical)?.Div;
+        if (physRoot != null)
+        {
+            rootInputs = await ApplyDerivedToDirectoryTree(pass, physRoot, rootInputs, fileDivs);
+        }
+        var logicalInputs = new Dictionary<DivType, EffectiveAccessInputs>(ReferenceEqualityComparer.Instance);
+        foreach (var logical in fullMets.Mets.StructMap.Where(sm => sm.Type == Constants.Logical && sm.Div != null))
+        {
+            await ApplyDerivedToLogicalTree(pass, logical.Div, rootInputs, logicalInputs);
+        }
+        var wholeFileRanges = WholeFileRangesByFileId(logicalInputs.Keys);
+        foreach (var (div, parent) in fileDivs)
+        {
+            await ApplyDerivedToFileDiv(pass, div, parent, wholeFileRanges, logicalInputs);
+        }
+
+        if (changed.Count > 0 && logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            logger.LogInformation("Derived access conditions rewritten on {Count} div(s) in {MetsUri}",
+                changed.Count, fullMets.Uri);
+        }
+        return changed;
+    }
+
+    /// <summary>The <c>@type</c> of the installation's chosen category axis, or null without one.</summary>
+    public Task<string?> GetAccessCategoryTypeAsync() =>
+        derivedAccessConditionResolver?.GetCategoryTypeAsync() ?? Task.FromResult<string?>(null);
+
+    /// <summary>Everything one derived pass needs, so that the helpers stay small.</summary>
+    private sealed record DerivedPass(
+        FullMets Mets,
+        IReadOnlyCollection<string> Managed,
+        string? CategoryType,
+        List<string> Changed,
+        Dictionary<DivType, string> PathByDiv);
+
+    /// <summary>The chosen elements a div carries itself.</summary>
+    private sealed record ChosenInputs(List<string> Restrictions, string? Category, bool RightsPresent, Uri? Rights)
+    {
+        public static readonly ChosenInputs Nothing = new([], null, false, null);
+
+        public bool Any => Restrictions.Count > 0 || Category != null || RightsPresent;
+
+        /// <summary>The div's effective inputs: its own where set, else its parent's.</summary>
+        public EffectiveAccessInputs ApplyTo(EffectiveAccessInputs parent) => new(
+            Restrictions.Count > 0 ? Restrictions : parent.Restrictions,
+            Category ?? parent.Category,
+            RightsPresent ? Rights : parent.RightsStatement);
+    }
+
+    private static ChosenInputs ReadChosenInputs(DerivedPass pass, XmlGen.Mods.V3.ModsDefinition mods)
+    {
+        // Only the platform's own chosen elements are inputs. A Goobi "status" element, which the
+        // parser DISPLAYS as a restriction, is not: the writer never derives from a div it did not
+        // itself set access metadata on.
+        var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
+        var category = pass.CategoryType == null ? null : mods.GetAccessConditions(pass.CategoryType).FirstOrDefault();
+        var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
+        Uri? rights = null;
+        if (rightsElements.Count > 0)
+        {
+            // Present but not a URI is the "explicitly none" sentinel: effective rights null, and
+            // inheritance stops here - the same reading as the parser's.
+            Uri.TryCreate(rightsElements[0], UriKind.Absolute, out rights);
+        }
+        return new ChosenInputs(restrictions, category, rightsElements.Count > 0, rights);
+    }
+
+    private async Task<EffectiveAccessInputs> ApplyDerivedToDirectoryTree(
+        DerivedPass pass, DivType div, EffectiveAccessInputs parent, List<(DivType Div, EffectiveAccessInputs Parent)> fileDivs)
+    {
+        if (div.Fptr.Count > 0)
+        {
+            // A file: handled last, once the logical ranges it may fall back to are known.
+            fileDivs.Add((div, parent));
+            return parent;
+        }
+        var effective = await ApplyDerivedToDiv(pass, div, parent);
+        foreach (var child in div.Div)
+        {
+            await ApplyDerivedToDirectoryTree(pass, child, effective, fileDivs);
+        }
+        return effective;
+    }
+
+    private async Task ApplyDerivedToLogicalTree(
+        DerivedPass pass, DivType div, EffectiveAccessInputs parent, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
+    {
+        var effective = await ApplyDerivedToDiv(pass, div, parent);
+        logicalInputs[div] = effective;
+        foreach (var child in div.Div)
+        {
+            await ApplyDerivedToLogicalTree(pass, child, effective, logicalInputs);
+        }
+    }
+
+    /// <summary>A directory or logical div: its managed types follow its own chosen inputs.</summary>
+    private async Task<EffectiveAccessInputs> ApplyDerivedToDiv(DerivedPass pass, DivType div, EffectiveAccessInputs parent)
+    {
+        var mods = ModsManager.GetModsForDiv(pass.Mets.Mets, div);
+        if (mods == null) return parent;
+        var chosen = ReadChosenInputs(pass, mods);
+        var effective = chosen.ApplyTo(parent);
+        await RewriteManaged(pass, div, mods, chosen.Any ? effective : null);
+        return effective;
+    }
+
+    /// <summary>
+    /// A file div: for an axis the physical tree is silent on, its effective input comes from its
+    /// single whole-file logical range (MetsParser.SetFileEffective), in which case it is given
+    /// its own managed types even without chosen inputs, since it cannot inherit the right value.
+    /// </summary>
+    private async Task ApplyDerivedToFileDiv(
+        DerivedPass pass, DivType div, EffectiveAccessInputs parent,
+        Dictionary<string, List<DivType>> wholeFileRanges, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
+    {
+        var mods = ModsManager.GetModsForDiv(pass.Mets.Mets, div);
+        var chosen = mods == null ? ChosenInputs.Nothing : ReadChosenInputs(pass, mods);
+        var physical = chosen.ApplyTo(parent);
+        var effective = WithLogicalFallback(physical, chosen, div, wholeFileRanges, logicalInputs);
+
+        if (chosen.Any || !effective.SameAs(physical))
+        {
+            mods ??= ModsManager.GetModsForDiv(pass.Mets.Mets, div, createDmd: true, pass.PathByDiv.GetValueOrDefault(div));
+            if (mods == null) return;
+            await RewriteManaged(pass, div, mods, effective);
+        }
+        else if (mods != null)
+        {
+            await RewriteManaged(pass, div, mods, null);
+        }
+    }
+
+    private static EffectiveAccessInputs WithLogicalFallback(
+        EffectiveAccessInputs physical, ChosenInputs chosen, DivType div,
+        Dictionary<string, List<DivType>> wholeFileRanges, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
+    {
+        var fileId = div.Fptr[0].Fileid;
+        if (fileId == null || !wholeFileRanges.TryGetValue(fileId, out var ranges) || ranges.Count != 1)
+        {
+            return physical;
+        }
+        var range = logicalInputs[ranges[0]];
+        // Restriction and category: the physical tree (own, then ancestors) wins whenever it says
+        // anything at all.
+        var restrictions = physical.Restrictions.Count > 0 ? physical.Restrictions : range.Restrictions;
+        var category = physical.Category ?? range.Category;
+        // Rights: the file's own element (including the "none" sentinel) wins; else the nearest
+        // ancestor with a rights statement; else the range's.
+        var rights = chosen.RightsPresent ? physical.RightsStatement : physical.RightsStatement ?? range.RightsStatement;
+        return new EffectiveAccessInputs(restrictions, category, rights);
+    }
+
+    /// <summary>FILEID -> the logical divs that paint the whole file (an fptr with no area).</summary>
+    private static Dictionary<string, List<DivType>> WholeFileRangesByFileId(IEnumerable<DivType> logicalDivs)
+    {
+        var map = new Dictionary<string, List<DivType>>(StringComparer.Ordinal);
+        foreach (var div in logicalDivs)
+        {
+            foreach (var fileId in div.Fptr.Where(f => f.Area == null && f.Fileid != null).Select(f => f.Fileid).Distinct())
+            {
+                if (!map.TryGetValue(fileId, out var list))
+                {
+                    map[fileId] = list = [];
+                }
+                if (!list.Contains(div)) list.Add(div);
+            }
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// Writes the managed types for <paramref name="inputs"/>; or, when that is null because the
+    /// div has no inputs of its own, removes them if the platform minted this div's dmdSec and
+    /// otherwise leaves the div as found.
+    /// </summary>
+    private async Task RewriteManaged(DerivedPass pass, DivType div, XmlGen.Mods.V3.ModsDefinition mods, EffectiveAccessInputs? inputs)
+    {
+        if (inputs == null && !IsPlatformMintedDmd(pass, div)) return;
+
+        var before = ManagedSnapshot(mods, pass.Managed);
+        foreach (var type in pass.Managed)
+        {
+            mods.RemoveAccessConditions(type);
+        }
+        if (inputs != null)
+        {
+            var derived = await derivedAccessConditionResolver!.ResolveAsync(inputs);
+            foreach (var type in pass.Managed)
+            {
+                if (derived.TryGetValue(type, out var value)) mods.AddAccessCondition(value, type);
+            }
+        }
+        if (!ManagedSnapshot(mods, pass.Managed).SequenceEqual(before))
+        {
+            ModsManager.SetModsForDiv(pass.Mets.Mets, div, mods);
+            pass.Changed.Add(div.Id ?? string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Whether this div's dmdSec is one the platform minted - <see cref="MetsIds.Dmd"/> of its
+    /// path, <see cref="MetsIds.DmdFromDivId"/> of a logical div's ID, the root's, or an anonymous
+    /// one. The writer owns the managed types in those and only those: a third party's dmdSec is
+    /// never stripped of a value it arrived with.
+    /// </summary>
+    private static bool IsPlatformMintedDmd(DerivedPass pass, DivType div)
+    {
+        var dmdId = IdRefs.ResolveSingle(div.Dmdid, id => pass.Mets.Mets.DmdSec.FirstOrDefault(x => x.Id == id))?.Id;
+        if (dmdId == null) return false;
+        if (dmdId == Constants.DmdPhysRoot || dmdId.StartsWith(Constants.DmdIdPrefix + "ANON_", StringComparison.Ordinal))
+        {
+            return true;
+        }
+        if (pass.PathByDiv.TryGetValue(div, out var path))
+        {
+            return dmdId == MetsIds.Dmd(path);
+        }
+        return div.Id.HasText() && dmdId == MetsIds.DmdFromDivId(div.Id);
+    }
+
+    private static Dictionary<DivType, string> PathsByDiv(FullMets fullMets)
+    {
+        EnsureCache(fullMets);
+        var map = new Dictionary<DivType, string>(ReferenceEqualityComparer.Instance);
+        foreach (var (path, div) in fullMets.PhysicalDivsByPath)
+        {
+            map[div] = path;
+        }
+        return map;
+    }
+
+    // ---- The chosen category (issue #433 review): a third chosen element, written under the
+    // ---- profile's configured type and inherited like the restriction. ------------------------
+
+    /// <summary>
+    /// Set, or with null clear, the node's chosen category (<c>mods:accessCondition type="{categoryType}"</c>).
+    /// <paramref name="categoryType"/> comes from <see cref="GetAccessCategoryTypeAsync"/>; with none
+    /// configured a non-null value is refused and null is a no-op.
+    /// </summary>
+    public Result SetAccessCategoryByPath(FullMets mets, string localPath, string? categoryType, string? category)
+    {
+        if (categoryType == null)
+        {
+            return category == null
+                ? Result.Ok()
+                : Result.Fail(ErrorCodes.BadRequest, "This installation has no access category axis configured.");
+        }
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
+        return SetAccessCategoryForDiv(mets, div, categoryType, category, MetsCache.NormalisePathKey(localPath));
+    }
+
+    private static Result SetAccessCategoryForDiv(FullMets mets, DivType div, string categoryType, string? category, string? localPath)
+    {
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true, localPath);
+        if (mods is null) return ModsUnavailable(div);
+        mods.RemoveAccessConditions(categoryType);
+        if (category.HasText())
+        {
+            mods.AddAccessCondition(category, categoryType);
+        }
+        ModsManager.SetModsForDiv(mets.Mets, div, mods);
+        return Result.Ok();
+    }
+
+    private static List<string> ManagedSnapshot(XmlGen.Mods.V3.ModsDefinition mods, IReadOnlyCollection<string> managed) =>
+        managed.Select(type => type + "=" + string.Join("|", mods.GetAccessConditions(type))).ToList();
+
     public Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
@@ -1162,7 +1484,8 @@ public class MetsManager(
         if (mods is null) return ModsUnavailable(div);
 
         mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
-        foreach (var accessRestriction in accessRestrictions)
+        // A blank value is the single-select "(inherit from parent)" choice: write nothing for it.
+        foreach (var accessRestriction in accessRestrictions.Where(r => r.HasText()))
         {
             mods.AddAccessCondition(accessRestriction, Constants.RestrictionOnAccess);
         }
@@ -1170,7 +1493,7 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    public Result SetStructMap(FullMets mets, LogicalRange logSm)
+    public Result SetStructMap(FullMets mets, LogicalRange logSm, string? categoryType = null)
     {
         // Logical div IDs are the client's, not ours: they are written into the METS verbatim
         // and the client round-trips them, so an invalid one is REJECTED rather than encoded -
@@ -1201,7 +1524,7 @@ public class MetsManager(
         mets.Mets.StructMap.Add(new StructMapType
         {
             Type = Constants.Logical,
-            Div = BuildLogicalDiv(mets, logSm)
+            Div = BuildLogicalDiv(mets, logSm, categoryType)
         });
         return Result.Ok();
     }
@@ -1279,7 +1602,7 @@ public class MetsManager(
         }
     }
 
-    private static DivType BuildLogicalDiv(FullMets mets, LogicalRange range)
+    private static DivType BuildLogicalDiv(FullMets mets, LogicalRange range, string? categoryType)
     {
         var div = new DivType
         {
@@ -1292,8 +1615,9 @@ public class MetsManager(
             Label = range.Name
         };
 
+        var category = categoryType == null ? null : range.OtherAccessConditions?.GetValueOrDefault(categoryType);
         bool needsMods = range.Name != null || range.RecordInfo != null
-            || range.AccessRestrictions is { Count: > 0 } || range.RightsStatement != null;
+            || range.AccessRestrictions is { Count: > 0 } || range.RightsStatement != null || category != null;
         if (needsMods)
         {
             var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true)!;
@@ -1311,11 +1635,16 @@ public class MetsManager(
         if (range.RightsStatement != null)
             SetRightsStatementForDiv(mets, div, range.RightsStatement, null);
 
+        // The chosen category (issue #433) travels in OtherAccessConditions under the profile's type;
+        // any other entry there is derived or third-party and is not written from the client's copy.
+        if (category != null)
+            SetAccessCategoryForDiv(mets, div, categoryType!, category, null);
+
         foreach (var fp in range.Files)
             div.Fptr.Add(BuildFptr(mets.Mets, fp));
 
         foreach (var child in range.Ranges)
-            div.Div.Add(BuildLogicalDiv(mets, child));
+            div.Div.Add(BuildLogicalDiv(mets, child, categoryType));
 
         return div;
     }
