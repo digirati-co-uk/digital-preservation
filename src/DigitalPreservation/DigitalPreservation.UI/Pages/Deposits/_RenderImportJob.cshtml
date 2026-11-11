@@ -95,7 +95,9 @@
         <ul class="list-unstyled" aria-label="binaries to rename">
             @foreach (var binary in Model.BinariesToRename)
             {
-                <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
+                <li>
+                    <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
+                </li>
             }
         </ul>
     </dd>
