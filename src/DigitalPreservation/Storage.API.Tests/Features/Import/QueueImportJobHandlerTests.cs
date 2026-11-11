@@ -13,8 +13,9 @@ namespace Storage.API.Tests.Features.Import;
 /// <summary>
 /// QueueImportJobHandler judges a job before saving or queuing anything:
 /// <list type="bullet">
-/// <item>PreProcessValidateImportJob runs first, so a job that fails it - a rename, among other
-/// things (issue #260) - is refused with 400 without ever touching the store or the queue.</item>
+/// <item>PreProcessValidateImportJob runs first, so a job that fails it - a rename to an empty
+/// name, among other things (issue #347) - is refused with 400 without ever touching the store or
+/// the queue.</item>
 /// <item>A direct caller of the Storage API (the Preservation API always fills CreatedBy itself
 /// first) could queue a job with lastModifiedBy but no createdBy: it passed the queue check, then
 /// ExecuteImportJobHandler dereferenced the null CreatedBy and NullReferenceException'd. And the
@@ -42,7 +43,7 @@ public class QueueImportJobHandlerTests
     }
 
     [Fact]
-    public async Task A_Job_With_A_Rename_Is_Refused_And_Nothing_Is_Saved_Or_Queued()
+    public async Task A_Job_With_A_Rename_To_An_Empty_Name_Is_Refused_And_Nothing_Is_Saved_Or_Queued()
     {
         var job = new ImportJob
         {
@@ -55,7 +56,7 @@ public class QueueImportJobHandlerTests
 
         result.Failure.Should().BeTrue();
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
-        result.ErrorMessage.Should().Contain("Renaming is not supported yet");
+        result.ErrorMessage.Should().Contain("empty name");
         A.CallTo(importJobResultStore).MustNotHaveHappened();
         A.CallTo(importJobQueue).MustNotHaveHappened();
     }
@@ -98,5 +99,63 @@ public class QueueImportJobHandlerTests
         result.Failure.Should().BeTrue();
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest,
             "a missing attribution field is a malformed request, not a credential problem");
+    }
+
+    private static (IImportJobResultStore Store, IImportJobQueue Queue, QueueImportJobHandler Handler) Accepting()
+    {
+        var store = A.Fake<IImportJobResultStore>();
+        A.CallTo(() => store.GetActiveJobsForArchivalGroup(ArchivalGroup, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(new List<string>()));
+        A.CallTo(() => store.SaveImportJob(A<string>._, A<ImportJob>._, A<CancellationToken>._))
+            .Returns(Result.Ok());
+        A.CallTo(() => store.SaveImportJobResult(A<string>._, A<ImportJobResult>._, A<bool>._, A<bool>._, A<CancellationToken>._))
+            .Returns(Result.Ok());
+        var identityMinter = A.Fake<IIdentityMinter>();
+        A.CallTo(() => identityMinter.MintIdentity(A<string>._, A<Uri>._)).Returns("job-1");
+        var queue = A.Fake<IImportJobQueue>();
+        return (store, queue, new QueueImportJobHandler(
+            NullLogger<QueueImportJobHandler>.Instance, TestConverters.Make(), identityMinter, store, queue));
+    }
+
+    [Fact]
+    public async Task A_Disconnect_After_The_Job_Is_Saved_Still_Saves_Its_Result_And_Queues_It()
+    {
+        // Issue #428: once the job row is written it counts as active for its Archival Group, so
+        // abandoning it unqueued would block every later import for that group with a 409.
+        var (store, queue, queueHandler) = Accepting();
+        using var requestAborted = new CancellationTokenSource();
+        A.CallTo(() => store.SaveImportJob(A<string>._, A<ImportJob>._, A<CancellationToken>._))
+            .ReturnsLazily(() =>
+            {
+                requestAborted.Cancel();
+                return Result.Ok();
+            });
+        var importJob = new ImportJob { ArchivalGroup = ArchivalGroup, LastModifiedBy = Agent };
+
+        var result = await queueHandler.Handle(new QueueImportJob(importJob), requestAborted.Token);
+
+        result.Success.Should().BeTrue();
+        A.CallTo(() => store.SaveImportJob(A<string>._, A<ImportJob>._, A<CancellationToken>.That.Matches(t => !t.CanBeCanceled)))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => store.SaveImportJobResult(A<string>._, A<ImportJobResult>._, A<bool>._, A<bool>._,
+                A<CancellationToken>.That.Matches(t => !t.CanBeCanceled)))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => queue.QueueRequest("job-1", A<CancellationToken>.That.Matches(t => !t.CanBeCanceled)))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task A_Disconnect_Before_Anything_Is_Saved_Cancels_Without_Saving_Or_Queuing()
+    {
+        var (store, queue, queueHandler) = Accepting();
+        using var requestAborted = new CancellationTokenSource();
+        await requestAborted.CancelAsync();
+        var importJob = new ImportJob { ArchivalGroup = ArchivalGroup, LastModifiedBy = Agent };
+
+        var act = () => queueHandler.Handle(new QueueImportJob(importJob), requestAborted.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        A.CallTo(() => store.SaveImportJob(A<string>._, A<ImportJob>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(queue).MustNotHaveHappened();
     }
 }

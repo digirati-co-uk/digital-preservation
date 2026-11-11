@@ -6,7 +6,7 @@ namespace DigitalPreservation.Common.Model.Tests;
 /// <summary>
 /// AllResourceIds replaces the private seven-list collector the Preservation API's
 /// ImportJobsController used to define for itself (issue #388 item 2.7), moved here next to
-/// RenameRefusalMessage so both APIs - and this suite - can use the one definition of "every
+/// the other job-level helpers so both APIs - and this suite - can use the one definition of "every
 /// resource id this job names".
 /// </summary>
 public class ImportJobAllResourceIdsTests

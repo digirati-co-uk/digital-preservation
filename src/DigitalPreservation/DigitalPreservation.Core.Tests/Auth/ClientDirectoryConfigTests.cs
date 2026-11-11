@@ -64,4 +64,54 @@ public class ClientDirectoryConfigTests
 
         act.Should().Throw<InvalidOperationException>().WithMessage($"*{Goobi}*");
     }
+
+    private const string Etheses = "33333333-3333-3333-3333-333333333333";
+    private const string Other = "44444444-4444-4444-4444-444444444444";
+
+    [Fact]
+    public void AllowPipeline_Binds_And_Defaults_Off()
+    {
+        var directory = Register(Config(
+            ($"KnownClients:{Goobi}:name", "goobi"),
+            ($"KnownClients:{Goobi}:depositBucket", "leeds-goobi-deposits"),
+            ($"KnownClients:{Etheses}:name", "etheses"),
+            ($"KnownClients:{Etheses}:depositBucket", "leeds-etheses-deposits"),
+            ($"KnownClients:{Etheses}:allowPipeline", "true")));
+
+        directory.TryResolve(Goobi, out var goobi).Should().BeTrue();
+        goobi!.AllowPipeline.Should().BeFalse("a caller's deposits run the pipeline only when it is switched on (issue #410)");
+        directory.TryResolve(Etheses, out var etheses).Should().BeTrue();
+        etheses!.AllowPipeline.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsPipelineAllowedForDepositBucket_Follows_The_Routed_Callers_Profiles()
+    {
+        var directory = Register(Config(
+            ($"KnownClients:{Goobi}:name", "goobi"),
+            ($"KnownClients:{Goobi}:depositBucket", "leeds-goobi-deposits"),
+            ($"KnownClients:{Etheses}:name", "etheses"),
+            ($"KnownClients:{Etheses}:depositBucket", "leeds-etheses-deposits"),
+            ($"KnownClients:{Etheses}:allowPipeline", "true")));
+
+        directory.IsPipelineAllowedForDepositBucket("leeds-etheses-deposits").Should().BeTrue();
+        directory.IsPipelineAllowedForDepositBucket("leeds-goobi-deposits").Should().BeFalse();
+        directory.IsPipelineAllowedForDepositBucket("a-bucket-no-client-routes-to").Should().BeFalse();
+        directory.IsPipelineAllowedForDepositBucket(null).Should().BeFalse();
+        directory.IsPipelineAllowedForDepositBucket("").Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsPipelineAllowedForDepositBucket_Is_False_When_Any_Caller_Sharing_The_Bucket_Is_Excluded()
+    {
+        // Enabling one caller must never open the pipeline to another caller's deposits in the same bucket.
+        var directory = Register(Config(
+            ($"KnownClients:{Etheses}:name", "etheses"),
+            ($"KnownClients:{Etheses}:depositBucket", "shared-deposits"),
+            ($"KnownClients:{Etheses}:allowPipeline", "true"),
+            ($"KnownClients:{Other}:name", "other"),
+            ($"KnownClients:{Other}:depositBucket", "shared-deposits")));
+
+        directory.IsPipelineAllowedForDepositBucket("shared-deposits").Should().BeFalse();
+    }
 }

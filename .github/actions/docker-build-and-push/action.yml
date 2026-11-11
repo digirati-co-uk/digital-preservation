@@ -58,3 +58,10 @@ runs:
         tags: ${{ steps.docker-meta.outputs.tags }}
         labels: ${{ steps.docker-meta.outputs.labels }}
         push: ${{ github.actor != 'dependabot[bot]' }}
+        # No attestations: push a plain image manifest, not a manifest list with an attestation in
+        # it. Lambda rejects a list ("image manifest, config or layer media type ... is not
+        # supported"), and since the runners moved to ubuntu-26.04, whose Docker uses the containerd
+        # image store, ecr-retag's pull/tag/push carries the whole list over to the environment tag
+        # the Deposit Archiver Lambda deploys from. The older Docker pushed only the image itself.
+        provenance: false
+        sbom: false

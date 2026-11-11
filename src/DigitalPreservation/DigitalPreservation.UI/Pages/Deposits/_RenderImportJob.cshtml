@@ -6,9 +6,9 @@
 <dl class="row job-table" aria-label="Import Job">
 
     <dt class="col-sm-3">Deposit</dt>
-    <dd class="col-sm-9" aria-label="deposit"><a href="/deposits/@Model.Deposit!.GetSlug()">@Model.Deposit!.GetSlug()</a></dd>
+    <dd class="col-sm-9" data-testid="deposit"><a href="/deposits/@Model.Deposit!.GetSlug()">@Model.Deposit!.GetSlug()</a></dd>
     <dt class="col-sm-3">Archival Group</dt>
-    <dd class="col-sm-9" aria-label="archival group">
+    <dd class="col-sm-9" data-testid="archival group">
         @if (Model.IsUpdate)
         {
             <a href="/browse/@Model.ArchivalGroup.GetPathUnderRoot()">@Model.ArchivalGroup.GetPathUnderRoot(true)</a>
@@ -19,14 +19,14 @@
         }
     </dd>
     <dt class="col-sm-3">Archival Group Name</dt>
-    <dd class="col-sm-9" aria-label="archival group name">@Model.ArchivalGroupName</dd>
+    <dd class="col-sm-9" data-testid="archival group name">@Model.ArchivalGroupName</dd>
 
     <dt class="col-sm-3">Source Version</dt>
-    <dd class="col-sm-9" aria-label="source version">@(Model.SourceVersion?.OcflVersion ?? "(none)")</dd>
+    <dd class="col-sm-9" data-testid="source version">@(Model.SourceVersion?.OcflVersion ?? "(none)")</dd>
     
     <dt class="col-sm-3">Containers to Add</dt>
-    <dd class="col-sm-9" aria-label="containers to add">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="containers to add">
             @foreach (var container in Model.ContainersToAdd)
             {
                 <li>
@@ -36,8 +36,8 @@
         </ul>
     </dd>
     <dt class="col-sm-3">Binaries to Add</dt>
-    <dd class="col-sm-9" aria-label="binaries to add">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="binaries to add">
             @foreach (var binary in Model.BinariesToAdd)
             {
                 <li>
@@ -47,8 +47,8 @@
         </ul>
     </dd>
     <dt class="col-sm-3">Binaries to Patch</dt>
-    <dd class="col-sm-9" aria-label="binaries to patch">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="binaries to patch">
             @foreach (var binary in Model.BinariesToPatch)
             {
                 <li>
@@ -58,8 +58,8 @@
         </ul>
     </dd>
     <dt class="col-sm-3">Containers to Delete</dt>
-    <dd class="col-sm-9" aria-label="containers to delete">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="containers to delete">
             @foreach (var container in Model.ContainersToDelete)
             {
                 <li>
@@ -69,8 +69,8 @@
         </ul>
     </dd>
     <dt class="col-sm-3">Binaries to Delete</dt>
-    <dd class="col-sm-9" aria-label="binaries to delete">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="binaries to delete">
             @foreach (var binary in Model.BinariesToDelete)
             {
                 <li>
@@ -80,8 +80,8 @@
         </ul>
     </dd>
     <dt class="col-sm-3">Containers to Rename</dt>
-    <dd class="col-sm-9" aria-label="containers to rename">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="containers to rename">
             @foreach (var container in Model.ContainersToRename)
             {
                 <li>
@@ -91,11 +91,13 @@
         </ul>
     </dd>
     <dt class="col-sm-3">Binaries to Rename</dt>
-    <dd class="col-sm-9" aria-label="binaries to rename">
-        <ul class="list-unstyled">
+    <dd class="col-sm-9">
+        <ul class="list-unstyled" aria-label="binaries to rename">
             @foreach (var binary in Model.BinariesToRename)
             {
-                <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
+                <li>
+                    <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
+                </li>
             }
         </ul>
     </dd>

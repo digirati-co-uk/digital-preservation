@@ -35,6 +35,7 @@ public class RunPipelineHandler(
     IOptions<AwsStorageOptions> storageOptions,
     IOptions<PipelineDeliveryFlags> pipelineDeliveryFlags,
     IIdentityMinter identityMinter,
+    IClientDirectory clientDirectory,
     IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null) : IRequestHandler<RunPipeline, Result>
 {
     // Must match PreservationContext.OnModelCreating's HasDatabaseName for the partial unique
@@ -50,16 +51,12 @@ public class RunPipelineHandler(
                 "Could not run pipeline because could not find no deposit for ID " + request.DepositId);
         }
 
-        // Ahead of the lock: a 400 here must never leave a lock behind.
-        // Pipeline.API reaches deposit files through a filesystem mount of the default working
-        // bucket only, so a deposit routed to a per-caller bucket (RFC-0001 §8) can't be
-        // characterised - decline it here, the only place pipeline jobs are queued from.
-        if (!IsInDefaultWorkingBucket(entity.Files))
+        // Ahead of the lock: a 400 here must never leave a lock behind. This is the only place
+        // pipeline jobs are queued from, so it is where the policy is enforced.
+        var notPermitted = CheckPipelinePermitted(entity.Files, request.DepositId);
+        if (notPermitted != null)
         {
-            return Result.Fail(ErrorCodes.BadRequest,
-                $"Could not run pipeline: deposit {request.DepositId} is not in the default " +
-                $"working bucket '{storageOptions.Value.DefaultWorkingBucket}', which is the only " +
-                "storage the pipeline can reach.");
+            return notPermitted;
         }
 
         // Also ahead of the lock, for the same reason: a 409 here must never leave a lock behind
@@ -280,10 +277,30 @@ public class RunPipelineHandler(
         }
     }
 
-    private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>
-        depositFiles != null
-        && AmazonS3Uri.TryParseAmazonS3Uri(depositFiles, out var s3Uri)
-        && s3Uri.Bucket == storageOptions.Value.DefaultWorkingBucket;
+    /// <summary>
+    /// Whether this deposit may run the pipeline (issue #410), by <see cref="PipelinePolicy"/>; null
+    /// when it may.
+    /// </summary>
+    private Result? CheckPipelinePermitted(Uri? depositFiles, string depositId)
+    {
+        if (depositFiles == null || !AmazonS3Uri.TryParseAmazonS3Uri(depositFiles, out var s3Uri))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposit {depositId} has no S3 location for its files.");
+        }
+        var defaultBucket = storageOptions.Value.DefaultWorkingBucket;
+        return PipelinePolicy.ForBucket(s3Uri.Bucket, defaultBucket,
+                pipelineDeliveryFlags.Value.AllowPipelineForCallerBuckets, clientDirectory) switch
+        {
+            PipelineAccess.NotReachable => Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposit {depositId} is not in the default " +
+                $"working bucket '{defaultBucket}', which is the only " +
+                "storage the pipeline can reach."),
+            PipelineAccess.NotPermitted => Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposits in bucket '{s3Uri.Bucket}' are not permitted to run the pipeline."),
+            _ => null
+        };
+    }
 
     /// <summary>
     /// Takes the deposit's lock for the caller, atomically. Null failure means the caller may

@@ -55,16 +55,10 @@ ViewData["section"] = "deposits";
                             </ul>
                         </div>
                     }
-                    if (Model.RenameRefusalMessage != null)
-                    {
-                        <div class="alert alert-danger" role="alert">
-                            <p>@Model.RenameRefusalMessage</p>
-                        </div>
-                    }
 
                     @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
 
-                    if (Model.ItemsWithInvalidSlugs.Any() || Model.AddedBinariesWithInvalidContentTypes.Any() || Model.RenameRefusalMessage != null)
+                    if (Model.ItemsWithInvalidSlugs.Any() || Model.AddedBinariesWithInvalidContentTypes.Any())
                     {
                         <p>This import job is invalid.</p>
                     }
@@ -120,25 +114,25 @@ ViewData["section"] = "deposits";
                     @switch (jobResult.Status)
                     {
                         case ImportJobStates.Waiting:
-                            <dd class="col-sm-9 text-bg-warning" aria-label="status"><svg class="bi" aria-hidden="true"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-warning" data-testid="status"><svg class="bi" aria-hidden="true"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
                             break;
                         case ImportJobStates.Running:
-                            <dd class="col-sm-9 text-bg-primary" aria-label="status"><svg class="bi" aria-hidden="true"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-primary" data-testid="status"><svg class="bi" aria-hidden="true"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
                             break;
                         case ImportJobStates.Completed:
-                            <dd class="col-sm-9" aria-label="status">@jobResult.Status</dd>
+                            <dd class="col-sm-9" data-testid="status">@jobResult.Status</dd>
                             break;
                         case ImportJobStates.CompletedWithErrors:
-                            <dd class="col-sm-9 text-bg-danger" aria-label="status">@jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-danger" data-testid="status">@jobResult.Status</dd>
                             break;
                         default:
-                            <dd class="col-sm-9 text-bg-danger" aria-label="status">(unknown status: @jobResult.Status)</dd>
+                            <dd class="col-sm-9 text-bg-danger" data-testid="status">(unknown status: @jobResult.Status)</dd>
                             break;
                     }
                     @if (jobResult.Errors is { Length: > 0 })
                     {
                         <dt class="col-sm-3">Errors</dt>
-                        <dd class="col-sm-9" aria-label="errors">
+                        <dd class="col-sm-9" data-testid="errors">
                             @foreach (var error in jobResult.Errors)
                             {
                                 <div class="alert alert-danger" role="alert">
@@ -148,91 +142,91 @@ ViewData["section"] = "deposits";
                         </dd>
                     }
                     <dt class="col-sm-3">Deposit</dt>
-                    <dd class="col-sm-9" aria-label="deposit"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
+                    <dd class="col-sm-9" data-testid="deposit"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
                     <dt class="col-sm-3">Archival Group</dt>
-                    <dd class="col-sm-9" aria-label="archival group"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
+                    <dd class="col-sm-9" data-testid="archival group"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot(true)</a></dd>
 
                     <dt class="col-sm-3">Date Begun</dt>
-                    <dd class="col-sm-9" aria-label="date begun">@jobResult.DateBegun.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" data-testid="date begun">@jobResult.DateBegun.GetDateDisplay()</dd>
                     <dt class="col-sm-3">Date Finished</dt>
-                    <dd class="col-sm-9" aria-label="date finished">@jobResult.DateFinished.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" data-testid="date finished">@jobResult.DateFinished.GetDateDisplay()</dd>
                     
                     <dt class="col-sm-3">Source Version</dt>
-                    <dd class="col-sm-9" aria-label="source version">@(jobResult.SourceVersion ?? "(none)")</dd>
+                    <dd class="col-sm-9" data-testid="source version">@(jobResult.SourceVersion ?? "(none)")</dd>
                     <dt class="col-sm-3">New Version</dt>
-                    <dd class="col-sm-9" aria-label="new version">@(jobResult.NewVersion ?? "...")</dd>
+                    <dd class="col-sm-9" data-testid="new version">@(jobResult.NewVersion ?? "...")</dd>
                     
                     <dt class="col-sm-3">Created</dt>
-                    <dd class="col-sm-9" aria-label="created">@jobResult.Created.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" data-testid="created">@jobResult.Created.GetDateDisplay()</dd>
                     <dt class="col-sm-3">Created By</dt>
-                    <dd class="col-sm-9" aria-label="created by">@jobResult.CreatedBy.GetAgentDisplayName()</dd>
+                    <dd class="col-sm-9" data-testid="created by">@jobResult.CreatedBy.GetAgentDisplayName()</dd>
 
                     <dt class="col-sm-3">Import Job</dt>
-                    <dd class="col-sm-9" aria-label="import job">@jobResult.ImportJob</dd>
+                    <dd class="col-sm-9" data-testid="import job">@jobResult.ImportJob</dd>
                     <dt class="col-sm-3">Original Import Job</dt>
-                    <dd class="col-sm-9" aria-label="original import job">@jobResult.OriginalImportJob</dd>
+                    <dd class="col-sm-9" data-testid="original import job">@jobResult.OriginalImportJob</dd>
 
 
                     <dt class="col-sm-3">Containers Added</dt>
-                    <dd class="col-sm-9" aria-label="containers added">
-                        <ul class="list-unstyled">
+                    <dd class="col-sm-9">
+                        <ul class="list-unstyled" aria-label="containers added">
                             @foreach (var container in jobResult.ContainersAdded)
                             {
-                                <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Added</dt>
-                    <dd class="col-sm-9" aria-label="binaries added">
-                        <ul class="list-unstyled">
+                    <dd class="col-sm-9">
+                        <ul class="list-unstyled" aria-label="binaries added">
                             @foreach (var binary in jobResult.BinariesAdded)
                             {
-                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Patched</dt>
-                    <dd class="col-sm-9" aria-label="binaries patched">
-                        <ul>
+                    <dd class="col-sm-9">
+                        <ul aria-label="binaries patched">
                             @foreach (var binary in jobResult.BinariesPatched)
                             {
-                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Containers Deleted</dt>
-                    <dd class="col-sm-9" aria-label="containers deleted">
-                        <ul>
+                    <dd class="col-sm-9">
+                        <ul aria-label="containers deleted">
                             @foreach (var container in jobResult.ContainersDeleted)
                             {
-                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()</li>
+                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot(true)</li>
                             }
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Deleted</dt>
-                    <dd class="col-sm-9" aria-label="binaries deleted">
-                        <ul>
+                    <dd class="col-sm-9">
+                        <ul aria-label="binaries deleted">
                             @foreach (var binary in jobResult.BinariesDeleted)
                             {
-                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()</li>
+                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)</li>
                             }
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Containers Renamed</dt>
-                    <dd class="col-sm-9" aria-label="containers renamed">
-                        <ul>
+                    <dd class="col-sm-9">
+                        <ul aria-label="containers renamed">
                             @foreach (var container in jobResult.ContainersRenamed)
                             {
-                            <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                            <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Renamed</dt>
-                    <dd class="col-sm-9" aria-label="binaries renamed">
-                        <ul>
+                    <dd class="col-sm-9">
+                        <ul aria-label="binaries renamed">
                             @foreach (var binary in jobResult.BinariesRenamed)
                             {
-                            <li> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                            <li> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot(true)</a></li>
                             }
                         </ul>
                     </dd>

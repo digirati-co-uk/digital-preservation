@@ -22,6 +22,17 @@ public sealed class ClientDirectory : IClientDirectory
             .ToList()!;
     }
 
+    public bool IsPipelineAllowedForDepositBucket(string? bucket)
+    {
+        if (string.IsNullOrEmpty(bucket))
+        {
+            return false;
+        }
+
+        var routed = clients.Values.Where(p => string.Equals(p.DepositBucket, bucket, StringComparison.Ordinal)).ToList();
+        return routed.Count > 0 && routed.All(p => p.AllowPipeline);
+    }
+
     public bool TryResolve(string? appId, [NotNullWhen(true)] out ClientProfile? profile)
     {
         if (!string.IsNullOrEmpty(appId))

@@ -51,18 +51,24 @@ public class QueueImportJobHandler(
                 $"Could not check for active import jobs for Archival Group {request.ImportJob.ArchivalGroup}");
         }
         var jobIdentifier = identityMinter.MintIdentity(nameof(ImportJobResult));
-        var saveJobResult = await importJobResultStore.SaveImportJob(jobIdentifier, request.ImportJob, cancellationToken);
+
+        // The point of no return (issue #428). A caller who has gone before this still cancels
+        // cleanly, but once the job row is written it counts as active for its Archival Group, so
+        // abandoning it before it is queued would block every later import for that group. From
+        // here on the saves and the queuing run to completion whether or not the caller is listening.
+        cancellationToken.ThrowIfCancellationRequested();
+        var saveJobResult = await importJobResultStore.SaveImportJob(jobIdentifier, request.ImportJob, CancellationToken.None);
         if (saveJobResult.Success)
         {
             var waitingResult = CreateWaitingResult(jobIdentifier, request.ImportJob);
             var saveResultResult =  await importJobResultStore.SaveImportJobResult(
-                jobIdentifier, waitingResult, true, false, cancellationToken);
+                jobIdentifier, waitingResult, true, false, CancellationToken.None);
             if (saveResultResult.Success)
             {
                 logger.LogInformation("About to queue import job request {JobIdentifier}", jobIdentifier);
                 try
                 {
-                    await importJobQueue.QueueRequest(jobIdentifier, cancellationToken);
+                    await importJobQueue.QueueRequest(jobIdentifier, CancellationToken.None);
                     return Result.OkNotNull(waitingResult);
                 }
                 catch (Exception e)

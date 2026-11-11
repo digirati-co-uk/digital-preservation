@@ -10,8 +10,9 @@ each building on the last:
   B  claims  - decode the token (no signature check - it is our own, fresh from Entra) and
                assert aud / azp / roles are what the platform will see
   C  whoami  - GET /whoami with ONLY the Bearer token (no X-Client-Identity): how the platform
-               resolves this caller. Before the KnownClients config is applied this shows the
-               fallback; after it, the caller's profile name.
+               resolves this caller. Once the caller's KnownClients entry is applied this shows
+               its profile name. Before that, the API accepts the token but refuses the call
+               (401, "No valid user name or machine header"), and C says so.
   D  deposit - (--deposit) create a throwaway deposit and assert the API routed it to the
                expected bucket, then delete it
   E  export  - (--export <path>) export a real Archival Group and assert the export lands in
@@ -148,8 +149,19 @@ def main() -> int:
     response = requests.get(f"{api}/whoami", headers=headers, timeout=60)
     print(f"  HTTP {response.status_code}: {response.text[:400]}")
     if not response.ok:
-        print("  FAIL  the platform rejected the token - if A and B passed, check the API's "
-              "accepted audiences include this resource (landing sequence, rung 2)")
+        if response.status_code == 401 and "No valid user name or machine header" in response.text:
+            # The API's own caller check (AuthFilterIdentifier) only runs after the token has been
+            # validated, audience included, so this is not a token problem.
+            print("  FAIL  the token was ACCEPTED, but the API doesn't know this caller: no "
+                  "KnownClients entry names its app id in this environment (landing sequence, "
+                  "rung 3). Nothing to fix in Entra.")
+        elif response.status_code == 401:
+            challenge = response.headers.get("WWW-Authenticate", "")
+            print(f"  FAIL  the platform rejected the token ({challenge or 'no challenge header'}) - "
+                  "if A and B passed, check the API's accepted audiences include this resource "
+                  "(landing sequence, rung 2)")
+        else:
+            print("  FAIL  unexpected response from /whoami")
         failures += 1
 
     # --- D: deposit routing ---------------------------------------------------------------

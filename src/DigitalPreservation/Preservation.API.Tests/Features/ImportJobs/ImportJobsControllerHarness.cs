@@ -21,7 +21,7 @@ namespace Preservation.API.Tests.Features.ImportJobs;
 /// <summary>
 /// The deposit/Archival Group statics, Mediator() and Controller() builders, and the Refusal()/
 /// Executed()/Binary()/Container() helpers that ArchivalGroupMatchTests, InvalidSlugRefusalTests,
-/// RenameRefusalTests, ResourcesWithinArchivalGroupTests, SuppressionGateTests and
+/// RenameAcceptanceTests, ResourcesWithinArchivalGroupTests, SuppressionGateTests and
 /// DiffReferenceCaseInsensitivityTests each copied for themselves, about 50 lines a time (issue
 /// #388 item 5.1) - including the EnableMetsIdNormalisation feature-flag value, which three of
 /// those copies hardcoded "true" and two "false" despite none but SuppressionGateTests caring what
@@ -39,7 +39,7 @@ public static class ImportJobsControllerHarness
     /// <paramref name="depositArchivalGroup"/>, if given), with no import jobs yet, and a default
     /// successful ExecuteImportJob - enough for the controller to get past its deposit checks to
     /// whatever is under test. Callers add or override further stubs on the same fake afterward
-    /// (e.g. RenameRefusalTests stubs GetDiffImportJob on top of this for its diff-reference case).
+    /// (e.g. RenameAcceptanceTests stubs GetDiffImportJob on top of this for its diff-reference case).
     /// </summary>
     public static IMediator Mediator(Uri? depositArchivalGroup = null)
     {
@@ -69,7 +69,7 @@ public static class ImportJobsControllerHarness
     /// set per <paramref name="migrationFlagOn"/> (false by default; only SuppressionGateTests
     /// varies it, since it is the one check that reads the flag). <paramref name="requestPath"/>
     /// sets Request.Path (DiffReferenceCaseInsensitivityTests); <paramref name="urlHelper"/> is
-    /// assigned to the controller's Url (RenameRefusalTests, for the diff route GetDiffUri builds).
+    /// assigned to the controller's Url (RenameAcceptanceTests, for the diff route GetDiffUri builds).
     /// </summary>
     public static ImportJobsController Controller(
         IMediator mediator,

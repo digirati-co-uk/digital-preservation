@@ -9,7 +9,7 @@ and [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (the PO
 
 ## Ladder status
 
-**As of 2026-09-22 (the v1.3.0 cut).** The configuration *is* the authority — this table is a
+**As of 2026-11-10**, checked against the live ECS task definitions and ECR images (rung 3 on dev re-checked 2026-11-10). The configuration *is* the authority — this table is a
 reader's index to it, not a substitute: verify with the secret `jq` check and `terraform plan`
 before acting, and **update this table as rungs are climbed**. "Committed" means merged to
 `preservation-ops` `main`; "applied" means `terraform apply` has actually run against the
@@ -19,10 +19,11 @@ environment (there is no apply pipeline — it is a manual, local step).
 |---|---|---|---|
 | Phase 0 Entra admin (role, scope, `idtyp`) | **done 2026-09-23** (steps 1.1-1.5 completed by the Leeds administrator; `Assignment required` was already `Yes` and was deliberately left untouched per the admin doc; the §1.5 existing-assignments list was reported - four named human users plus the iiif-builder-dev and Playwright service accounts - and stays in place as the start of the Phase 3 user list) | **not yet requested** | **not yet requested** |
 | Rung 1: four audience keys in the `preservation-api` `oauth_azure` secret | in place, verified 2026-09-21 | in place, verified 2026-09-22 | in place, verified 2026-09-22 |
-| Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed (ops PR #75); **not yet applied** | committed (ops PR #76); **not yet applied** |
-| Rung 3: `KnownClients` (Goobi, Phase 1) | not started | not started | not started |
+| Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed 2026-09-22 (ops PR #75) **and applied**: both APIs' live task definitions carry all four entries | committed 2026-09-22 (ops PR #76) **and applied**: likewise |
+| Rung 3: `KnownClients` (Goobi, Phase 1) | **applied 2026-11-10.** Leeds created the Goobi dev registration, `Library-Preservation-Goobi-Dev` (`33e27ba5-b5d6-4453-9223-0cc5b591688e`), with [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md). Both API task definitions now carry its `KnownClients` entry (`Name` `goobi`, `DepositBucket` `dlip-pres-dev-goobi-deposits`; preservation-api:16, storage-api:21; ops branch `feature/rung3-goobi-dev`). The Goobi deposit bucket and intranda's scoped IAM user were already in place (ops PR #78). Leeds' first `check_caller` run passed stages A and B before the entry was applied. **Not yet verified:** the re-run of stages C and D | not started: needs its own Goobi bucket and IAM first | not started: likewise |
 | Rung 4: `TokenProvider__ResourceUri` repoints | not started | not started | not started |
-| Deployed build | `main` (auto-deploys) | `v1.2.1` | `V1.0.1` (2025-10-24); `v1.3.0` is the cut for the next deploy |
+| Phase 4 flags (`RequireKnownCaller`, `RequireCallerRole`) | not built yet: PR #438 (issue #293), off by default once merged | likewise | likewise |
+| Deployed build | `main` (auto-deploys) | `v1.3.2` (its image was pushed by the `v1.3.2` build on 2026-10-14) | `v1.3.4` (its image was pushed by the `v1.3.4` build on 2026-10-27). Every build from `v1.3.0` on is the complete dual-mode build, so rungs 1-4 need no further release, except to run the pipeline on a caller's own bucket (#410, PR #458), which needs a release after `v1.3.4` |
 
 Three facts a newcomer cannot otherwise infer. First: **audit enterprise-app assignment lists
 by UPN, never by display name** - the portal's Users-and-groups blade shows display names, its
@@ -39,6 +40,9 @@ holds by construction — is do-ahead work specified in
 [`rfc-0001-group-based-access.md`](./rfc-0001-group-based-access.md).
 
 ## The two branches
+
+*Historical: both steps below are done. #208 merged on 2026-09-17, and step 2 shipped as PR #284 on
+2026-09-22.*
 
 | | `feature/multiple-deposit-buckets` (PR #208) | `feat/LPII-165/entra-api` (LPII-166) |
 |---|---|---|
@@ -195,6 +199,11 @@ indexed keys), so each rung's "config flip" is literally an edit to those maps:
   KnownClients__<caller-app-id>__DepositBucket = <goobi bucket>
   ```
 
+  A caller whose deposits must run the pipeline (eTheses, not Goobi) also gets
+  `KnownClients__<caller-app-id>__AllowPipeline = true`, in both files, kept identical. It takes
+  effect only where `FeatureFlags__AllowPipelineForCallerBuckets` is `true` in **both** the Pipeline
+  API and the Preservation API (#410), and that is `false` everywhere today.
+
 - *Rung 4, Phase 2* — one line alongside the existing `TokenProvider__*` trio:
   `TokenProvider__ResourceUri = api://84c62880…`, and repoint that trio's source from the UI
   registration's credentials to the API's own (today Preservation API, Pipeline API **and the
@@ -227,6 +236,10 @@ pass review.
 Production releases are infrequent, named and tagged, which makes the interaction between the
 release schedule and the activation ladder worth stating explicitly.
 
+*Historical: the release this section planned has been cut. `v1.3.0` was the complete dual-mode
+build; production now runs `v1.3.4` and test `v1.3.2`. The rule in "Phase 4 never traps a release"
+still stands.*
+
 **The natural cut is the merge of this PR.** At that point `main` is the *complete dual-mode
 platform*: every line of ladder code through Phase 3 is in the build, and all of it is inert under
 an environment's existing configuration (empty `KnownClients`, header fallback, old audience). A
@@ -244,8 +257,8 @@ identical `AddMicrosoftIdentityWebApi` call).
 **Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
 enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
 off by default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293); the
-flag-gated code is not in this build — it can be written any time after step 2 merges, and is
-needed only before the first environment enforces). That is the
+flag-gated code is PR #438, not yet merged, and is needed only before the first environment
+enforces). That is the
 standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
 flags on and one that has not started the ladder, so no future release can strand production behind
 the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after

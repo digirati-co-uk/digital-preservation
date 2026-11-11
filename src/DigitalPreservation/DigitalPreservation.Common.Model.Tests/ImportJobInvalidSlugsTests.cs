@@ -4,9 +4,9 @@ using FluentAssertions;
 namespace DigitalPreservation.Common.Model.Tests;
 
 /// <summary>
-/// ItemsWithInvalidSlugs only checks the Add lists, plus Rename (which #260 refuses outright
-/// regardless of slug validity). Patch and Delete name resources that already exist in Fedora, and
-/// must stay operable through the UI even if the slug alphabet tightens (issue #298).
+/// ItemsWithInvalidSlugs only checks the Add and Rename lists. Patch and Delete name resources that
+/// already exist in Fedora, and must stay operable through the UI even if the slug alphabet
+/// tightens (issue #298).
 /// </summary>
 public class ImportJobInvalidSlugsTests
 {

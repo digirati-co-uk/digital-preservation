@@ -261,6 +261,57 @@ public class ExecuteImportJobHandler(
                     }
                 }
 
+                // rename containers and files (issue #347): only the display name (dc:title) changes,
+                // never the id, slug or path. After the patches, because PutBinary leaves an existing
+                // binary's title alone, so a binary both patched and renamed takes its new name here.
+                logger.LogInformation("{Count} containers to rename", importJob.ContainersToRename.Count);
+                foreach (var container in importJob.ContainersToRename)
+                {
+                    if (await FailIfTransactionLost() is { } lostOnContainersToRename)
+                    {
+                        return lostOnContainersToRename;
+                    }
+                    logger.LogInformation("(TX) Renaming container {Id}", container.Id);
+                    var fedoraRenameResult = await fedoraClient.Rename(
+                        container,
+                        callerIdentity,
+                        transaction,
+                        cancellationToken);
+                    if (fedoraRenameResult.Success)
+                    {
+                        logger.LogInformation("Container renamed at {Location}", fedoraRenameResult.Value!.Id);
+                        importJobResult.ContainersRenamed.Add((fedoraRenameResult.Value as Container)!);
+                    }
+                    else
+                    {
+                        return await FailEarly(fedoraRenameResult.CodeAndMessage());
+                    }
+                }
+
+                logger.LogInformation("{Count} binaries to rename", importJob.BinariesToRename.Count);
+                foreach (var binary in importJob.BinariesToRename)
+                {
+                    if (await FailIfTransactionLost() is { } lostOnBinariesToRename)
+                    {
+                        return lostOnBinariesToRename;
+                    }
+                    logger.LogInformation("(TX) Renaming file {Id}", binary.Id);
+                    var fedoraRenameResult = await fedoraClient.Rename(
+                        binary,
+                        callerIdentity,
+                        transaction,
+                        cancellationToken);
+                    if (fedoraRenameResult.Success)
+                    {
+                        logger.LogInformation("Binary renamed at {Location}", fedoraRenameResult.Value!.Id);
+                        importJobResult.BinariesRenamed.Add((fedoraRenameResult.Value as Binary)!);
+                    }
+                    else
+                    {
+                        return await FailEarly(fedoraRenameResult.CodeAndMessage());
+                    }
+                }
+
                 // delete files
                 logger.LogInformation("{Count} binaries to delete", importJob.BinariesToDelete.Count);
                 foreach (var binary in importJob.BinariesToDelete)
@@ -673,10 +724,9 @@ public class ExecuteImportJobHandler(
     /// In particular every repository path in the job - the Archival Group and each resource id - must
     /// be a path under the root (<see cref="SafeRepositoryPath"/>): <see cref="Converters.GetFedoraUri"/>
     /// throws for one that is not, and here that would happen with a Fedora transaction open and
-    /// outside any catch, which would take the whole import host down with it. Also refuses a job
-    /// that asks for a rename, which this executor never performs (issue #260) - the Preservation
-    /// API refuses one first for a job posted there, but a job reaching this API directly (POST
-    /// /import) or arriving from the queue is judged here too.
+    /// outside any catch, which would take the whole import host down with it. Also refuses a rename
+    /// to an empty name (issue #347): a rename replaces the dc:title, so an empty one would leave the
+    /// resource with no name at all.
     /// </summary>
     internal static Result PreProcessValidateImportJob(ImportJob importJob)
     {
@@ -689,9 +739,10 @@ public class ExecuteImportJobHandler(
             return Result.Fail(ErrorCodes.BadRequest,
                 $"Archival Group {importJob.ArchivalGroup} is not a path under the repository root: {agReason}");
         }
-        if (importJob.RenameRefusalMessage() is { } renameMessage)
+        if (importJob.ContainersToRename.Concat<PreservedResource>(importJob.BinariesToRename)
+                .FirstOrDefault(resource => resource.Name.IsNullOrWhiteSpace()) is { } unnamed)
         {
-            return Result.Fail(ErrorCodes.BadRequest, renameMessage);
+            return Result.Fail(ErrorCodes.BadRequest, $"Cannot rename {unnamed.Id} to an empty name");
         }
 
         var binaryIds = importJob.BinariesToAdd

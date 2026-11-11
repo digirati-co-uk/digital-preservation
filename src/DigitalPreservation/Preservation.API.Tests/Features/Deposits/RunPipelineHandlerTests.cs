@@ -18,6 +18,7 @@ using Preservation.API.Features.Deposits.PipelineDelivery;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Tests.TestingInfrastructure;
 using Storage.Repository.Common;
+using DigitalPreservation.Core.Auth;
 using DepositEntity = Preservation.API.Data.Entities.Deposit;
 
 namespace Preservation.API.Tests.Features.Deposits;
@@ -26,13 +27,23 @@ namespace Preservation.API.Tests.Features.Deposits;
 public class RunPipelineHandlerTests(DatabaseFixture fixture)
 {
     private const string DefaultBucket = "dev-deposits";
+    private const string EthesesBucket = "leeds-etheses-deposits";
+    private const string GoobiBucket = "leeds-goobi-deposits";
+
+    // An eTheses-class caller whose deposits may run the pipeline, and a Goobi-class one whose may not (issue #410).
+    private static ClientDirectory Clients() => new(new Dictionary<string, ClientProfile>
+    {
+        ["33333333-3333-3333-3333-333333333333"] = new() { Name = "etheses", DepositBucket = EthesesBucket, AllowPipeline = true },
+        ["22222222-2222-2222-2222-222222222222"] = new() { Name = "goobi", DepositBucket = GoobiBucket }
+    });
 
     private static ClaimsPrincipal Tester() =>
         new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "tester") }, "test"));
 
     private static RunPipelineHandler CreateHandler(
         PreservationContext context, IAmazonSimpleNotificationService snsClient,
-        bool useLocalPipelineDelivery = false, IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null)
+        bool useLocalPipelineDelivery = false, IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null,
+        bool allowPipelineForCallerBuckets = false)
     {
         var identityMinter = A.Fake<IIdentityMinter>();
         // A unique ID per call: this collection shares one real Postgres container across every
@@ -50,8 +61,13 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
                 PipelineJobQueue = "test-queue"
             }),
             Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket }),
-            Options.Create(new PipelineDeliveryFlags { UseLocalPipelineDelivery = useLocalPipelineDelivery }),
+            Options.Create(new PipelineDeliveryFlags
+            {
+                UseLocalPipelineDelivery = useLocalPipelineDelivery,
+                AllowPipelineForCallerBuckets = allowPipelineForCallerBuckets
+            }),
             identityMinter,
+            Clients(),
             pipelineJobDeliveryClient);
     }
 
@@ -120,6 +136,74 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         var reloaded = await ReloadDeposit(deposit.MintedId);
         reloaded.LockedBy.Should().Be("tester", "queueing the run must acquire the lock as the caller");
         reloaded.LockDate.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_Queues_A_Deposit_In_A_Pipeline_Enabled_Callers_Bucket_When_The_Flag_Is_On()
+    {
+        // Issue #410: the eTheses caller's deposits need the pipeline, whoever runs it.
+        await using var context = fixture.CreateNewPreservationContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{EthesesBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .Returns(new PublishResponse { HttpStatusCode = HttpStatusCode.OK, MessageId = "m-1" });
+
+        var result = await CreateHandler(context, snsClient, allowPipelineForCallerBuckets: true)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeTrue(result.ErrorMessage);
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        context.PipelineRunJobs.Where(j => j.Deposit == deposit.MintedId).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Handle_Declines_A_Pipeline_Enabled_Callers_Bucket_While_The_Flag_Is_Off()
+    {
+        // The guard relaxation ships dark, in lockstep with the Pipeline API's capability (issue #410).
+        await using var context = fixture.CreateNewPreservationContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{EthesesBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+
+        var result = await CreateHandler(context, snsClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain("default working bucket");
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._)).MustNotHaveHappened();
+        (await ReloadDeposit(deposit.MintedId)).LockedBy.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(GoobiBucket)]
+    [InlineData("a-bucket-no-client-routes-to")]
+    public async Task Handle_Declines_A_Bucket_Whose_Callers_May_Not_Run_The_Pipeline_Even_With_The_Flag_On(string bucket)
+    {
+        await using var context = fixture.CreateNewPreservationContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{bucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+
+        var result = await CreateHandler(context, snsClient, allowPipelineForCallerBuckets: true)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain("not permitted to run the pipeline");
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._)).MustNotHaveHappened();
+        context.PipelineRunJobs.Where(j => j.Deposit == deposit.MintedId).Should().BeEmpty();
+        (await ReloadDeposit(deposit.MintedId)).LockedBy.Should().BeNull("a policy 400 must never leave a lock behind");
+    }
+
+    [Fact]
+    public async Task Handle_Declines_A_Deposit_With_No_Files_Location()
+    {
+        await using var context = fixture.CreateNewPreservationContext();
+        var deposit = await SaveDeposit(context, files: null);
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+
+        var result = await CreateHandler(context, snsClient, allowPipelineForCallerBuckets: true)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
 
     [Fact]

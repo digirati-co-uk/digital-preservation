@@ -29,10 +29,10 @@ public class ExecutePipelineJob(string jobIdentifier, string depositId, string? 
 
 public class ProcessPipelineJobHandler(
     ILogger<ProcessPipelineJobHandler> logger,
-    IOptions<StorageOptions> storageOptions,
     IOptions<PipelineToolOptions> pipelineToolOptions,
     WorkspaceManagerFactory workspaceManagerFactory,
-    IPreservationApiClient preservationApiClient) : IRequestHandler<ExecutePipelineJob, Result>
+    IPreservationApiClient preservationApiClient,
+    IDepositFileSource depositFileSource) : IRequestHandler<ExecutePipelineJob, Result>
 
 {
     private const string BrunnhildeFolderName = "brunnhilde";
@@ -63,6 +63,9 @@ public class ProcessPipelineJobHandler(
     private Guid brunnhildeProcessId = Guid.Parse("6BFB4FE2-E17E-423C-A889-426A0ADF4DF1");
     private Guid monitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
     private readonly Dictionary<Guid, CancellationTokenSource> tokensCatalog = new();
+
+    // Where this job reads its deposit from; a scratch copy is deleted in Handle's finally (issue #410).
+    private DepositRoot? depositRoot;
     /// <summary>
     /// Workspace resolution with the two things that can go wrong turned into what the caller
     /// needs: a cancelled request is rethrown (the job was interrupted, not processed, and another
@@ -377,6 +380,7 @@ public class ProcessPipelineJobHandler(
             // carries its literal, unvalidated text into the path below - workspace.DepositSlug is
             // instead read back off the resolved Deposit's own Id.
             CleanupProcessFolder(workspace.DepositSlug);
+            depositFileSource.Release(depositRoot);
             if (workspace.IsBagItLayout)
             {
                 CleanupBagitProcessFolder(workspace.DepositSlug);
@@ -469,7 +473,6 @@ public class ProcessPipelineJobHandler(
     private async Task<ProcessPipelineResult> ExecuteBrunnhilde(ExecutePipelineJob request,
         WorkspaceManager workspaceManager, CancellationToken cancellationToken)
     {
-        var mountPath = storageOptions.Value.FileMountPath;
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var processFolder = pipelineToolOptions.Value.ProcessFolder;
 
@@ -481,17 +484,22 @@ public class ProcessPipelineJobHandler(
         tokensCatalog.Add(monitorForceCompleteId, tokenSourceMonitor);
         var cancellationTokenMonitor = tokenSourceMonitor.Token;
 
-        if (!Directory.Exists(mountPath))
+        // The mount for the default working bucket, a scratch copy for a caller's own bucket (issue #410).
+        var depositSlug = workspaceManager.DepositSlug;
+        var depositRootResult = string.IsNullOrEmpty(depositSlug)
+            ? Result.FailNotNull<DepositRoot>(ErrorCodes.BadRequest, $"Deposit {request.DepositId} has no slug to locate its files by")
+            : await depositFileSource.PrepareAsync(workspaceManager.Deposit.Files, depositSlug, cancellationToken);
+        if (depositRootResult.Failure || depositRootResult.Value == null)
         {
-            logger.LogError("S3 mount path could not be found at {MountPath}", mountPath);
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
-                Errors = [new Error { Message = $"S3 mount path could not be found at {mountPath}" }]
+                Errors = [new Error { Message = depositRootResult.ErrorMessage ?? $"Could not reach the files of deposit {request.DepositId}" }]
             };
         }
+        depositRoot = depositRootResult.Value;
 
-        var (metadataPath, metadataProcessPath, objectPath, depositPath) = GetFilePaths(workspaceManager);
+        var (metadataPath, metadataProcessPath, objectPath, depositPath) = GetFilePaths(workspaceManager, depositRoot.Path);
         if (!Directory.Exists(objectPath))
         {
             var errorMessage = $"Could not find object folder for deposit {request.DepositId}";
@@ -761,8 +769,27 @@ public class ProcessPipelineJobHandler(
 
             var metsResult = await AddObjectsToMets(request, depositPath);
 
+            // Without this METS update none of the run's outputs (format, PRONOM, virus scan, Exif)
+            // are recorded, so the run hasn't succeeded - reporting Completed here would leave the
+            // deposit looking finished while the UI shows a mismatch banner for every file.
+            // CompletedWithErrors releases the lock just as Completed does (issue #299).
             if (metsResult.Failure)
-                logger.LogInformation("Issue adding objects to METS in pipeline run: {Error}", metsResult.ErrorMessage);
+            {
+                logger.LogError("Issue adding objects to METS in pipeline run {JobIdentifier} for deposit {DepositId}: {Error}",
+                    request.JobIdentifier, request.DepositId, metsResult.ErrorMessage);
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors =
+                    [
+                        new Error
+                        {
+                            Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} could not add its outputs to the METS: {metsResult.ErrorMessage}"
+                        }
+                    ],
+                    CleanupProcessJob = false
+                };
+            }
 
             // Reporting this status below is what releases the deposit's lock now: Preservation API
             // does it atomically with the status write when the run's own user still holds it
@@ -794,18 +821,15 @@ public class ProcessPipelineJobHandler(
         };
     }
 
-    private (string, string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
+    private (string, string, string, string) GetFilePaths(WorkspaceManager workspaceManager, string depositPath)
     {
         var depositId = workspaceManager.DepositSlug;
-        var mountPath = storageOptions.Value.FileMountPath;
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var objectFolder = pipelineToolOptions.Value.ObjectsFolder;
         var processFolder = pipelineToolOptions.Value.ProcessFolder;
         string metadataPath;
         string metadataProcessPath;
         string objectPath;
-
-        var depositPath = $"{mountPath}{separator}{depositId}";
 
         if (workspaceManager.IsBagItLayout)
         {
@@ -1154,7 +1178,7 @@ public class ProcessPipelineJobHandler(
         // full S3 walks back to back.
         var workspaceManagerResult = await GetWorkspaceManager(request, false);
         var workspaceManager = workspaceManagerResult.Value!;
-        var (_, _, objectPath, _) = GetFilePaths(workspaceManager);
+        var (_, _, objectPath, _) = GetFilePaths(workspaceManager, depositPath);
         var minimalItems = new List<MinimalItem>();
 
         if (workspaceManager.IsBagItLayout)
