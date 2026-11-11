@@ -65,3 +65,8 @@ runs:
         # the Deposit Archiver Lambda deploys from. The older Docker pushed only the image itself.
         provenance: false
         sbom: false
+        # RUN steps use the runner's own network and DNS. On the BuildKit container's network,
+        # apt-get in Dockerfile.PipelineApi could not resolve archive.ubuntu.com or
+        # security.ubuntu.com, while dotnet restore in the same build resolved NuGet fine, so main
+        # failed three times in a row and never deployed. setup-buildx already allows network.host.
+        network: host
