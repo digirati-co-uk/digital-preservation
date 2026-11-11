@@ -838,7 +838,7 @@
                                original order for the rest). Nothing is hidden or enforced. *@
                             <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
                                 <!option value="">(inherit from parent)</!option>
-                                <!option value="@RightsStatement.DoNotInheritSentinel">(none — do not inherit)</!option>
+                                <!option value="@RightsStatement.DoNotInheritSentinel">(not chosen — do not inherit)</!option>
                                 @for (var i = 0; i < allRights.Count; i++)
                                 {
                                     var rs = allRights[i];

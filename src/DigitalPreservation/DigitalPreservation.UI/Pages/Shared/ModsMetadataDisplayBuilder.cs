@@ -136,8 +136,8 @@ public static class ModsMetadataDisplayBuilder
         }
         else if (inputs.RightsSuppressed)
         {
-            // Explicit-but-empty rights: deliberately asserts "no rights" and does not inherit.
-            items.Add(("Rights", "none (not inherited)", false));
+            // Explicit-but-empty rights: deliberately records "no rights statement chosen here" and does not inherit.
+            items.Add(("Rights", "not chosen (not inherited)", false));
         }
         else if (inputs.EffectiveRights != null)
         {

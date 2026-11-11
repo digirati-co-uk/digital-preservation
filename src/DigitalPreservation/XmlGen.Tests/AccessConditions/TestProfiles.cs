@@ -41,13 +41,13 @@ public static class TestProfiles
                 [
                     new AccessCategory { Value = "public-domain", Label = "Out of Copyright (Public Domain / CC0)", RightsStatements = ["NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0"] },
                     new AccessCategory { Value = "low-risk", Label = "In Copyright: Assessed (Low Risk)", RightsStatements = ["InC", "InC-EDU", "InC-NC", "InC-RUU", "InC-OW-EU", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"] },
-                    new AccessCategory { Value = "restrictions-apply", Label = "In Copyright (restrictions apply)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU", "NoC-OKLR", "NoC-CR"] },
-                    new AccessCategory { Value = "medium-risk", Label = "In Copyright (medium risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
-                    new AccessCategory { Value = "unassessed", Label = "In Copyright (Unassessed)", RightsStatements = ["CNE", "UND"] },
-                    new AccessCategory { Value = "high-risk", Label = "In Copyright (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] }
+                    new AccessCategory { Value = "medium-risk", Label = "In Copyright: Assessed (Medium Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
+                    new AccessCategory { Value = "high-risk", Label = "In Copyright: Assessed (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
+                    new AccessCategory { Value = "unassessed", Label = "In Copyright: Unassessed", RightsStatements = ["CNE", "UND"] },
+                    new AccessCategory { Value = "holder-conditions", Label = "In Copyright: Holder Conditions (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] }
                 ]
             },
-            RightsAxis = new RightsAxis { Label = "Copyright Statement" },
+            RightsAxis = new RightsAxis { Label = "Rights Statement" },
             Derived =
             [
                 new DerivedAccessCondition
@@ -67,8 +67,8 @@ public static class TestProfiles
                     {
                         ["PA1"] = new()
                         {
-                            ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
-                            ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2", ["*"] = "3"
+                            ["public-domain"] = "0", ["low-risk"] = "1", ["medium-risk"] = "2",
+                            ["high-risk"] = "2", ["unassessed"] = "2", ["holder-conditions"] = "3", ["__none__"] = "2", ["*"] = "3"
                         },
                         ["PA2"] = new() { ["*"] = "3" },
                         ["PA3"] = new() { ["*"] = "3" },

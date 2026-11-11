@@ -160,17 +160,17 @@ public class DerivedAccessConditionsWriterTests
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-category-inherits.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects", "high-risk");       // folder: PA1 x high-risk = 3
+        SetCategory(fullMets, "objects", "holder-conditions");       // folder: PA1 x holder-conditions = 3
         SetCategory(fullMets, "objects/a.tif", "low-risk");  // file overrides: PA1 x low-risk = 1
         await metsManager.WriteMets(fullMets);
 
-        TypedConditions(metsUri, "DMD_objects", Category).Should().Equal("high-risk");
+        TypedConditions(metsUri, "DMD_objects", Category).Should().Equal("holder-conditions");
         TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("3");
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("1");
 
         var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         parsed.Files.Single(f => f.LocalPath == "objects/c.tif").EffectiveOtherAccessConditions
-            .Should().Equal(new Dictionary<string, string> { [Category] = "high-risk", ["tier"] = "3" });
+            .Should().Equal(new Dictionary<string, string> { [Category] = "holder-conditions", ["tier"] = "3" });
         AssertDerivedInvariant(parsed, provider.Profile!);
     }
 
@@ -179,11 +179,11 @@ public class DerivedAccessConditionsWriterTests
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-rights-not-input.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects", "high-risk");
+        SetCategory(fullMets, "objects", "holder-conditions");
         metsManager.SetRightsStatementByPath(fullMets, "objects/a.tif", NoCUs);   // a public-domain statement...
         await metsManager.WriteMets(fullMets);
 
-        // ...changes nothing: the file has a chosen input so it gets its own tier, for PA1 x high-risk.
+        // ...changes nothing: the file has a chosen input so it gets its own tier, for PA1 x holder-conditions.
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("3");
         AssertDerivedInvariant((await parser.GetMetsFileWrapper(metsUri)).Value!, provider.Profile!);
     }
@@ -246,14 +246,14 @@ public class DerivedAccessConditionsWriterTests
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-category.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "", ["PA1"]);
-        PutAInARange(fullMets, null, "high-risk");
+        PutAInARange(fullMets, null, "holder-conditions");
         await metsManager.WriteMets(fullMets);
 
-        TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), Category).Should().Equal("high-risk");
+        TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), Category).Should().Equal("holder-conditions");
         TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), "tier").Should().Equal("3");
         var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         parsed.LogicalStructures.Single().Ranges.Single().OtherAccessConditions
-            .Should().Equal(new Dictionary<string, string> { [Category] = "high-risk", ["tier"] = "3" });
+            .Should().Equal(new Dictionary<string, string> { [Category] = "holder-conditions", ["tier"] = "3" });
         AssertDerivedInvariant(parsed, provider.Profile!);
     }
 
@@ -306,7 +306,7 @@ public class DerivedAccessConditionsWriterTests
     public async Task Setting_a_category_without_a_category_axis_is_refused_and_null_is_a_no_op()
     {
         var (_, fullMets) = await CreateMets("Outputs/derived-no-axis.xml");
-        metsManager.SetAccessCategoryByPath(fullMets, "objects", null, "high-risk").ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        metsManager.SetAccessCategoryByPath(fullMets, "objects", null, "holder-conditions").ErrorCode.Should().Be(ErrorCodes.BadRequest);
         metsManager.SetAccessCategoryByPath(fullMets, "objects", null, null).Success.Should().BeTrue();
     }
 
@@ -368,7 +368,7 @@ public class DerivedAccessConditionsWriterTests
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-own-category-beats-range.xml");
 
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects/a.tif", "high-risk");   // 3
+        SetCategory(fullMets, "objects/a.tif", "holder-conditions");   // 3
         PutAInARange(fullMets, null, "public-domain");         // the range's 0 must NOT reach it
         await metsManager.WriteMets(fullMets);
 

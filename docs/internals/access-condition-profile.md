@@ -118,7 +118,7 @@ What then happens, in brief (the detail is on the documentation site and in
 
 ## Worked example: the Leeds Access Tier
 
-Leeds choose a **Protected Access Level**, a **copyright status** and a **Copyright Statement**
+Leeds choose a **Protected Access Level**, a **copyright status** and a **Rights Statement**
 (the rights statement), and derive the **Access Tier** from the first two using their master
 matrix. The configuration, as carried in `Preservation.API/appsettings.json` for the development
 environment:
@@ -143,17 +143,17 @@ environment:
         "RightsStatements": [ "NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0" ] },
       { "Value": "low-risk",           "Label": "In Copyright: Assessed (Low Risk)",
         "RightsStatements": [ "InC", "InC-EDU", "InC-NC", "InC-RUU", "InC-OW-EU", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND" ] },
-      { "Value": "restrictions-apply", "Label": "In Copyright (restrictions apply)",
-        "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU", "NoC-OKLR", "NoC-CR" ] },
-      { "Value": "medium-risk",        "Label": "In Copyright (medium risk)",
+      { "Value": "medium-risk",        "Label": "In Copyright: Assessed (Medium Risk)",
         "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU" ] },
-      { "Value": "unassessed",         "Label": "In Copyright (Unassessed)",
+      { "Value": "high-risk",          "Label": "In Copyright: Assessed (High Risk)",
+        "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU" ] },
+      { "Value": "unassessed",         "Label": "In Copyright: Unassessed",
         "RightsStatements": [ "CNE", "UND" ] },
-      { "Value": "high-risk",          "Label": "In Copyright (High Risk)",
+      { "Value": "holder-conditions",  "Label": "In Copyright: Holder Conditions (High Risk)",
         "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU" ] }
     ]
   },
-  "RightsAxis": { "Label": "Copyright Statement" },
+  "RightsAxis": { "Label": "Rights Statement" },
   "Derived": [
     {
       "Type": "tier",
@@ -167,7 +167,7 @@ environment:
         { "Value": "5", "Label": "Tier 5 - Unassessed" }
       ],
       "Matrix": {
-        "PA1":           { "public-domain": "0", "low-risk": "1", "restrictions-apply": "2", "medium-risk": "2", "unassessed": "2", "high-risk": "3", "__none__": "2", "*": "3" },
+        "PA1":           { "public-domain": "0", "low-risk": "1", "medium-risk": "2", "high-risk": "2", "unassessed": "2", "holder-conditions": "3", "__none__": "2", "*": "3" },
         "PA2":           { "*": "3" },
         "PA3":           { "*": "3" },
         "PA4":           { "*": "4" },
@@ -186,8 +186,8 @@ Reading the matrix:
 |---|---|---|
 | `PA1` | `public-domain` | 0 |
 | `PA1` | `low-risk` | 1 |
-| `PA1` | `restrictions-apply`, `medium-risk` or `unassessed` | 2 |
-| `PA1` | `high-risk` | 3 |
+| `PA1` | `medium-risk`, `high-risk` or `unassessed` | 2 |
+| `PA1` | `holder-conditions` | 3 |
 | `PA1` | none (nothing set, nothing inherited) | 2 |
 | `PA1` | a value outside the vocabulary (mistyped, or renamed since) | 3 (the `*` cell) |
 | `PA2` or `PA3` | anything | 3 |
@@ -203,7 +203,7 @@ page shows the same example from the caller's side.
 **Assumptions in this example, pending confirmation from Leeds** (tracked on
 [issue #433](https://github.com/digirati-co-uk/digital-preservation/issues/433)): the `tier` and
 `copyright status` type names, the `PA1`..`PA-unassessed` and category values, and the rights
-statements permitted under each category. The matrix itself is Leeds' master matrix verbatim.
+statements permitted under each category. The matrix itself is Leeds' master matrix verbatim (Access Control Matrix, version 1.0, October 2026).
 
 ## Changing a profile that is already in use
 

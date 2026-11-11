@@ -208,7 +208,7 @@ function updateDerivedPreview() {
         if (best === null) {
             setDerivedPreview(target, "em", "(no value for this combination)");
         } else {
-            setDerivedPreview(target, "strong", derived.values.find(v => v.value === best)?.label ?? best);
+            setDerivedPreview(target, "strong", `${derived.values.find(v => v.value === best)?.label ?? best} (computed)`);
         }
     }
 }
@@ -264,7 +264,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
         if(rightsSuppressed){
-            // Explicit "no rights — do not inherit": select the sentinel option.
+            // Explicit "not chosen — do not inherit": select the sentinel option.
             selectOptionByValue(rightsStatementSelect, rightsDoNotInheritSentinel);
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
@@ -283,7 +283,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
         }
     } else if (nonEditableRightsStatement){
         if(rightsSuppressed){
-            nonEditableRightsStatement.innerHTML = "<ul><li><em>no rights (not inherited)</em></li></ul>";
+            nonEditableRightsStatement.innerHTML = "<ul><li><em>not chosen (not inherited)</em></li></ul>";
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
             const rsUri = rsEntry ? rsEntry.value : rightsStatement;
