@@ -38,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       dotnet: ${{ steps.filter.outputs.dotnet }}
+      mets-editability: ${{ steps.filter.outputs.mets-editability }}
     steps:
       - id: filter
         if: github.event_name == 'pull_request'
@@ -52,6 +53,13 @@ jobs:
               # pipeline-api-entrypoint.sh, and .dockerignore shapes every image's build context.
               - '*.sh'
               - '.dockerignore'
+              # The .NET editability judge embeds the compiled Schematron from here.
+              - 'src/mets-editability/**'
+            mets-editability:
+              - 'src/mets-editability/**'
+              # The Python judge's acceptance corpus is XmlGen.Tests' sample set.
+              - 'src/DigitalPreservation/XmlGen.Tests/Samples/**'
+              - '.github/**'
 
   sonar-cloud-analysis:
     name: SonarCloud Analysis
@@ -92,6 +100,34 @@ jobs:
          dotnet build
          dotnet-coverage collect "dotnet test --filter Category!=Manual" -f xml -o "coverage.xml"
          dotnet-sonarscanner end  /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+  # The editability judge is a twin implementation: Python executes the Schematron sources
+  # directly, .NET runs the committed compiled XSLT. This job is what stops them diverging:
+  # it recompiles the .sch files and fails on any diff (a forgotten
+  # tools/compile_schematron.py run), then runs the Python suite, whose acceptance table the
+  # .NET suite (in test-dotnet) also enforces.
+  test-mets-editability:
+    needs: changes
+    if: (github.event_name != 'pull_request' || needs.changes.outputs.mets-editability == 'true') && github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/mets-editability/
+    steps:
+      - id: checkout
+        uses: actions/checkout@v4
+      - id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: install-dependencies
+        run: pip install -r requirements.txt
+      - id: compiled-schematron-matches-source
+        run: |
+          python tools/compile_schematron.py
+          git diff --exit-code -- schematron/compiled
+      - id: run-tests
+        run: python -m unittest tests -v
 
   test-dotnet:
     needs: changes
