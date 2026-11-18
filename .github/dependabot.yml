@@ -10,3 +10,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # .NET 10 is the LTS release we stay on (supported to November 2028); .NET 11 is an STS
+    # release. Dependabot treats 10.0.14 -> 11.0.0 as just another tag bump (#476, #477), so
+    # major versions are ignored here: moving the runtime is a deliberate decision, made together
+    # with the TargetFramework change, not something an automated PR proposes. Minor and patch
+    # bumps still come through, which is what keeps the pinned 10.0.x tags patched.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

@@ -48,7 +48,9 @@ public class RequestXTests
     [Fact]
     public async Task Replace_Title_Deletes_Every_Existing_Title_And_Inserts_The_New_One()
     {
-        // Issue #347, decision (a): a rename replaces dc:title, so a resource has one title.
+        // Issue #347, decision (a): a rename replaces dc:title, so a resource has one title. Two
+        // operations, DELETE WHERE then INSERT DATA: what Fedora actually does with this is pinned
+        // by ReplaceTitleAgainstFedoraTests.
         var msg = new HttpRequestMessage();
 
         msg.AsReplaceTitlePatch("New \"name\"", "tester");
@@ -56,14 +58,13 @@ public class RequestXTests
         (await Lines(msg)).Select(l => l.Trim()).Should().Equal(
             "PREFIX dc: <http://purl.org/dc/elements/1.1/>",
             "PREFIX fedora: <http://fedora.info/definitions/v4/repository#>",
-            "DELETE {",
+            "DELETE WHERE {",
             "<> dc:title ?title .",
-            "}",
-            "INSERT {",
+            "} ;",
+            "INSERT DATA {",
             "<> dc:title \"New \\\"name\\\"\" .",
             "<> fedora:lastModifiedBy \"tester\" .",
-            "}",
-            "WHERE { OPTIONAL { <> dc:title ?title } }");
+            "}");
         msg.Content!.Headers.ContentType!.MediaType.Should().Be("application/sparql-update");
     }
 
@@ -76,9 +77,9 @@ public class RequestXTests
         msg.WithContainerMetadataUpdate("Renamed group", "tester");
 
         var lines = (await Lines(msg)).Select(l => l.Trim()).ToList();
+        lines.Should().Contain("DELETE WHERE {");
         lines.Should().Contain("<> dc:title ?title .");
         lines.Should().Contain("<> dc:title \"Renamed group\" .");
-        lines.Should().Contain("WHERE { OPTIONAL { <> dc:title ?title } }");
     }
 
     [Theory]
