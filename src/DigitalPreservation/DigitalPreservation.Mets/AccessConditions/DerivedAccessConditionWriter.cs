@@ -29,18 +29,20 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
     /// <item>every div whose dmdSec the platform itself minted: a managed type left there by an
     /// earlier write, now without inputs, is removed so the div inherits like everything else.</item>
     /// </list>
+    /// It also owns <c>use and reproduction</c> on every div with a statement of its own: the
+    /// statement's rights statement (<see cref="ApplyStatementRights"/>).
     /// A div with a THIRD PARTY's dmdSec and no chosen inputs is left exactly as found - a Goobi
     /// export carrying only its resulting tier keeps it - as is every non-managed typed condition
     /// everywhere. Called from <see cref="MetsManager.WriteMets"/>, through
-    /// <see cref="MetsManager.ApplyDerivedAccessConditions"/>; a no-op with nothing derived.
+    /// <see cref="MetsManager.ApplyDerivedAccessConditions"/>; a no-op with no statements and nothing derived.
     /// </summary>
     /// <returns>The IDs of the divs whose MODS changed.</returns>
     public async Task<List<string>> ApplyAsync(FullMets fullMets)
     {
         var changed = new List<string>();
         var managed = await resolver.GetManagedTypesAsync();
-        if (managed.Count == 0) return changed;
         var statementType = await resolver.GetStatementTypeAsync();
+        if (managed.Count == 0 && statementType == null) return changed;
 
         var pass = new DerivedPass(fullMets, managed, statementType, changed, PathsByDiv(fullMets));
 
@@ -145,6 +147,7 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
     {
         var mods = ModsManager.GetModsForDiv(pass.Mets.Mets, div);
         if (mods == null) return parent;
+        await ApplyStatementRights(pass, div, mods);
         var chosen = ReadChosenInputs(pass, mods);
         var effective = chosen.ApplyTo(parent);
         await RewriteManaged(pass, div, mods, chosen.Any ? effective : null);
@@ -161,6 +164,7 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
         Dictionary<string, List<DivType>> wholeFileRanges, Dictionary<DivType, EffectiveAccessInputs> logicalInputs)
     {
         var mods = ModsManager.GetModsForDiv(pass.Mets.Mets, div);
+        if (mods != null) await ApplyStatementRights(pass, div, mods);
         var chosen = mods == null ? ChosenInputs.Nothing : ReadChosenInputs(pass, mods);
         var physical = chosen.ApplyTo(parent);
         var effective = WithLogicalFallback(physical, chosen, div, wholeFileRanges, logicalInputs);
@@ -195,6 +199,35 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
         // ancestor with a rights statement; else the range's.
         var rights = chosen.RightsPresent ? physical.RightsStatement : physical.RightsStatement ?? range.RightsStatement;
         return new EffectiveAccessInputs(restrictions, statement, rights);
+    }
+
+    /// <summary>
+    /// A div with a statement of its own carries that statement's rights statement as <c>use and
+    /// reproduction</c> (issue #433), so that any METS reader sees a standard, long-lived rights URI
+    /// and the div's effective rights always follow its effective statement. A statement that
+    /// implies none gets the "none" sentinel, which stops a parent's rights being inherited; a
+    /// statement the installation does not know leaves the div's rights as found.
+    /// </summary>
+    private async Task ApplyStatementRights(DerivedPass pass, DivType div, XmlGen.Mods.V3.ModsDefinition mods)
+    {
+        if (pass.StatementType == null) return;
+        var statement = mods.GetAccessConditions(pass.StatementType).FirstOrDefault();
+        if (statement == null) return;
+        var rights = await resolver.GetStatementRightsAsync(statement);
+        if (rights == null) return;
+
+        var value = rights.Uri?.ToString() ?? Constants.NullRightsStatement;
+        if (mods.GetAccessConditions(Constants.UseAndReproduction).SequenceEqual([value])) return;
+        mods.RemoveAccessConditions(Constants.UseAndReproduction);
+        mods.AddAccessCondition(value, Constants.UseAndReproduction);
+        ModsManager.SetModsForDiv(pass.Mets.Mets, div, mods);
+        MarkChanged(pass, div);
+    }
+
+    private static void MarkChanged(DerivedPass pass, DivType div)
+    {
+        var id = div.Id ?? string.Empty;
+        if (!pass.Changed.Contains(id)) pass.Changed.Add(id);
     }
 
     /// <summary>FILEID -> the logical divs that paint the whole file (an fptr with no area).</summary>
@@ -240,7 +273,7 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
         if (!ManagedSnapshot(mods, pass.Managed).SequenceEqual(before))
         {
             ModsManager.SetModsForDiv(pass.Mets.Mets, div, mods);
-            pass.Changed.Add(div.Id ?? string.Empty);
+            MarkChanged(pass, div);
         }
     }
 

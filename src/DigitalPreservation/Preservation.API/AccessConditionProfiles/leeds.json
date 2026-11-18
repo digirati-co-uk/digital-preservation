@@ -11,31 +11,39 @@
 // "SPRIGS LIST - NEW" tab; the matrix is "Access Control Matrix - MASTER" (v1.0, October 2026).
 // Statement keys ("value") are ours and are written to METS: never change one once it is used.
 // Labels, descriptions and IIIF text are free to change. Open questions are listed in #433.
+// shortLabel is what a row of the deposit tree shows. Each IIIF entry's "rights" is also written
+// to METS as the standard use and reproduction element of every node with that statement; the
+// mapping below (InC, InC-RUU for orphan works, CNE, PDM) is our DRAFT, for Leeds to confirm.
 {
   "name": "Leeds University Library",
-  "version": "2026-11-18-draft",
+  "version": "2026-11-19-draft",
   "restrictionAxis": {
     "label": "Protected Access Level",
     "values": [
       {
         "value": "PA1",
-        "label": "Level 1"
+        "label": "Level 1",
+        "shortLabel": "PA1"
       },
       {
         "value": "PA2",
-        "label": "Level 2"
+        "label": "Level 2",
+        "shortLabel": "PA2"
       },
       {
         "value": "PA3",
-        "label": "Level 3"
+        "label": "Level 3",
+        "shortLabel": "PA3"
       },
       {
         "value": "PA4",
-        "label": "Level 4"
+        "label": "Level 4",
+        "shortLabel": "PA4"
       },
       {
         "value": "PA-unassessed",
-        "label": "Unassessed"
+        "label": "Unassessed",
+        "shortLabel": "PA unassessed"
       }
     ]
   },
@@ -46,12 +54,14 @@
       {
         "value": "out-of-copyright",
         "label": "Out of Copyright: Public Domain",
+        "shortLabel": "Out of copyright",
         "category": "public-domain",
         "iiif": "out-of-copyright"
       },
       {
         "value": "inc-low-risk",
         "label": "In Copyright: Assessed - LOW RISK",
+        "shortLabel": "InC low risk",
         "category": "low-risk",
         "iiif": "in-copyright-online",
         "description": "This statement should be used for material where our copyright risk assessment has determined that it is very low risk and no due dilligence is required. This may include unpublished material subject to the 2039 rule, material where we do not know the end copyright date and low risk published material. [Ask Jodie if ok to include 2039 material if we aren't doing this level of due diligence]"
@@ -59,6 +69,7 @@
       {
         "value": "inc-low-risk-orphan",
         "label": "In Copyright: Assessed - LOW RISK (Online -orphan work)",
+        "shortLabel": "InC low risk, orphan",
         "category": "low-risk",
         "iiif": "orphan-online",
         "description": "To be applied to non 2039 works where some due diligence efforts have been made"
@@ -66,6 +77,7 @@
       {
         "value": "inc-low-risk-orphan-2039",
         "label": "In Copyright: Assessed - LOW RISK (Online -orphan work-2039)",
+        "shortLabel": "InC low risk, orphan 2039",
         "category": "low-risk",
         "iiif": "orphan-2039-online",
         "description": "To be applied to unpublished material (archives) where some due diligence efforts have been made [Ask Jodie if we need to link to takedown?]"
@@ -73,6 +85,7 @@
       {
         "value": "inc-low-risk-uol",
         "label": "In Copyright: Assessed - LOW RISK (University of Leeds copyright - online)",
+        "shortLabel": "InC low risk, UoL",
         "category": "low-risk",
         "iiif": "uol-online",
         "description": "To be applied to copyright material of UoL (e.g. material derived from the University, it's departments or activities wholly funded by the university, unless explicitly belonging to any other third party) where there are no restrictions and can be put online."
@@ -80,6 +93,7 @@
       {
         "value": "inc-medium-risk-terminal",
         "label": "In Copyright: Assessed - MEDIUM RISK (dedicated terminal)",
+        "shortLabel": "InC medium risk, terminal",
         "category": "medium-risk",
         "iiif": "in-copyright-copies",
         "description": "This statement should be used for material where our copyright risk assessment has determined that it is medium risk and no due dilligence has been done."
@@ -87,6 +101,7 @@
       {
         "value": "inc-high-risk",
         "label": "In Copyright: Assessed - HIGH RISK",
+        "shortLabel": "InC high risk",
         "category": "high-risk",
         "iiif": "in-copyright-copies",
         "description": "This statement should be used for material that is assessed as high risk copyright (we would not put it online) but there are no copyright holder or donor restrictions on copying for personal research. We are allowed to copy for research, private study or other purposes permitted by copyright legislation."
@@ -94,6 +109,7 @@
       {
         "value": "inc-high-risk-orphan",
         "label": "In Copyright: Assessed - HIGH RISK (orphan work)",
+        "shortLabel": "InC high risk, orphan",
         "category": "high-risk",
         "iiif": "orphan-copies",
         "description": "To be applied to non 2039 works where some due diligence efforts have been made and deemed to be high risk (e.g. active or high profile estate)."
@@ -101,6 +117,7 @@
       {
         "value": "inc-high-risk-orphan-2039",
         "label": "In Copyright: Assessed - HIGH RISK (orphan work-2039)",
+        "shortLabel": "InC high risk, orphan 2039",
         "category": "high-risk",
         "iiif": "orphan-2039-copies",
         "description": "To be applied to unpublished material (archives) where some due diligence efforts have been made and deemed to be high risk (e.g. active or high profile estate)"
@@ -108,6 +125,7 @@
       {
         "value": "inc-high-risk-uol",
         "label": "In Copyright: Assessed - HIGH RISK (University of Leeds copyright)",
+        "shortLabel": "InC high risk, UoL",
         "category": "high-risk",
         "iiif": "uol-contact",
         "description": "To be applied to copyright material of UoL (e.g. material derived from the University, it's departments or activities wholly funded by the university, unless explicitly belonging to any other third party) where there is a higher risk to online publication."
@@ -115,6 +133,7 @@
       {
         "value": "inc-contractual",
         "label": "In Copyright (contractual restrictions apply) - HIGH RISK",
+        "shortLabel": "InC contractual",
         "category": "high-risk",
         "iiif": "contractual",
         "description": "Ask Jodie if we can have a generic licensing statement to cover scenarios such as Adam Matthew arrangement"
@@ -122,6 +141,7 @@
       {
         "value": "inc-unassessed",
         "label": "In Copyright: Unassessed",
+        "shortLabel": "InC unassessed",
         "category": "unassessed",
         "iiif": "not-evaluated",
         "description": "This statement should be used for cases where no assessment on copyright duration, ownership and risk has been carried out. This will be non-public content - only be viewable in the research centre if PA conditions allow (either physically or via dedicated terminal).",
@@ -137,6 +157,7 @@
       {
         "value": "inc-holder-preservation",
         "label": "In Copyright (holder restrictions) - HIGH RISK - PRESERVATION COPIES ONLY",
+        "shortLabel": "InC holder, preservation only",
         "category": "holder-conditions",
         "iiif": "preservation-only",
         "description": "This is to be used in the last instance where a high risk work with restrictions on copying is digitised on preservation grounds to provide a surrogate for access and reduce risk to handling the physical item. This can only apply to donated material and not material held on deposit (as per copyright exception)."
@@ -184,46 +205,57 @@
         },
         {
           "id": "in-copyright-online",
+          "rights": "http://rightsstatements.org/vocab/InC/1.0/",
           "requiredStatement": "This material is in copyright. The University of Leeds Library has taken the approach to place the material online in order to support research, learning and teaching. [Researcher is responsible for due diligence for re-using not permitted by copyright]"
         },
         {
           "id": "orphan-online",
+          "rights": "http://rightsstatements.org/vocab/InC-RUU/1.0/",
           "requiredStatement": "We believe this material is still protected by copyright, but we have been unable to identify or locate the copyright owner despite reasonable efforts. The Library has taken the approach to place the material online to support research, learning and teaching. Please contact us if you believe you are the copyright owner or can help us identify them."
         },
         {
           "id": "orphan-2039-online",
+          "rights": "http://rightsstatements.org/vocab/InC-RUU/1.0/",
           "requiredStatement": "We believe this material is still protected by copyright until 2039 under UK copyright law. We have been unable to identify or locate the copyright owner despite reasonable efforts. The Library has taken the approach to place the material online to support research, learning and teaching. Please contact us if you believe you are the copyright owner or can help us identify them."
         },
         {
           "id": "uol-online",
+          "rights": "http://rightsstatements.org/vocab/InC/1.0/",
           "requiredStatement": "Copyright is owned by or has been assigned to the University of Leeds. The Library has taken the approach to place the material online to support research, learning and teaching. Please contact us before reusing this material. We can advise on any permissions or restrictions that apply."
         },
         {
           "id": "in-copyright-copies",
+          "rights": "http://rightsstatements.org/vocab/InC/1.0/",
           "requiredStatement": "This material is in copyright. Copies may be supplied by the University of Leeds Libraries for research, private study, or other purposes permitted by copyright legislation, provided no other access restrictions apply. Researchers are responsible for obtaining permission from the copyright holder before reproducing the material for any other purpose."
         },
         {
           "id": "orphan-copies",
+          "rights": "http://rightsstatements.org/vocab/InC-RUU/1.0/",
           "requiredStatement": "We believe this material is still protected by copyright, but we have been unable to identify or locate the copyright owner despite reasonable efforts. Copies may be supplied by the University of Leeds Libraries for research, private study, or other purposes permitted by copyright legislation, provided no other access restrictions apply. [ due diligence Researchers are responsible for obtaining permission before reproducing the material for any other purpose]."
         },
         {
           "id": "orphan-2039-copies",
+          "rights": "http://rightsstatements.org/vocab/InC-RUU/1.0/",
           "requiredStatement": "We believe this material is still protected by copyright until 2039 under UK copyright law. We have been unable to identify or locate the copyright owner despite reasonable efforts. Copies may be supplied by the University of Leeds Libraries for research, private study, or other purposes permitted by copyright legislation, provided no other access restrictions apply. [ due diligence Researchers are responsible for obtaining permission before reproducing the material for any other purpose]."
         },
         {
           "id": "uol-contact",
+          "rights": "http://rightsstatements.org/vocab/InC/1.0/",
           "requiredStatement": "Copyright is owned by or has been assigned to the University of Leeds. Please contact us before reusing this material. We can advise on any permissions or restrictions that apply."
         },
         {
           "id": "contractual",
+          "rights": "http://rightsstatements.org/vocab/InC/1.0/",
           "requiredStatement": "[PLACEHOLDER - Leeds to supply the statement text]"
         },
         {
           "id": "not-evaluated",
+          "rights": "http://rightsstatements.org/vocab/CNE/1.0/",
           "requiredStatement": "The copyright status of this material has not been evaluated. Copies may be supplied by the University of Leeds Libraries for research, private study, or other purposes permitted by copyright legislation, provided no other access restrictions apply. Researchers are responsible for obtaining permission from the copyright holder before reproducing the material for any other purpose."
         },
         {
           "id": "preservation-only",
+          "rights": "http://rightsstatements.org/vocab/InC/1.0/",
           "requiredStatement": "[PLACEHOLDER - Leeds to supply the statement text]"
         }
       ]
@@ -236,6 +268,7 @@
           {
             "value": "0",
             "label": "Tier 0 - Open",
+            "shortLabel": "Tier 0",
             "externalIds": {
               "emu-sprig": [
                 "SPRIG-4006"
@@ -248,6 +281,7 @@
           {
             "value": "1",
             "label": "Tier 1 - Open",
+            "shortLabel": "Tier 1",
             "externalIds": {
               "emu-sprig": [
                 "SPRIG-4007"
@@ -260,6 +294,7 @@
           {
             "value": "2",
             "label": "Tier 2 - Restricted",
+            "shortLabel": "Tier 2",
             "externalIds": {
               "emu-sprig": [
                 "SPRIG-4008"
@@ -272,6 +307,7 @@
           {
             "value": "3",
             "label": "Tier 3 - Protected",
+            "shortLabel": "Tier 3",
             "externalIds": {
               "emu-sprig": [
                 "SPRIG-4009"
@@ -284,6 +320,7 @@
           {
             "value": "4",
             "label": "Tier 4 - Closed",
+            "shortLabel": "Tier 4",
             "externalIds": {
               "emu-sprig": [
                 "SPRIG-4010"
@@ -293,6 +330,7 @@
           {
             "value": "5",
             "label": "Tier 5 - Unassessed",
+            "shortLabel": "Tier 5",
             "externalIds": {
               "emu-sprig": [
                 "SPRIG-3773"

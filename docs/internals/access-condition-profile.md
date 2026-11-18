@@ -63,7 +63,8 @@ the owner, not online...), which says three things at once:
 
 - which **copyright status** it falls under (out of copyright, low risk, medium risk, high risk,
   unassessed, holder conditions) - their risk assessment;
-- what text the public sees with the item - a IIIF `requiredStatement`, and for some a IIIF `rights` URI;
+- what the public sees with the item - a IIIF `requiredStatement`, and a `rights` URI (a
+  rightsstatements.org or Creative Commons statement) that is also written to METS;
 - together with the **Protected Access Level** (the restriction), the item's **Access Tier** (0-5),
   which their delivery systems map to IIIF authorisation roles.
 
@@ -92,7 +93,7 @@ The top level is the standard model; everything the extension adds is under `sta
   "version": "2026-11-18-draft",               // informational: lets a consumer say which it read
   "restrictionAxis": {                         // the standard restriction dropdown
     "label": "Protected Access Level",
-    "values": [ { "value": "PA1", "label": "Level 1" }, ... ]
+    "values": [ { "value": "PA1", "label": "Level 1", "shortLabel": "PA1" }, ... ]  // shortLabel: optional, for the tree
   },
   "statements": {
     "label": "Copyright Statement",            // the dropdown that replaces the rights statement
@@ -101,6 +102,7 @@ The top level is the standard model; everything the extension adds is under `sta
       {
         "value": "inc-low-risk-orphan-2039",   // the key written to METS - never change once used
         "label": "In Copyright: Assessed - LOW RISK (Online -orphan work-2039)",
+        "shortLabel": "InC low risk, orphan 2039",  // optional: what a row of the deposit tree shows
         "category": "low-risk",                // one of categories: its matrix column
         "iiif": "orphan-2039-online",          // one of iiif.entries: what it publishes
         "description": "To be applied to unpublished material (archives) where ...",  // shown when chosen
@@ -115,7 +117,9 @@ The top level is the standard model; everything the extension adds is under `sta
         { "id": "out-of-copyright",
           "rights": "https://creativecommons.org/publicdomain/mark/1.0/",
           "requiredStatement": "This material is out of copyright." },
-        { "id": "orphan-2039-online", "requiredStatement": "We believe this material is ..." },
+        { "id": "orphan-2039-online",
+          "rights": "http://rightsstatements.org/vocab/InC-RUU/1.0/",
+          "requiredStatement": "We believe this material is ..." },
         ...
       ]
     },
@@ -123,7 +127,7 @@ The top level is the standard model; everything the extension adds is under `sta
       {
         "type": "tier",                        // the mods:accessCondition/@type it is written under
         "label": "Access Tier",
-        "values": [ { "value": "0", "label": "Tier 0 - Open", "externalIds": { ... } }, ... ],  // least to most restrictive
+        "values": [ { "value": "0", "label": "Tier 0 - Open", "shortLabel": "Tier 0", "externalIds": { ... } }, ... ],  // least to most restrictive
         "matrix": {                            // restriction -> category -> value
           "PA1": { "public-domain": "0", "low-risk": "1", ..., "__none__": "2", "*": "3" },
           "PA2": { "*": "3" },
@@ -144,8 +148,12 @@ Some choices worth knowing about:
   preview or manifest build shows the new wording.
 - **IIIF text is stated once.** Statements reference an `iiif` entry by `id`, so two statements
   that publish the same words share one entry and cannot drift apart.
-- **Categories are never written to METS.** A node's category is its statement's, looked up here.
-  METS holds keys only: the restriction, the statement, the derived values.
+- **Categories and IIIF text are never written to METS.** A node's category is its statement's,
+  looked up here. METS holds the restriction, the statement and the derived values as keys, and the
+  statement's **rights statement** as the standard `use and reproduction` URI: long-lived, and
+  understood by any METS reader without this document.
+- **Short labels.** `shortLabel` (restriction values, statements, derived values) is what a row of
+  the deposit tree shows, where space is short; the tooltip has the full `label`. Optional.
 - **`externalIds`** (on restriction values, statements and derived values) record the same thing's
   identifiers in other systems, by scheme - for Leeds, EMu Rights SPRIGs and IRNs - so a flow that
   starts from EMu (EMu → Goobi) can map them to keys. Within one list an identifier may belong to
@@ -173,8 +181,9 @@ lists every problem found:
   (and `__none__`). A gap would silently leave nodes without a tier.
 - **Types:** `statements.type` and each derived `type` must be distinct, and none may be
   `restriction on access` or `use and reproduction`.
-- **IIIF:** every entry has `rights` or `requiredStatement` or both; `rights` is an absolute http(s)
-  URI; no text is blank.
+- **IIIF:** every entry has `rights` or `requiredStatement` or both; `rights` must be one of the
+  platform's rights statements (`RightsStatement`: rightsstatements.org, Creative Commons and the
+  Public Domain Mark), since it is written to METS; no text is blank.
 - **External ids:** one identifier, one value, per list.
 - `allowMultipleRestrictions` cannot be combined with `derived`: a derived value is one matrix cell.
 
@@ -186,8 +195,13 @@ The detail is on the documentation site and in
 - The chosen statement is written as `mods:accessCondition type="{statements.type}"`, inherited down
   the tree exactly like the restriction (including a file's fallback to its logical range).
 - The UI shows a statement dropdown, grouped by category, **in place of** the rights statement
-  dropdown, with the chosen statement's `description` beneath it. A node's existing
-  `use and reproduction` element is left exactly as it is: the form says nothing about rights.
+  dropdown, with the chosen statement's `description` beneath it.
+- A div with a statement of its own carries that statement's rights statement as
+  `use and reproduction`, written on every write (so a changed `rights` in the profile reaches a
+  document the next time it is saved). A statement with no `rights` gets the "none" value, which
+  stops a parent's rights being inherited; clearing a statement clears the rights written from it;
+  a statement the profile does not know leaves the div's rights as found. A `use and reproduction`
+  on a div with no statement of its own (from before the profile, or another producer) is kept.
 - Every div, physical or logical, that carries a chosen element of its own gets each derived element
   too, computed from that div's **effective** restriction and statement. So does every **file** whose
   effective inputs come partly from its logical range. Every write recomputes every derived value in
@@ -197,14 +211,17 @@ The detail is on the documentation site and in
   chosen ones is left exactly as found. One exception, which predates this feature: saving a
   **logical structMap** rebuilds every logical div's dmdSec from the client's copy, so a Goobi tier
   on a logical div does not survive a logical-structure edit in the UI (open on #433).
-- Only the derived types are rewritten. Other typed `accessCondition` elements are left as found.
+- Only the derived types and the rights statement are rewritten. Other typed `accessCondition`
+  elements are left as found.
 - The dialogue has a **Preview METS and IIIF** button: the `mods:accessCondition` elements the node
   will carry after saving, and the `rights` and `requiredStatement` a IIIF manifest built from this
-  profile would carry. Nothing in the preview is saved; the IIIF text is never written to METS.
+  profile would carry. Nothing in the preview is saved; the IIIF `requiredStatement` text is never
+  written to METS.
   The tier and both previews always show real values: when a node's own value is cleared, they use
   what it inherits (the parser's `InheritedAccessRestrictions` and `InheritedOtherAccessConditions`).
-- The tree shows the statement and the tier beside each node; hovering the statement shows its IIIF
-  text.
+- The tree shows the restriction, statement and tier beside each node by their short labels;
+  hovering one shows its full label, and the statement's IIIF text. The rights statement is shown
+  only when it is not the one the statement implies (a value left from before).
 
 The code follows the same split. The standard model is `AccessConditionProfile`, the restriction
 and rights setters in `MetsManager`, `deposit.js` and the dialogue in `Deposit.cshtml`. The extension
@@ -227,7 +244,8 @@ A manifest builder that follows the profile does, for each node it publishes:
    `statements.iiif.requiredStatementLabel`.
 4. No statement, or a statement the profile no longer knows: publish neither.
 
-The derived tier is written in METS and needs no lookup, only the same inheritance walk. The UI's
+The derived tier and the rights URI are written in METS and need no lookup, only the same
+inheritance walk; the effective `use and reproduction` is the `rights` of step 3. The UI's
 preview implements steps 2-4 on the effective statement, so what an archivist sees there is what
 such a builder produces.
 
@@ -267,8 +285,9 @@ document itself, against an expected table restated from the spreadsheet.
 
 **Open, pending Leeds** (tracked on [issue #433](https://github.com/digirati-co-uk/digital-preservation/issues/433)):
 the statement keys are ours (most statements have no SPRIG yet); two statements have placeholder
-text (contractual restrictions, preservation copies only); only out of copyright has a IIIF `rights`
-URI; the contractual statement is placed under high risk as its label says, though the matrix lists
+text (contractual restrictions, preservation copies only); the rights mapping is our draft (`InC` for
+in copyright, `InC-RUU` for orphan works rather than the EU-only `InC-OW-EU`, `CNE` for
+unassessed, the Public Domain Mark for out of copyright); the contractual statement is placed under high risk as its label says, though the matrix lists
 in-contract material under medium (the same tier under PA1); *Copyright - in - high risk (no
 copying)* is in the SPRIGS list but not the dropdown; the `requiredStatement` label (`Rights`) and
 the type names (`copyright statement`, `tier`) are our choices.

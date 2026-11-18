@@ -22,6 +22,11 @@ public class AccessRestriction
     [JsonPropertyName("label")]
     public required string Label { get; set; }
 
+    /// <summary>What a row of the deposit tree shows, where space is short; <see cref="Label"/> when absent (issue #433).</summary>
+    [JsonPropertyName("shortLabel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ShortLabel { get; set; }
+
     /// <summary>What is written to METS and returned in <c>accessRestrictions</c>.</summary>
     [JsonPropertyName("value")]
     public required string Value { get; set; }

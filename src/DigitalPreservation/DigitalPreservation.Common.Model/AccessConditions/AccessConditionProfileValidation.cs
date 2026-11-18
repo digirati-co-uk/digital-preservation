@@ -76,8 +76,10 @@ internal sealed class AccessConditionProfileValidation(AccessConditionProfile pr
             var name = $"iiif entry '{entry.Id}'";
             if (entry.Rights == null && entry.RequiredStatement == null)
                 errors.Add($"{name} has neither rights nor requiredStatement.");
-            if (entry.Rights != null && !IsHttpUri(entry.Rights))
-                errors.Add($"{name}: rights '{entry.Rights}' is not an absolute http(s) URI.");
+            // It is written into METS as the standard use and reproduction element, so it must be
+            // one of the long-lived statements the platform knows.
+            if (entry.Rights != null && !IsKnownRightsStatement(entry.Rights))
+                errors.Add($"{name}: rights '{entry.Rights}' is not one of the platform's rights statements (RightsStatement).");
             if (entry.RequiredStatement != null && string.IsNullOrWhiteSpace(entry.RequiredStatement))
                 errors.Add($"{name}: requiredStatement is blank (omit it instead).");
             if (entry.RequiredStatementLabel != null && string.IsNullOrWhiteSpace(entry.RequiredStatementLabel))
@@ -187,6 +189,6 @@ internal sealed class AccessConditionProfileValidation(AccessConditionProfile pr
     private static bool IsStandardType(string type) =>
         type is AccessConditionProfile.ReservedTypes.RestrictionOnAccess or AccessConditionProfile.ReservedTypes.UseAndReproduction;
 
-    private static bool IsHttpUri(string value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    private static bool IsKnownRightsStatement(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && RightsStatement.ByUri.ContainsKey(uri);
 }

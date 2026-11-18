@@ -251,12 +251,15 @@ public class AccessConditionProfileTests
         var entries = profile.Statements!.Iiif!.Entries;
         entries.Add(new IiifRightsEntry { Id = "empty" });
         entries.Add(new IiifRightsEntry { Id = "relative", Rights = "/licence" });
+        entries.Add(new IiifRightsEntry { Id = "unknown", Rights = "https://example.org/my-licence" });
         entries.Add(new IiifRightsEntry { Id = "blank", RequiredStatement = "  " });
         entries.Add(new IiifRightsEntry { Id = "out-of-copyright", Rights = "https://example.org/" });
 
         var errors = profile.Validate();
         errors.Should().Contain(e => e.Contains("'empty' has neither rights nor requiredStatement"));
-        errors.Should().Contain(e => e.Contains("'/licence' is not an absolute http(s) URI"));
+        errors.Should().Contain(e => e.Contains("'/licence' is not one of the platform's rights statements"));
+        errors.Should().Contain(e => e.Contains("'https://example.org/my-licence' is not one of the platform's rights statements"),
+            "rights is written into METS, so it must be a long-lived statement the platform knows");
         errors.Should().Contain(e => e.Contains("'blank': requiredStatement is blank"));
         errors.Should().Contain(e => e.Contains("statements.iiif.entries contains 'out-of-copyright' more than once"));
     }

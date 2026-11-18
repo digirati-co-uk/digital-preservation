@@ -324,6 +324,69 @@ public class DerivedAccessConditionsWriterTests
         second.Should().BeEmpty();
     }
 
+    // ---- The statement's rights statement, written as the standard use and reproduction ------------
+
+    private static readonly Uri Pdm = new("https://creativecommons.org/publicdomain/mark/1.0/");
+    private static readonly Uri InCRuu = new("http://rightsstatements.org/vocab/InC-RUU/1.0/");
+
+    [Fact]
+    public async Task A_div_with_a_statement_carries_the_statements_rights_statement()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/statement-rights.xml");
+        SetStatement(fullMets, "objects", TestProfiles.LowRisk);
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.OutOfCopyright);
+        await metsManager.WriteMets(fullMets);
+
+        TypedConditions(metsUri, "DMD_objects", "use and reproduction").Should().Equal(InC.ToString());
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "use and reproduction").Should().Equal(Pdm.ToString());
+
+        var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        parsed.Files.Single(f => f.LocalPath == "objects/a.tif").EffectiveRightsStatement.Should().Be(Pdm);
+        parsed.Files.Single(f => f.LocalPath == "objects/c.tif").EffectiveRightsStatement
+            .Should().Be(InC, "c.tif inherits the folder's statement, and with it the folder's rights");
+    }
+
+    [Fact]
+    public async Task The_rights_follow_a_changed_statement_and_go_with_a_cleared_one()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/statement-rights-follow.xml");
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.OutOfCopyright);
+        await metsManager.WriteMets(fullMets);
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "use and reproduction").Should().Equal(Pdm.ToString());
+
+        fullMets = await Reload(metsUri);
+        SetStatement(fullMets, "objects/a.tif", "inc-low-risk-orphan");
+        await metsManager.WriteMets(fullMets);
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "use and reproduction").Should().Equal(InCRuu.ToString());
+
+        fullMets = await Reload(metsUri);
+        SetStatement(fullMets, "objects/a.tif", null);
+        await metsManager.WriteMets(fullMets);
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "use and reproduction")
+            .Should().BeEmpty("the rights were written from the statement, so the file inherits both again");
+    }
+
+    [Fact]
+    public async Task A_statement_the_profile_does_not_know_leaves_the_rights_as_found()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/statement-rights-unknown.xml");
+        metsManager.SetRightsStatementByPath(fullMets, "objects/a.tif", NoCUs);
+        SetStatement(fullMets, "objects/a.tif", "from-another-installation");
+        await metsManager.WriteMets(fullMets);
+
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "use and reproduction").Should().Equal(NoCUs.ToString());
+    }
+
+    [Fact]
+    public async Task A_range_with_a_statement_carries_its_rights_statement()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/statement-rights-range.xml");
+        PutAInARange(fullMets, ["PA1"], TestProfiles.HolderConditions);
+        await metsManager.WriteMets(fullMets);
+
+        TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), "use and reproduction").Should().Equal(InC.ToString());
+    }
+
     // ---- Review of #434: the written document must agree with what the parser reads back ------------
 
     [Fact]

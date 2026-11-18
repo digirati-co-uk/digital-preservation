@@ -21,6 +21,9 @@ public record EffectiveAccessInputs(IReadOnlyList<string> Restrictions, string? 
         && RightsStatement == other.RightsStatement;
 }
 
+/// <summary>The rights statement a chosen statement implies; <see cref="Uri"/> is null when it implies none.</summary>
+public sealed record StatementRights(Uri? Uri);
+
 /// <summary>
 /// Computes the derived access conditions (for Leeds, the Access Tier) a div should carry, from its
 /// effective chosen ones. This is the platform's one customer-specific seam for access metadata
@@ -49,6 +52,13 @@ public interface IDerivedAccessConditionResolver
     /// value for these inputs and is removed from the div.
     /// </summary>
     Task<IReadOnlyDictionary<string, string>> ResolveAsync(EffectiveAccessInputs inputs, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The rights statement a div with this statement of its own carries as <c>use and
+    /// reproduction</c>; null when the statement is not one the installation knows, in which case
+    /// the div's rights are left as found.
+    /// </summary>
+    Task<StatementRights?> GetStatementRightsAsync(string statement, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -76,5 +86,11 @@ public class ProfileDerivedAccessConditionResolver(IAccessConditionProfileProvid
     {
         var statements = await GetStatementsAsync(cancellationToken);
         return statements?.ResolveDerived(inputs.Restrictions, inputs.Statement) ?? new Dictionary<string, string>();
+    }
+
+    public async Task<StatementRights?> GetStatementRightsAsync(string statement, CancellationToken cancellationToken = default)
+    {
+        var statements = await GetStatementsAsync(cancellationToken);
+        return statements?.Find(statement) == null ? null : new StatementRights(statements.RightsFor(statement));
     }
 }

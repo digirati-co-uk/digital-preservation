@@ -286,25 +286,32 @@ function makeActionLink(icon, title, onClick, linkClass = 'link-primary') {
     return btn;
 }
 
+// A profile value's short label, else its label, else the value itself.
+function shortLabelOf(values, value) {
+    const found = values?.find(v => v.value === value);
+    return found?.shortLabel ?? found?.label ?? value;
+}
+
 function buildMetadataSummaryText(range) {
     const parts = [];
+    const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
+    const statements = profile?.statements;
+    const statement = statements ? range.otherAccessConditions?.[statements.type] : undefined;
     if (range.accessRestrictions?.length > 0)
-        parts.push(range.accessRestrictions.join(', '));
-    if (range.rightsStatement) {
+        parts.push(range.accessRestrictions.map(v => shortLabelOf(profile?.restrictionAxis?.values, v)).join(', '));
+    // With a statement of its own (issue #433) the range's rights are written from it: not repeated.
+    if (range.rightsStatement && statement === undefined) {
         const label = getRightsShortLabel(range.rightsStatement);
         if (label) parts.push(label);
     }
     // The chosen statement and the derived conditions (issue #433), the latter as last saved; the
     // server recomputes them when the structMap is saved.
-    const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
-    const statements = profile?.statements;
-    const statement = statements ? range.otherAccessConditions?.[statements.type] : undefined;
     if (statement !== undefined)
-        parts.push(statements.values.find(v => v.value === statement)?.label ?? statement);
+        parts.push(shortLabelOf(statements.values, statement));
     for (const derived of statements?.derived ?? []) {
         const value = range.otherAccessConditions?.[derived.type];
         if (value !== undefined)
-            parts.push(derived.values.find(v => v.value === value)?.label ?? value);
+            parts.push(shortLabelOf(derived.values, value));
     }
     if (range.recordInfo?.recordIdentifiers?.length > 0) {
         const ri = range.recordInfo.recordIdentifiers;
@@ -458,11 +465,15 @@ function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatem
     // The chosen statement rides in otherAccessConditions under the profile's type (issue #433).
     const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.statements : null;
     if (axis) {
+        const hadStatement = range.otherAccessConditions?.[axis.type] !== undefined;
         const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => type !== axis.type);
         if (accessStatement) kept.push([axis.type, accessStatement]);
         range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
+        // The range's rights were written from its statement: clearing one clears both. A new
+        // statement's rights are written by the server when the structMap is saved.
+        if (hadStatement && !accessStatement) range.rightsStatement = null;
     }
-    // With statements there is no rights dropdown (issue #433): the range's rights stay as they are.
+    // With statements there is no rights dropdown (issue #433): otherwise the range's rights stay as they are.
     if (rightsStatementUri !== undefined) range.rightsStatement = rightsStatementUri || null;
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }

@@ -72,7 +72,7 @@ public static class ModsMetadataDisplayBuilder
         var items = new List<ModsDisplayItem>();
         AddAccess(items, inputs, profile, logger);
         AddStatement(items, inputs, profile?.Statements);
-        AddRights(items, inputs, logger);
+        AddRights(items, inputs, logger, profile?.Statements);
         AddOtherTyped(items, inputs, profile);
         AddRecord(items, inputs, logger);
         return items;
@@ -96,25 +96,36 @@ public static class ModsMetadataDisplayBuilder
                     "Effective access restrictions ({Effective}) don't match explicit access restrictions ({Explicit}); showing the explicit value",
                     string.Join(", ", inputs.EffectiveAccess), string.Join(", ", inputs.Access));
             }
-            items.Add(new ModsDisplayItem("Access", string.Join(", ", inputs.Access.Select(v => RestrictionLabel(profile, v))), false));
+            items.Add(AccessItem(profile, inputs.Access, false));
         }
         else if (inputs.EffectiveAccess is { Count: > 0 })
         {
-            items.Add(new ModsDisplayItem("Access", string.Join(", ", inputs.EffectiveAccess.Select(v => RestrictionLabel(profile, v))), true));
+            items.Add(AccessItem(profile, inputs.EffectiveAccess, true));
         }
     }
 
+    /// <summary>A row shows a value's short label where the profile gives one; the tooltip has the full one.</summary>
+    private static ModsDisplayItem AccessItem(AccessConditionProfile? profile, List<string> values, bool inherited)
+    {
+        var known = values.Select(v => profile?.RestrictionAxis.Values.FirstOrDefault(r => r.Value == v)).ToList();
+        var text = string.Join(", ", values.Select((v, i) => known[i]?.ShortLabel ?? known[i]?.Label ?? v));
+        var full = string.Join(", ", values.Select((v, i) => known[i]?.Label ?? v));
+        return new ModsDisplayItem("Access", text, inherited, full == text ? null : full);
+    }
+
     /// <summary>
-    /// The chosen statement (issue #433), shown by its label, with what it publishes in IIIF as the
-    /// item's detail (a tooltip). Only on an installation with statements.
+    /// The chosen statement (issue #433), shown by its short label, with its full label and what it
+    /// publishes in IIIF as the item's detail (a tooltip). Only on an installation with statements.
     /// </summary>
     private static void AddStatement(List<ModsDisplayItem> items, ModsDisplayInputs inputs, StatementProfile? statements)
     {
         if (statements == null || string.IsNullOrEmpty(statements.Type)) return;
         var (value, inherited) = OwnOrInherited(inputs, statements.Type);
         if (value == null) return;
-        var label = statements.Find(value)?.Label ?? value;
-        items.Add(new ModsDisplayItem(statements.Label, label, inherited, IiifDetail(statements, value)));
+        var statement = statements.Find(value);
+        var text = statement?.ShortLabel ?? statement?.Label ?? value;
+        var detail = $"{statement?.Label ?? value}\n{IiifDetail(statements, value)}";
+        items.Add(new ModsDisplayItem(statements.Label, text, inherited, detail));
     }
 
     /// <summary>What a node with this statement publishes in IIIF, as text.</summary>
@@ -138,8 +149,9 @@ public static class ModsMetadataDisplayBuilder
     }
 
     private static void AddRights(
-        List<ModsDisplayItem> items, ModsDisplayInputs inputs, ILogger? logger)
+        List<ModsDisplayItem> items, ModsDisplayInputs inputs, ILogger? logger, StatementProfile? statements)
     {
+        if (statements != null && RightsFollowStatement(inputs, statements)) return;
         if (inputs.Rights != null)
         {
             if (inputs.EffectiveRights != inputs.Rights)
@@ -162,6 +174,17 @@ public static class ModsMetadataDisplayBuilder
     }
 
     /// <summary>
+    /// With statements (issue #433) a node's rights statement is written from its statement, so
+    /// showing it as well would only lengthen the row. It is shown when it does not follow - a value
+    /// left from before, or one set by another producer.
+    /// </summary>
+    private static bool RightsFollowStatement(ModsDisplayInputs inputs, StatementProfile statements)
+    {
+        var (statement, _) = OwnOrInherited(inputs, statements.Type);
+        return statement != null && inputs.EffectiveRights == statements.RightsFor(statement);
+    }
+
+    /// <summary>
     /// The other typed conditions (issue #433). With a profile, only its derived types are shown,
     /// under their configured labels; without one (the Browse page), every other typed condition the
     /// parser found is shown under its raw type, which is still true and still useful.
@@ -175,7 +198,9 @@ public static class ModsMetadataDisplayBuilder
             if (value == null) continue;
             var derived = profile?.Statements?.Derived.FirstOrDefault(d => d.Type == type);
             var label = derived?.Label is { Length: > 0 } l ? l : type;
-            items.Add(new ModsDisplayItem(label, derived?.LabelFor(value) ?? value, inherited));
+            var text = derived?.ShortLabelFor(value) ?? value;
+            var full = derived?.LabelFor(value);
+            items.Add(new ModsDisplayItem(label, text, inherited, full == null || full == text ? null : full));
         }
     }
 
@@ -216,9 +241,6 @@ public static class ModsMetadataDisplayBuilder
         }
     }
 
-    /// <summary>The configured label for a restriction value, or the value itself when the profile has no such value (legacy or third-party content).</summary>
-    private static string RestrictionLabel(AccessConditionProfile? profile, string value) =>
-        profile?.RestrictionAxis.Values.FirstOrDefault(v => v.Value == value)?.Label ?? value;
 }
 
 /// <summary>One metadata item shown beside a node; <see cref="Detail"/>, when present, is shown on hover.</summary>

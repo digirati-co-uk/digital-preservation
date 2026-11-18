@@ -163,11 +163,12 @@ function showMetsPreview(node, derived) {
     const target = document.getElementById("accessPreviewMets");
     if (!target) return;
     const chosen = chosenElementLines(node);
-    const hasOwnInput = chosen.length > 0 || hasOwnRights(node);
+    const rights = rightsAfterSave(node);
+    const hasOwnInput = chosen.length > 0 || rights !== null;
     let derivedLines = [];
     if (hasOwnInput) derivedLines = derivedElementLines(derived, "computed");
     else if (takesInputsFromRange(node)) derivedLines = derivedElementLines(derived, "computed: this file takes its inputs from a logical range, so it carries the value itself");
-    const lines = [...chosen, ...keptElementLines(node), ...derivedLines];
+    const lines = [...chosen, ...rightsLines(rights), ...keptElementLines(node), ...derivedLines];
     const shown = lines.length > 0
         ? lines
         : [{ text: "<!-- nothing of its own: everything is inherited from the folder or range above -->", note: true }];
@@ -186,6 +187,28 @@ function hasOwnRights(node) {
     return !!node.ownRights || node.ownRightsSuppressed;
 }
 
+// The node's own use and reproduction after saving: written from a chosen statement the profile
+// knows (its rights URI, or the "none" sentinel); removed with a statement being cleared, since it
+// was written from it; otherwise whatever the node has, kept. Null when it will have none.
+function rightsAfterSave(node) {
+    const statement = chosenStatement();
+    const found = findStatement(statement);
+    if (found) {
+        const entry = accessStatements.iiif?.entries.find(e => e.id === found.iiif);
+        return { value: entry?.rights ?? "null", computed: true };
+    }
+    if (!statement && node.ownOther[accessStatements.type]) return null;
+    if (!hasOwnRights(node)) return null;
+    const uri = node.ownRightsSuppressed ? "null" : (rightsStatements[node.ownRights]?.value ?? node.ownRights);
+    return { value: uri, computed: false };
+}
+
+function rightsLines(rights) {
+    if (rights === null) return [];
+    const note = rights.computed ? "computed from the statement" : "already here, not edited by this form: kept";
+    return accessConditionLines("use and reproduction", rights.value, note);
+}
+
 // No chosen element of its own in METS, yet a derived value of its own: the writer leaves one there
 // only on a file fed by its logical range (or in a third party's dmdSec, which it never edits).
 function takesInputsFromRange(node) {
@@ -193,14 +216,10 @@ function takesInputsFromRange(node) {
     return !hasOwnChosen && accessStatements.derived.some(d => node.ownOther[d.type] !== undefined);
 }
 
-// Elements the node already has that this form does not edit.
+// Other typed elements the node already has, which this form does not edit.
 function keptElementLines(node) {
     const kept = "already here, not edited by this form: kept";
     const lines = [];
-    if (hasOwnRights(node)) {
-        const uri = node.ownRightsSuppressed ? "" : (rightsStatements[node.ownRights]?.value ?? node.ownRights);
-        lines.push(...accessConditionLines("use and reproduction", uri, kept));
-    }
     const derivedTypes = new Set(accessStatements.derived.map(d => d.type));
     for (const [type, value] of Object.entries(node.ownOther)) {
         if (type !== accessStatements.type && !derivedTypes.has(type)) {

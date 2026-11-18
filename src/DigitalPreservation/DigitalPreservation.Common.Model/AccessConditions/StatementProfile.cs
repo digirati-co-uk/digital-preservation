@@ -13,11 +13,13 @@ namespace DigitalPreservation.Common.Model.AccessConditions;
 /// <list type="bullet">
 /// <item>falls into one of the <see cref="Categories"/> (for Leeds, the copyright status), which
 /// are the columns of the <see cref="Derived"/> matrices;</item>
-/// <item>names the <see cref="Iiif"/> entry saying what it publishes as in a IIIF manifest.</item>
+/// <item>names the <see cref="Iiif"/> entry saying what it publishes as in a IIIF manifest, and so
+/// the rights statement it implies.</item>
 /// </list>
-/// <para>METS carries only keys: the chosen restriction and statement under their types, and each
-/// derived value under its type. Categories and IIIF text are looked up here by whoever needs
-/// them - the UI's preview, and iiif-builder reading the same document.</para>
+/// <para>METS carries the chosen restriction and statement under their types, each derived value
+/// under its type, and the statement's rights statement as the standard <c>use and reproduction</c>
+/// element - a long-lived URI any METS reader understands. Categories and IIIF text are looked up
+/// here by whoever needs them - the UI's preview, and iiif-builder reading the same document.</para>
 /// </remarks>
 public class StatementProfile
 {
@@ -70,6 +72,13 @@ public class StatementProfile
     }
 
     /// <summary>
+    /// The rights statement a node with this statement carries (its IIIF entry's <c>rights</c>), or
+    /// null when the statement implies none or is not in the profile.
+    /// </summary>
+    public Uri? RightsFor(string? statement) =>
+        Uri.TryCreate(IiifRightsFor(statement)?.Rights, UriKind.Absolute, out var rights) ? rights : null;
+
+    /// <summary>
     /// The derived values for a node, keyed by type, from its EFFECTIVE restriction(s) and
     /// statement. A type is absent when its matrix has no cell for the inputs.
     /// </summary>
@@ -105,6 +114,11 @@ public class AccessStatement
     /// <summary>What a person sees in the dropdown. Free to change.</summary>
     [JsonPropertyName("label")]
     public required string Label { get; set; }
+
+    /// <summary>What a row of the deposit tree shows, where space is short; <see cref="Label"/> when absent.</summary>
+    [JsonPropertyName("shortLabel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ShortLabel { get; set; }
 
     /// <summary>The <see cref="AccessCategory.Value"/> this statement falls into: its matrix column.</summary>
     [JsonPropertyName("category")]
@@ -161,7 +175,10 @@ public class IiifRightsEntry
     [JsonPropertyName("id")]
     public required string Id { get; set; }
 
-    /// <summary>The IIIF <c>rights</c> value: a Creative Commons or rightsstatements.org URI.</summary>
+    /// <summary>
+    /// The IIIF <c>rights</c> value, and the <c>use and reproduction</c> URI written to METS for the
+    /// statements that use this entry: one of the platform's <see cref="RightsStatement"/>s.
+    /// </summary>
     [JsonPropertyName("rights")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Rights { get; set; }
@@ -212,4 +229,6 @@ public class DerivedAccessCondition
     }
 
     public string? LabelFor(string value) => Values.FirstOrDefault(v => v.Value == value)?.Label;
+
+    public string? ShortLabelFor(string value) => Values.FirstOrDefault(v => v.Value == value) is { } v ? v.ShortLabel ?? v.Label : null;
 }

@@ -1111,10 +1111,17 @@ public class MetsManager(
     {
         var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true, localPath);
         if (mods is null) return ModsUnavailable(div);
+        var hadStatement = mods.GetAccessConditions(statementType).Count > 0;
         mods.RemoveAccessConditions(statementType);
         if (statement.HasText())
         {
             mods.AddAccessCondition(statement, statementType);
+        }
+        else if (hadStatement)
+        {
+            // The div's rights statement was written from the statement being cleared
+            // (DerivedAccessConditionWriter.ApplyStatementRights): it goes too, so both inherit.
+            mods.RemoveAccessConditions(Constants.UseAndReproduction);
         }
         ModsManager.SetModsForDiv(mets.Mets, div, mods);
         return Result.Ok();

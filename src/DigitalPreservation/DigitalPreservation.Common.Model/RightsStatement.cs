@@ -104,6 +104,13 @@ public class RightsStatement
 
         CreativeCommons =
         [
+            // Not a licence: marks a work as free of known copyright (issue #433, out-of-copyright material).
+            new RightsStatement
+            {
+                ShortLabel = "PDM",
+                Label = "Public Domain Mark",
+                Value = new Uri("https://creativecommons.org/publicdomain/mark/1.0/")
+            },
             new RightsStatement
             {
                 ShortLabel = "CC0",
