@@ -156,14 +156,18 @@ function previewLine(line) {
 }
 
 // What this node's MODS will carry after saving: the elements chosen in the form; whatever else it
-// already has, kept as it is; and the derived values, which the writer puts on every node with a
-// chosen element of its own.
+// already has, kept as it is; and the derived values. The writer puts those on every node with a
+// chosen element of its own, and keeps them on a node that has derived values but no chosen
+// elements: a file whose inputs come from its logical range.
 function showMetsPreview(node, derived) {
     const target = document.getElementById("accessPreviewMets");
     if (!target) return;
     const chosen = chosenElementLines(node);
     const hasOwnInput = chosen.length > 0 || hasOwnRights(node);
-    const lines = [...chosen, ...keptElementLines(node), ...(hasOwnInput ? derivedElementLines(derived) : [])];
+    let derivedLines = [];
+    if (hasOwnInput) derivedLines = derivedElementLines(derived, "computed");
+    else if (takesInputsFromRange(node)) derivedLines = derivedElementLines(derived, "computed: this file takes its inputs from a logical range, so it carries the value itself");
+    const lines = [...chosen, ...keptElementLines(node), ...derivedLines];
     const shown = lines.length > 0
         ? lines
         : [{ text: "<!-- nothing of its own: everything is inherited from the folder or range above -->", note: true }];
@@ -180,6 +184,13 @@ function chosenElementLines(node) {
 
 function hasOwnRights(node) {
     return !!node.ownRights || node.ownRightsSuppressed;
+}
+
+// No chosen element of its own in METS, yet a derived value of its own: the writer leaves one there
+// only on a file fed by its logical range (or in a third party's dmdSec, which it never edits).
+function takesInputsFromRange(node) {
+    const hasOwnChosen = node.ownRestrictions.length > 0 || !!node.ownOther[accessStatements.type] || hasOwnRights(node);
+    return !hasOwnChosen && accessStatements.derived.some(d => node.ownOther[d.type] !== undefined);
 }
 
 // Elements the node already has that this form does not edit.
@@ -199,10 +210,10 @@ function keptElementLines(node) {
     return lines;
 }
 
-function derivedElementLines(derived) {
+function derivedElementLines(derived, note) {
     return Object.entries(derived)
         .filter(([, v]) => !v.none)
-        .flatMap(([type, v]) => accessConditionLines(type, v.value, "computed"));
+        .flatMap(([type, v]) => accessConditionLines(type, v.value, note));
 }
 
 // What a IIIF manifest built from this profile says for the node: its effective statement's
