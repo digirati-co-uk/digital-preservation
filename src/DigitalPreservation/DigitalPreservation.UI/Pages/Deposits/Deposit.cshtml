@@ -762,7 +762,8 @@
 @* ------------------- RIGHTS, ACCESS AND RECORDINFO MODAL (mods) *@
 
 <div class="modal fade" id="modsModal" tabindex="-1" aria-labelledby="modsModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    @* Wider when there are statements, so the IIIF and METS previews (issue #433) have room. *@
+    <div class="modal-dialog @(Model.AccessConditionProfile.HasStatements ? "modal-lg" : null)">
         <div class="modal-content">
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
                 <div class="modal-header">

@@ -153,9 +153,17 @@ function showDerivedValues(derived) {
 }
 
 // One element as it will appear in METS; a note about it goes above it as an XML comment.
+// Each line is { text, note }: notes are shown muted.
 function accessConditionLines(type, value, note) {
-    const element = `<mods:accessCondition type="${type}">${value}</mods:accessCondition>`;
-    return note ? [`<!-- ${note} -->`, element] : [element];
+    const element = { text: `<mods:accessCondition type="${type}">${value}</mods:accessCondition>`, note: false };
+    return note ? [{ text: `<!-- ${note} -->`, note: true }, element] : [element];
+}
+
+function previewLine(line) {
+    const div = document.createElement("div");
+    if (line.note) div.className = "access-preview-note";
+    div.textContent = line.text;
+    return div;
 }
 
 // What this node's MODS will carry after saving: the elements chosen in the form; whatever else it
@@ -167,9 +175,10 @@ function showMetsPreview(node, derived) {
     const chosen = chosenElementLines(node);
     const hasOwnInput = chosen.length > 0 || hasOwnRights(node);
     const lines = [...chosen, ...keptElementLines(node), ...(hasOwnInput ? derivedElementLines(derived) : [])];
-    target.textContent = lines.length > 0
-        ? lines.join("\n")
-        : "<!-- nothing of its own: everything is inherited from the folder or range above -->";
+    const shown = lines.length > 0
+        ? lines
+        : [{ text: "<!-- nothing of its own: everything is inherited from the folder or range above -->", note: true }];
+    target.replaceChildren(...shown.map(previewLine));
 }
 
 function chosenElementLines(node) {
