@@ -42,7 +42,8 @@ jobs:
   deploy-development:
     needs: [build-push]
     uses: ./.github/workflows/deploy.yml
-    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
+    # Dependabot runs push no image (see docker-build-and-push) and have no secrets to deploy with.
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy'))) && github.actor != 'dependabot[bot]'
     with:
       image_tag: "${{ github.sha }}"
       target_env: "${{ inputs.environment || 'development' }}"
