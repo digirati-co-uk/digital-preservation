@@ -56,7 +56,9 @@ jobs:
   sonar-cloud-analysis:
     name: SonarCloud Analysis
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.dotnet == 'true'
+    # Dependabot runs get no SONAR_TOKEN, so the scanner fails at once; skip rather than show red.
+    # Not a required check, so Skipped does not block the merge.
+    if: (github.event_name != 'pull_request' || needs.changes.outputs.dotnet == 'true') && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     defaults:
       run:
