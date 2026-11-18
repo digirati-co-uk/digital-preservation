@@ -54,19 +54,8 @@ public class WorkspaceManager(
         return await mediator.Send(new NormaliseMetsIds(Deposit.Files!, Deposit.MetsETag!));
     }
 
-    public async Task<Result> SetModsInformation(string localPath,
-        List<string> rootAccessRestrictions,
-        Uri? rootRightsStatement,
-        bool suppressRightsInheritance,
-        IEnumerable<RecordIdentifier> recordIdentifiers,
-        List<FileLink>? fileLinks = null,
-        string? accessStatement = null,
-        bool setRights = true)
-    {
-        var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!,
-            rootAccessRestrictions, rootRightsStatement, suppressRightsInheritance, recordIdentifiers, fileLinks, accessStatement, setRights));
-        return result;
-    }
+    public Task<Result> SetModsInformation(string localPath, ModsChanges changes) =>
+        mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!, changes));
 
     /// <summary>
     /// Returns the layout on disk - does not adjunct for BagIt layout

@@ -157,37 +157,55 @@ function accessConditionLine(type, value, note) {
     return note ? `${element}   ${note}` : element;
 }
 
-// What this node's MODS will carry after saving: its own chosen elements; the derived values,
-// which the writer puts on every node with a chosen element of its own; and whatever else it
-// already has, which is kept as it is.
+// What this node's MODS will carry after saving: the elements chosen in the form; whatever else it
+// already has, kept as it is; and the derived values, which the writer puts on every node with a
+// chosen element of its own.
 function showMetsPreview(node, derived) {
     const target = document.getElementById("accessPreviewMets");
     if (!target) return;
-    const restrictions = chosenRestrictions() ?? node.ownRestrictions;
-    const statement = chosenStatement();
-    const derivedTypes = new Set(accessStatements.derived.map(d => d.type));
-    const hasOwnRights = !!node.ownRights || node.ownRightsSuppressed;
-
-    const lines = restrictions.map(r => accessConditionLine("restriction on access", r));
-    if (statement) lines.push(accessConditionLine(accessStatements.type, statement));
-    if (hasOwnRights) {
-        const uri = node.ownRightsSuppressed ? "" : (rightsStatements[node.ownRights]?.value ?? node.ownRights);
-        lines.push(accessConditionLine("use and reproduction", uri, "(already here; kept)"));
-    }
-    for (const [type, value] of Object.entries(node.ownOther)) {
-        if (type !== accessStatements.type && !derivedTypes.has(type)) {
-            lines.push(accessConditionLine(type, value, "(already here; kept)"));
-        }
-    }
-    if (restrictions.length > 0 || statement || hasOwnRights) {
-        for (const [type, v] of Object.entries(derived)) {
-            if (v.unknown) lines.push(accessConditionLine(type, "?", "(computed on save from what it inherits)"));
-            else if (!v.none) lines.push(accessConditionLine(type, v.value, "(computed)"));
-        }
-    }
+    const chosen = chosenElementLines(node);
+    const hasOwnInput = chosen.length > 0 || hasOwnRights(node);
+    const lines = [...chosen, ...keptElementLines(node), ...(hasOwnInput ? derivedElementLines(derived) : [])];
     target.textContent = lines.length > 0
         ? lines.join("\n")
         : "Nothing of its own: everything is inherited from the folder or range above it.";
+}
+
+function chosenElementLines(node) {
+    const restrictions = chosenRestrictions() ?? node.ownRestrictions;
+    const lines = restrictions.map(r => accessConditionLine("restriction on access", r));
+    const statement = chosenStatement();
+    if (statement) lines.push(accessConditionLine(accessStatements.type, statement));
+    return lines;
+}
+
+function hasOwnRights(node) {
+    return !!node.ownRights || node.ownRightsSuppressed;
+}
+
+// Elements the node already has that this form does not edit.
+function keptElementLines(node) {
+    const kept = "(already here; kept)";
+    const lines = [];
+    if (hasOwnRights(node)) {
+        const uri = node.ownRightsSuppressed ? "" : (rightsStatements[node.ownRights]?.value ?? node.ownRights);
+        lines.push(accessConditionLine("use and reproduction", uri, kept));
+    }
+    const derivedTypes = new Set(accessStatements.derived.map(d => d.type));
+    for (const [type, value] of Object.entries(node.ownOther)) {
+        if (type !== accessStatements.type && !derivedTypes.has(type)) {
+            lines.push(accessConditionLine(type, value, kept));
+        }
+    }
+    return lines;
+}
+
+function derivedElementLines(derived) {
+    return Object.entries(derived)
+        .filter(([, v]) => !v.none)
+        .map(([type, v]) => v.unknown
+            ? accessConditionLine(type, "?", "(computed on save from what it inherits)")
+            : accessConditionLine(type, v.value, "(computed)"));
 }
 
 // What a IIIF manifest built from this profile says for the node: its effective statement's

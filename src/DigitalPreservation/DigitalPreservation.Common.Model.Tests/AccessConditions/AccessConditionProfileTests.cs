@@ -65,8 +65,9 @@ public class AccessConditionProfileTests
         ["inc-holder-preservation"] = "3"      // Holder Conditions (High Risk)
     };
 
-    public static IEnumerable<object?[]> EveryCell()
+    public static TheoryData<string?, string?, string> EveryCell()
     {
+        var data = new TheoryData<string?, string?, string>();
         // null restriction: none on the node or above it; "dlip-open": a value outside the vocabulary.
         string?[] restrictions = ["PA1", "PA2", "PA3", "PA4", "PA-unassessed", null, "dlip-open"];
         // null statement: none chosen; "renamed-statement": one outside the vocabulary (another
@@ -84,9 +85,10 @@ public class AccessConditionProfileTests
                     "PA4" => "4",
                     _ => "5" // PA-unassessed, no restriction (the __none__ row), or outside the vocabulary (the '*' row)
                 };
-                yield return [pa, statement, expected];
+                data.Add(pa, statement, expected);
             }
         }
+        return data;
     }
 
     [Theory]

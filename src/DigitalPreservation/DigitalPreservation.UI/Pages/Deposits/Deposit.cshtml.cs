@@ -14,6 +14,8 @@ using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using ModsChanges = DigitalPreservation.Workspace.Requests.ModsChanges;
+using RightsChoice = DigitalPreservation.Workspace.Requests.RightsChoice;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -676,25 +678,32 @@ public class DepositModel(
                 catch { /* ignore malformed */ }
             }
 
-            // The rights dropdown distinguishes three choices:
-            //   ""        → clear any explicit rights and inherit from the parent
-            //   sentinel  → explicitly no rights; stop inheriting (effective null)
-            //   a URI     → set that rights statement
-            var suppressRights = form.RightsStatement == RightsStatement.DoNotInheritSentinel;
-            Uri? rightsUri = null;
-            if (!suppressRights)
-            {
-                Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out rightsUri);
-            }
-            var result = await WorkspaceManager.SetModsInformation(form.ModsContext, form.AccessRestrictions, rightsUri, suppressRights, form.RecordIdentifiers, fileLinks,
+            var changes = new ModsChanges(
+                form.AccessRestrictions,
+                ReadRightsChoice(form),
                 string.IsNullOrEmpty(form.AccessStatement) ? null : form.AccessStatement,
-                setRights: form.RightsInForm);
+                form.RecordIdentifiers,
+                fileLinks);
+            var result = await WorkspaceManager.SetModsInformation(form.ModsContext, changes);
             ReportOutcome(result, "Access Restrictions and Rights Statement updated.", TempDataKeys.AccessConditionsUpdated);
         }
 
         return RedirectToPage();
     }
 
+    /// <summary>
+    /// The rights dropdown's three choices - "" to inherit, the sentinel for "not chosen", or a URI -
+    /// and a fourth when the form had no rights dropdown at all (a statement profile, issue #433):
+    /// leave the node's rights as they are.
+    /// </summary>
+    private static RightsChoice ReadRightsChoice(SetRightsAndAccessFormModel form)
+    {
+        if (!form.RightsInForm) return RightsChoice.LeaveUnchanged;
+        if (form.RightsStatement == RightsStatement.DoNotInheritSentinel) return RightsChoice.NotChosen;
+        return Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out var uri)
+            ? RightsChoice.SetTo(uri)
+            : RightsChoice.Inherit;
+    }
 
     public string? GetDisplayTitle()
     {
