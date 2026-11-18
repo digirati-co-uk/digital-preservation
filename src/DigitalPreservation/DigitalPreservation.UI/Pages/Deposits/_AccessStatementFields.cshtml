@@ -4,7 +4,7 @@
 @*
     The fields an installation with a statement profile (issue #433) shows in place of the rights
     statement dropdown: the statement itself, the values derived from it, and a preview of what
-    METS and IIIF will say. Behaviour is in access-statements.js. The standard model never renders
+    IIIF will say. Behaviour is in access-statements.js. The standard model never renders
     this partial.
 *@
 @{
@@ -65,18 +65,17 @@
     </div>
 }
 
-@* What this node's METS will say, and what a IIIF manifest built from the same profile will say. Nothing here is saved. *@
+@* What a IIIF manifest built from the same profile will say for this node. Nothing here is saved;
+   the METS this node will carry is previewed at the end of the dialogue (_AccessStatementMetsPreview). *@
 <div class="mb-3">
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="accessPreviewToggle"
-            data-bs-toggle="collapse" data-bs-target="#accessPreview" aria-expanded="false" aria-controls="accessPreview">
-        Preview METS and IIIF
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="iiifPreviewToggle"
+            data-bs-toggle="collapse" data-bs-target="#iiifPreview" aria-expanded="false" aria-controls="iiifPreview">
+        Preview IIIF rights
     </button>
-    <div class="collapse mt-2" id="accessPreview">
-        <div class="card card-body small">
-            <div class="fw-semibold">In this node's METS</div>
-            <pre id="accessPreviewMets" class="mb-2 small text-wrap" aria-live="polite"></pre>
-            <div class="fw-semibold">In the IIIF manifest <span class="fw-normal text-secondary">(when iiif-builder follows this profile)</span></div>
-            <dl id="accessPreviewIiif" class="mb-0" aria-live="polite"></dl>
+    <div class="collapse mt-2" id="iiifPreview">
+        <div class="card card-body small py-2">
+            <div class="text-secondary mb-1">What a IIIF manifest will say, when iiif-builder follows this profile</div>
+            <dl id="accessPreviewIiif" class="row mb-0" aria-live="polite"></dl>
         </div>
     </div>
 </div>

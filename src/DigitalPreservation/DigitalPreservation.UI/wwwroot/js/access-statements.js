@@ -152,9 +152,10 @@ function showDerivedValues(derived) {
     }
 }
 
-function accessConditionLine(type, value, note) {
+// One element as it will appear in METS; a note about it goes above it as an XML comment.
+function accessConditionLines(type, value, note) {
     const element = `<mods:accessCondition type="${type}">${value}</mods:accessCondition>`;
-    return note ? `${element}   ${note}` : element;
+    return note ? [`<!-- ${note} -->`, element] : [element];
 }
 
 // What this node's MODS will carry after saving: the elements chosen in the form; whatever else it
@@ -168,14 +169,14 @@ function showMetsPreview(node, derived) {
     const lines = [...chosen, ...keptElementLines(node), ...(hasOwnInput ? derivedElementLines(derived) : [])];
     target.textContent = lines.length > 0
         ? lines.join("\n")
-        : "Nothing of its own: everything is inherited from the folder or range above it.";
+        : "<!-- nothing of its own: everything is inherited from the folder or range above -->";
 }
 
 function chosenElementLines(node) {
     const restrictions = chosenRestrictions() ?? node.ownRestrictions;
-    const lines = restrictions.map(r => accessConditionLine("restriction on access", r));
+    const lines = restrictions.flatMap(r => accessConditionLines("restriction on access", r));
     const statement = chosenStatement();
-    if (statement) lines.push(accessConditionLine(accessStatements.type, statement));
+    if (statement) lines.push(...accessConditionLines(accessStatements.type, statement));
     return lines;
 }
 
@@ -185,16 +186,16 @@ function hasOwnRights(node) {
 
 // Elements the node already has that this form does not edit.
 function keptElementLines(node) {
-    const kept = "(already here; kept)";
+    const kept = "already here, not edited by this form: kept";
     const lines = [];
     if (hasOwnRights(node)) {
         const uri = node.ownRightsSuppressed ? "" : (rightsStatements[node.ownRights]?.value ?? node.ownRights);
-        lines.push(accessConditionLine("use and reproduction", uri, kept));
+        lines.push(...accessConditionLines("use and reproduction", uri, kept));
     }
     const derivedTypes = new Set(accessStatements.derived.map(d => d.type));
     for (const [type, value] of Object.entries(node.ownOther)) {
         if (type !== accessStatements.type && !derivedTypes.has(type)) {
-            lines.push(accessConditionLine(type, value, kept));
+            lines.push(...accessConditionLines(type, value, kept));
         }
     }
     return lines;
@@ -203,13 +204,14 @@ function keptElementLines(node) {
 function derivedElementLines(derived) {
     return Object.entries(derived)
         .filter(([, v]) => !v.none)
-        .map(([type, v]) => v.unknown
-            ? accessConditionLine(type, "?", "(computed on save from what it inherits)")
-            : accessConditionLine(type, v.value, "(computed)"));
+        .flatMap(([type, v]) => v.unknown
+            ? accessConditionLines(type, "?", "computed on save, from what this node inherits")
+            : accessConditionLines(type, v.value, "computed"));
 }
 
 // What a IIIF manifest built from this profile says for the node: its effective statement's
-// configured rights URI and requiredStatement.
+// configured rights URI and requiredStatement. The statement is shown only when it is inherited;
+// a statement chosen here is already in the dropdown above.
 function showIiifPreview(node) {
     const list = document.getElementById("accessPreviewIiif");
     if (!list) return;
@@ -220,30 +222,44 @@ function showIiifPreview(node) {
         return;
     }
     if (statement.value === null) {
-        addDefinition(list, "Statement", "none on this node or above it, so no rights or requiredStatement");
+        addDefinition(list, "Statement", "none here or above, so neither rights nor requiredStatement");
         return;
     }
     const found = findStatement(statement.value);
-    addDefinition(list, "Statement", `${found?.label ?? statement.value}${statement.inherited ? " (inherited)" : ""}`);
+    if (statement.inherited) {
+        addDefinition(list, "Statement", `${found?.label ?? statement.value} (inherited)`);
+    }
     const entry = accessStatements.iiif?.entries.find(e => e.id === found?.iiif);
     if (!entry) {
-        addDefinition(list, "rights / requiredStatement", "nothing configured for this statement");
+        addDefinition(list, "rights", "nothing configured for this statement");
         return;
     }
-    if (entry.rights) addDefinition(list, "rights", rightsLabelFor(entry.rights), entry.rights);
-    else addDefinition(list, "rights", "(none)");
+    if (entry.rights) {
+        addDefinition(list, "rights", rightsLabelFor(entry.rights), entry.rights);
+    } else {
+        addDefinition(list, "rights", "(none)");
+    }
     if (entry.requiredStatement) {
         const label = entry.requiredStatementLabel ?? accessStatements.iiif.requiredStatementLabel;
-        addDefinition(list, `requiredStatement: "${label}"`, entry.requiredStatement);
+        addDefinition(list, "requiredStatement", entry.requiredStatement, null, label);
     } else {
         addDefinition(list, "requiredStatement", "(none)");
     }
 }
 
-function addDefinition(list, term, text, href) {
+// One row of the IIIF preview: a term, then its text - a link when there is an href, and prefixed
+// with a bold label when the IIIF property has one (requiredStatement's label and value).
+function addDefinition(list, term, text, href = null, label = null) {
     const dt = document.createElement("dt");
+    dt.className = "col-sm-4 fw-normal text-secondary";
     dt.textContent = term;
     const dd = document.createElement("dd");
+    dd.className = "col-sm-8 mb-1";
+    if (label) {
+        const strong = document.createElement("strong");
+        strong.textContent = `${label}: `;
+        dd.append(strong);
+    }
     if (href) {
         const link = document.createElement("a");
         link.href = href;
@@ -253,7 +269,7 @@ function addDefinition(list, term, text, href) {
         dd.append(link);
         if (text) dd.append(` (${text})`);
     } else {
-        dd.textContent = text;
+        dd.append(text);
     }
     list.append(dt, dd);
 }

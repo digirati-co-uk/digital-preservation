@@ -866,6 +866,10 @@
                             <ul id="nonEditableFileLinks"><li><em>no file links</em></li></ul>
                         }
                     </div>
+                    @if (profile.HasStatements)
+                    {
+                        <partial name="_AccessStatementMetsPreview" />
+                    }
                 </div>
                 <div class="modal-footer">
                     <input type="hidden" id="modsContext" name="modsContext">
