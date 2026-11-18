@@ -685,7 +685,7 @@ public class DepositModel(
                 form.RecordIdentifiers,
                 fileLinks);
             var result = await WorkspaceManager.SetModsInformation(form.ModsContext, changes);
-            ReportOutcome(result, "Access Restrictions and Rights Statement updated.", TempDataKeys.AccessConditionsUpdated);
+            ReportOutcome(result, "Metadata updated.", TempDataKeys.AccessConditionsUpdated);
         }
 
         return RedirectToPage();

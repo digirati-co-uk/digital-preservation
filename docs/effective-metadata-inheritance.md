@@ -163,6 +163,17 @@ or any other intermediate physical directory.
 
 ---
 
+## Inherited values
+
+Alongside each effective value the parser records the **inherited** one: what the node would have
+if it set none of its own, by the same rules with the node's own value left out
+(`InheritedAccessRestrictions` and `InheritedOtherAccessConditions`, the latter per type). For a
+node with no value of its own, inherited and effective are the same. The metadata dialogue uses
+them to show what clearing a node's own value would leave (issue #433). For the access and other
+typed conditions they are the only inherited values recorded.
+
+---
+
 ## Common patterns
 
 ### Leeds standard (access on objects/)

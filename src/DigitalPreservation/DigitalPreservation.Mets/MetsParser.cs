@@ -1459,6 +1459,7 @@ public class MetsParser(
         Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
         var effective = MergeDerived(parentDerived, dir.OtherAccessConditions);
+        dir.InheritedOtherAccessConditions = MergeDerived(parentDerived, null);
         dir.EffectiveOtherAccessConditions = effective;
         foreach (var file in dir.Files)
         {
@@ -1479,20 +1480,22 @@ public class MetsParser(
         // Per TYPE: own → physical parent → exactly-one whole-file fptr range → smLink-associated
         // range. A type the physical chain lacks (the chosen statement when only the range sets it,
         // review of #434) comes from the range even when the chain supplies other types.
-        var effective = MergeDerived(parentDerived, file.OtherAccessConditions);
+        var inherited = MergeDerived(parentDerived, null);
         if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRanges) && wholeRanges.Count == 1)
         {
-            foreach (var (type, value) in wholeRanges[0].EffectiveOtherAccessConditions) effective.TryAdd(type, value);
+            foreach (var (type, value) in wholeRanges[0].EffectiveOtherAccessConditions) inherited.TryAdd(type, value);
         }
         if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assoc))
         {
-            foreach (var (type, value) in assoc.EffectiveOtherAccessConditions) effective.TryAdd(type, value);
+            foreach (var (type, value) in assoc.EffectiveOtherAccessConditions) inherited.TryAdd(type, value);
         }
-        file.EffectiveOtherAccessConditions = effective;
+        file.InheritedOtherAccessConditions = inherited;
+        file.EffectiveOtherAccessConditions = MergeDerived(inherited, file.OtherAccessConditions);
     }
 
     private static void ComputeEffectiveDerivedForLogicalRange(LogicalRange range, Dictionary<string, string> parentDerived)
     {
+        range.InheritedOtherAccessConditions = MergeDerived(parentDerived, null);
         range.EffectiveOtherAccessConditions = MergeDerived(parentDerived, range.OtherAccessConditions);
         foreach (var child in range.Ranges)
         {
@@ -1527,6 +1530,7 @@ public class MetsParser(
         var effectiveRights = dir.RightsStatement ?? (dir.RightsStatementSuppressed ? null : parentRights);
         var effectiveRecordInfo = dir.RecordInfo ?? parentRecordInfo;
 
+        dir.InheritedAccessRestrictions = parentAccess;
         dir.EffectiveAccessRestrictions = effectiveAccess;
         dir.EffectiveRightsStatement = effectiveRights;
         dir.EffectiveRecordInfo = effectiveRecordInfo;
@@ -1552,21 +1556,11 @@ public class MetsParser(
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
         Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
-        // Access: own → physical parent → exactly-one whole-file fptr range → smLink-associated range → []
-        // Physical parent always takes precedence; logical is fallback only when the physical tree is silent.
-        if (file.AccessRestrictions is { Count: > 0 })
-            file.EffectiveAccessRestrictions = file.AccessRestrictions;
-        else if (parentAccess.Count > 0)
-            file.EffectiveAccessRestrictions = parentAccess;
-        else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRangesForAccess)
-                 && wholeRangesForAccess.Count == 1
-                 && wholeRangesForAccess[0].EffectiveAccessRestrictions.Count > 0)
-            file.EffectiveAccessRestrictions = wholeRangesForAccess[0].EffectiveAccessRestrictions;
-        else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assocForAccess)
-                 && assocForAccess.EffectiveAccessRestrictions.Count > 0)
-            file.EffectiveAccessRestrictions = assocForAccess.EffectiveAccessRestrictions;
-        else
-            file.EffectiveAccessRestrictions = [];
+        // Access: own → what it inherits
+        file.InheritedAccessRestrictions = InheritedFileAccess(file, parentAccess, fileToWholeFileRanges, fileToAssociatedRange);
+        file.EffectiveAccessRestrictions = file.AccessRestrictions is { Count: > 0 }
+            ? file.AccessRestrictions
+            : file.InheritedAccessRestrictions;
 
         // Rights: own/explicit → physical parent → exactly-one whole-file fptr range → null
         // If the div had an explicit use-and-reproduction element (even with an invalid value like "null(?)"),
@@ -1608,12 +1602,36 @@ public class MetsParser(
         }
     }
 
+    /// <summary>
+    /// The access a file inherits: physical parent → exactly-one whole-file fptr range →
+    /// smLink-associated range → []. The physical parent always takes precedence; logical is the
+    /// fallback only when the physical tree is silent.
+    /// </summary>
+    private static List<string> InheritedFileAccess(
+        WorkingFile file,
+        List<string> parentAccess,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
+    {
+        if (parentAccess.Count > 0)
+            return parentAccess;
+        if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRanges)
+            && wholeRanges.Count == 1
+            && wholeRanges[0].EffectiveAccessRestrictions.Count > 0)
+            return wholeRanges[0].EffectiveAccessRestrictions;
+        if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var associated)
+            && associated.EffectiveAccessRestrictions.Count > 0)
+            return associated.EffectiveAccessRestrictions;
+        return [];
+    }
+
     private static void ComputeEffectiveForLogicalRange(
         LogicalRange range,
         List<string> parentEffectiveAccess,
         Uri? parentEffectiveRights,
         RecordInfo? parentEffectiveRecordInfo = null)
     {
+        range.InheritedAccessRestrictions = parentEffectiveAccess;
         range.EffectiveAccessRestrictions = range.AccessRestrictions is { Count: > 0 }
             ? range.AccessRestrictions
             : parentEffectiveAccess;

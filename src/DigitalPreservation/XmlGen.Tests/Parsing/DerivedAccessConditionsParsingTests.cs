@@ -102,6 +102,40 @@ public class DerivedAccessConditionsParsingTests : MetsParserTestBase
     }
 
     [Fact]
+    public void Inherited_values_are_what_a_node_would_have_without_its_own()
+    {
+        var mets = Parse(Mets(
+            Pa1 + Tier3 + """<mods:accessCondition type="dz">CC-BY-NC</mods:accessCondition>""",
+            fileMods: """<mods:accessCondition type="restriction on access">PA4</mods:accessCondition><mods:accessCondition type="tier">4</mods:accessCondition>"""));
+        var objects = mets.PhysicalStructure!.Directories.Single();
+        var file = mets.Files.Single();
+
+        objects.InheritedAccessRestrictions.Should().BeEmpty("nothing is above the objects folder");
+        objects.InheritedOtherAccessConditions.Should().BeEmpty();
+        file.EffectiveAccessRestrictions.Should().Equal("PA4");
+        file.InheritedAccessRestrictions.Should().Equal("PA1");
+        file.InheritedOtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "3", ["dz"] = "CC-BY-NC" });
+    }
+
+    [Fact]
+    public void A_file_inherits_from_its_logical_range_what_the_physical_chain_lacks()
+    {
+        var logical = """
+            <mets:structMap TYPE="LOGICAL">
+              <mets:div ID="LOG_root" TYPE="Item" DMDID="DMD_log">
+                <mets:fptr FILEID="FILE_tape"/>
+              </mets:div>
+            </mets:structMap>
+            """;
+        var mets = Parse(Mets("", fileMods: """<mods:accessCondition type="tier">2</mods:accessCondition>""", logical: logical));
+        var file = mets.Files.Single();
+
+        file.EffectiveOtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "2" });
+        file.InheritedOtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" },
+            "without its own tier the file would fall back to the range's");
+    }
+
+    [Fact]
     public void Nothing_typed_means_empty_not_null_effective_dictionaries()
     {
         var mets = Parse(Mets(Pa1));

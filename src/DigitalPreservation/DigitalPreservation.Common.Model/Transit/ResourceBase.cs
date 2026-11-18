@@ -27,6 +27,15 @@ public abstract class ResourceBase
     [JsonPropertyOrder(6)]
     public List<string> EffectiveAccessRestrictions { get; set; } = [];
 
+    /// <summary>
+    /// The restrictions this resource would have if it set none of its own: what it inherits from
+    /// its parent (or, for a file the physical tree is silent about, its logical range). Lets an
+    /// editor show what clearing the resource's own value would leave.
+    /// </summary>
+    [JsonPropertyName("inheritedAccessRestrictions")]
+    [JsonPropertyOrder(7)]
+    public List<string> InheritedAccessRestrictions { get; set; } = [];
+
     [JsonPropertyName("rightsStatement")]
     [JsonPropertyOrder(10)]
     public Uri? RightsStatement { get; set; }
@@ -68,6 +77,14 @@ public abstract class ResourceBase
     [JsonPropertyName("effectiveOtherAccessConditions")]
     [JsonPropertyOrder(14)]
     public Dictionary<string, string> EffectiveOtherAccessConditions { get; set; } = [];
+
+    /// <summary>
+    /// The other typed conditions this resource would have if it set none of its own, per type
+    /// (see <see cref="InheritedAccessRestrictions"/>).
+    /// </summary>
+    [JsonPropertyName("inheritedOtherAccessConditions")]
+    [JsonPropertyOrder(14)]
+    public Dictionary<string, string> InheritedOtherAccessConditions { get; set; } = [];
 
     [JsonPropertyName("recordInfo")]
     [JsonPropertyOrder(15)]

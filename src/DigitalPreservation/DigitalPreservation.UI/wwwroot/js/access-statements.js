@@ -6,8 +6,8 @@
 // restriction and a statement; each statement falls into a category (a matrix column) and names
 // what it publishes in IIIF; derived values (for Leeds, the Access Tier) are looked up from
 // restriction x category. The server writes the real values from each node's EFFECTIVE inputs on
-// save; this file mirrors that so the consequences of a choice are visible before saving. Where an
-// input will be inherited and the parent's value cannot be known here, it says so rather than guess.
+// save; this file mirrors that so the consequences of a choice are visible before saving. The
+// launcher carries what the node inherits, so clearing its own value shows what it will then have.
 //
 // Reads the page's accessConditionProfile (the API's profile) and rightsStatements.
 // --------------------------------------------------------------------------------------------
@@ -26,11 +26,11 @@ function applyAccessStatementFields(launcher) {
     const own = parseJsonOrEmpty(launcher.dataset.other);
     statementNode = {
         ownRestrictions: launcher.dataset.access ? launcher.dataset.access.split(',') : [],
-        inheritedRestrictions: launcher.dataset.effAccess ? launcher.dataset.effAccess.split(',') : [],
+        inheritedRestrictions: launcher.dataset.inhAccess ? launcher.dataset.inhAccess.split(',') : [],
         ownRights: launcher.dataset.rights ?? '',
         ownRightsSuppressed: launcher.dataset.rightsSuppressed === 'true',
         ownOther: own,
-        inheritedOther: parseJsonOrEmpty(launcher.dataset.effOther)
+        inheritedOther: parseJsonOrEmpty(launcher.dataset.inhOther)
     };
     showOwnStatement(own[accessStatements.type] ?? null);
     updateStatementPreviews();
@@ -77,22 +77,18 @@ function showStatementDescription() {
 
 // ---- What the node will have after saving ---------------------------------------------------
 
-// The node's effective statement: the chosen one, else what it inherits - unknown here if its own
-// value has just been cleared, since what it will then inherit comes from the server.
+// The node's effective statement: the chosen one, else what it inherits (null for none).
 function effectiveStatement(node) {
     const chosen = chosenStatement();
-    if (chosen) return { value: chosen, known: true, inherited: false };
-    if (node.ownOther[accessStatements.type]) return { value: undefined, known: false, inherited: true };
-    return { value: node.inheritedOther[accessStatements.type] ?? null, known: true, inherited: true };
+    if (chosen) return { value: chosen, inherited: false };
+    return { value: node.inheritedOther[accessStatements.type] ?? null, inherited: true };
 }
 
-// The matrix rows: the chosen restriction(s), else the inherited ones - unknown if the node's own
-// value has just been cleared.
+// The matrix rows: the chosen restriction(s), else the inherited ones, else the "none" row.
 function effectiveRestrictions(node) {
     const chosen = chosenRestrictions() ?? [];
-    if (chosen.length > 0) return { rows: chosen, known: true };
-    const rows = node.inheritedRestrictions.length > 0 ? node.inheritedRestrictions : [noneKey];
-    return { rows, known: node.ownRestrictions.length === 0 };
+    if (chosen.length > 0) return chosen;
+    return node.inheritedRestrictions.length > 0 ? node.inheritedRestrictions : [noneKey];
 }
 
 // Mirrors StatementProfile.ColumnFor.
@@ -109,18 +105,13 @@ function lookupCell(derived, row, column) {
 }
 
 // Mirrors StatementProfile.ResolveDerived: the most restrictive value over the rows.
-// Returns type -> { value, label } | { unknown: true } | { none: true }.
+// Returns type -> { value, label } | { none: true }.
 function derivedValues(node) {
     const result = {};
-    const restrictions = effectiveRestrictions(node);
-    const statement = effectiveStatement(node);
+    const rows = effectiveRestrictions(node);
+    const column = columnFor(effectiveStatement(node).value);
     for (const derived of accessStatements.derived) {
-        if (!restrictions.known || !statement.known) {
-            result[derived.type] = { unknown: true };
-            continue;
-        }
-        const column = columnFor(statement.value);
-        const values = restrictions.rows.map(row => lookupCell(derived, row, column)).filter(v => v !== null);
+        const values = rows.map(row => lookupCell(derived, row, column)).filter(v => v !== null);
         const rank = value => derived.values.findIndex(v => v.value === value);
         const best = values.reduce((a, b) => (a === null || rank(b) > rank(a) ? b : a), null);
         result[derived.type] = best === null
@@ -144,10 +135,8 @@ function updateStatementPreviews() {
 function showDerivedValues(derived) {
     for (const target of document.querySelectorAll(".derived-access-condition")) {
         const v = derived[target.dataset.derivedType];
-        const el = document.createElement(v.unknown || v.none ? "em" : "strong");
-        if (v.unknown) el.textContent = "(inherits; determined on save)";
-        else if (v.none) el.textContent = "(no value for this combination)";
-        else el.textContent = `${v.label} (computed)`;
+        const el = document.createElement(v.none ? "em" : "strong");
+        el.textContent = v.none ? "(no value for this combination)" : `${v.label} (computed)`;
         target.replaceChildren(el);
     }
 }
@@ -213,9 +202,7 @@ function keptElementLines(node) {
 function derivedElementLines(derived) {
     return Object.entries(derived)
         .filter(([, v]) => !v.none)
-        .flatMap(([type, v]) => v.unknown
-            ? accessConditionLines(type, "?", "computed on save, from what this node inherits")
-            : accessConditionLines(type, v.value, "computed"));
+        .flatMap(([type, v]) => accessConditionLines(type, v.value, "computed"));
 }
 
 // What a IIIF manifest built from this profile says for the node: its effective statement's
@@ -226,10 +213,6 @@ function showIiifPreview(node) {
     if (!list) return;
     list.replaceChildren();
     const statement = effectiveStatement(node);
-    if (!statement.known) {
-        addDefinition(list, "Statement", "inherited from the folder or range above; shown once saved");
-        return;
-    }
     if (statement.value === null) {
         addDefinition(list, "Statement", "none here or above, so neither rights nor requiredStatement");
         return;

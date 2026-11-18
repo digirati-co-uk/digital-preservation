@@ -27,6 +27,8 @@
     data-rights-suppressed="@(combinedBase.RightsStatementSuppressed ? "true" : "false")"
     data-other="@JsonSerializer.Serialize(combinedBase.OtherAccessConditions)"
     data-eff-other="@JsonSerializer.Serialize(combinedBase.EffectiveOtherAccessConditions)"
+    data-inh-access="@string.Join(',', combinedBase.InheritedAccessRestrictions)"
+    data-inh-other="@JsonSerializer.Serialize(combinedBase.InheritedOtherAccessConditions)"
     data-recordinfo="@combinedBase.RecordInfo?.ToCompactString()"
     data-eff-recordinfo="@combinedBase.EffectiveRecordInfo?.ToCompactString()"
     data-is-file="@(isFile ? "true" : "false")"

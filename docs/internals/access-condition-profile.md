@@ -201,6 +201,8 @@ The detail is on the documentation site and in
 - The dialogue has a **Preview METS and IIIF** button: the `mods:accessCondition` elements the node
   will carry after saving, and the `rights` and `requiredStatement` a IIIF manifest built from this
   profile would carry. Nothing in the preview is saved; the IIIF text is never written to METS.
+  The tier and both previews always show real values: when a node's own value is cleared, they use
+  what it inherits (the parser's `InheritedAccessRestrictions` and `InheritedOtherAccessConditions`).
 - The tree shows the statement and the tier beside each node; hovering the statement shows its IIIF
   text.
 

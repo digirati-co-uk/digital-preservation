@@ -631,6 +631,11 @@ function openModsModalForRange(structmapId, rangeId) {
     launcher.dataset.effRights = getRightsShortLabel(range?.effectiveRightsStatement) ?? '';
     launcher.dataset.other = JSON.stringify(range?.otherAccessConditions ?? {});
     launcher.dataset.effOther = JSON.stringify(range?.effectiveOtherAccessConditions ?? {});
+    // What the range would have without its own values: from the server, or for a range added in
+    // the browser since, its parent range's.
+    const parent = root ? findParentAndIndex(root, rangeId)?.parent : null;
+    launcher.dataset.inhAccess = (range?.inheritedAccessRestrictions ?? parent?.effectiveAccessRestrictions ?? []).join(',');
+    launcher.dataset.inhOther = JSON.stringify(range?.inheritedOtherAccessConditions ?? parent?.effectiveOtherAccessConditions ?? {});
     launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
     launcher.dataset.toolOutput = '';
 
