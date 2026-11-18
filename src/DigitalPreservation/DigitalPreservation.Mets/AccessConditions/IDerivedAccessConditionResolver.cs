@@ -7,17 +7,17 @@ namespace DigitalPreservation.Mets.AccessConditions;
 /// derived conditions are computed.
 /// </summary>
 /// <param name="Restrictions">Effective <c>restriction on access</c> values; empty when none applies.</param>
-/// <param name="Category">Effective value of the profile's category axis (for Leeds, the copyright status); null when none applies or none is configured.</param>
+/// <param name="Statement">Effective value of the profile's statement axis (for Leeds, the specific copyright statement), whose category is the matrix column; null when none applies or none is configured.</param>
 /// <param name="RightsStatement">Effective <c>use and reproduction</c> URI; null when absent or explicitly suppressed. Not an input to the default matrix, but available to a custom resolver.</param>
-public record EffectiveAccessInputs(IReadOnlyList<string> Restrictions, string? Category, Uri? RightsStatement)
+public record EffectiveAccessInputs(IReadOnlyList<string> Restrictions, string? Statement, Uri? RightsStatement)
 {
-    /// <summary>No restriction, no category, no rights statement: the physical root's parent, so to speak.</summary>
+    /// <summary>No restriction, no statement, no rights statement: the physical root's parent, so to speak.</summary>
     public static readonly EffectiveAccessInputs None = new([], null, null);
 
     /// <summary>Value equality - the record's own compares the restriction lists by reference.</summary>
     public bool SameAs(EffectiveAccessInputs other) =>
         Restrictions.SequenceEqual(other.Restrictions, StringComparer.Ordinal)
-        && Category == other.Category
+        && Statement == other.Statement
         && RightsStatement == other.RightsStatement;
 }
 
@@ -39,10 +39,10 @@ public interface IDerivedAccessConditionResolver
     Task<IReadOnlyCollection<string>> GetManagedTypesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The <c>@type</c> of the chosen category axis (the profile's <see cref="CategoryAxis.Type"/>),
+    /// The <c>@type</c> of the chosen statement axis (the profile's <see cref="StatementProfile.Type"/>),
     /// which the writer reads as an input like the restriction; null when the installation has none.
     /// </summary>
-    Task<string?> GetCategoryTypeAsync(CancellationToken cancellationToken = default);
+    Task<string?> GetStatementTypeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The derived values for a div, keyed by type. A managed type absent from the result has no
@@ -52,27 +52,29 @@ public interface IDerivedAccessConditionResolver
 }
 
 /// <summary>
-/// The default resolver: the matrix in the installation's <see cref="AccessConditionProfile"/>.
+/// The default resolver: the matrices in the installation's <see cref="StatementProfile"/>. With the
+/// standard access conditions there is none, and nothing is derived.
 /// </summary>
 public class ProfileDerivedAccessConditionResolver(IAccessConditionProfileProvider profileProvider) : IDerivedAccessConditionResolver
 {
+    private async Task<StatementProfile?> GetStatementsAsync(CancellationToken cancellationToken) =>
+        (await profileProvider.GetProfileAsync(cancellationToken))?.Statements;
+
     public async Task<IReadOnlyCollection<string>> GetManagedTypesAsync(CancellationToken cancellationToken = default)
     {
-        var profile = await profileProvider.GetProfileAsync(cancellationToken);
-        return profile?.Derived.Select(d => d.Type).ToList() ?? [];
+        var statements = await GetStatementsAsync(cancellationToken);
+        return statements?.Derived.Select(d => d.Type).ToList() ?? [];
     }
 
-    public async Task<string?> GetCategoryTypeAsync(CancellationToken cancellationToken = default)
+    public async Task<string?> GetStatementTypeAsync(CancellationToken cancellationToken = default)
     {
-        var profile = await profileProvider.GetProfileAsync(cancellationToken);
-        var type = profile?.CategoryAxis?.Type;
+        var type = (await GetStatementsAsync(cancellationToken))?.Type;
         return string.IsNullOrWhiteSpace(type) ? null : type;
     }
 
     public async Task<IReadOnlyDictionary<string, string>> ResolveAsync(EffectiveAccessInputs inputs, CancellationToken cancellationToken = default)
     {
-        var profile = await profileProvider.GetProfileAsync(cancellationToken);
-        if (profile == null) return new Dictionary<string, string>();
-        return profile.ResolveDerived(inputs.Restrictions, inputs.Category);
+        var statements = await GetStatementsAsync(cancellationToken);
+        return statements?.ResolveDerived(inputs.Restrictions, inputs.Statement) ?? new Dictionary<string, string>();
     }
 }

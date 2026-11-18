@@ -15,13 +15,13 @@ namespace XmlGen.Tests.AccessConditions;
 /// <summary>
 /// The METS writer's half of issue #433: on every write, <see cref="MetsManager.ApplyDerivedAccessConditions"/>
 /// rewrites the resolver's managed types across the whole document from each div's EFFECTIVE
-/// chosen conditions - restriction and category - and leaves everything else alone.
+/// chosen conditions - restriction and statement - and leaves everything else alone.
 /// </summary>
 public class DerivedAccessConditionsWriterTests
 {
     private static readonly XNamespace MetsNs = "http://www.loc.gov/METS/";
     private static readonly XNamespace ModsNs = "http://www.loc.gov/mods/v3";
-    private const string Category = TestProfiles.CopyrightStatusType;
+    private const string Statement = TestProfiles.CopyrightStatementType;
 
     private static readonly Uri NoCUs = new("http://rightsstatements.org/vocab/NoC-US/1.0/");
     private static readonly Uri InC = new("http://rightsstatements.org/vocab/InC/1.0/");
@@ -81,10 +81,10 @@ public class DerivedAccessConditionsWriterTests
             .Select(ac => ac.Value).ToList();
     }
 
-    private void SetCategory(FullMets fullMets, string path, string? category) =>
-        metsManager.SetAccessCategoryByPath(fullMets, path, Category, category).Success.Should().BeTrue();
+    private void SetStatement(FullMets fullMets, string path, string? statement) =>
+        metsManager.SetAccessStatementByPath(fullMets, path, Statement, statement).Success.Should().BeTrue();
 
-    private void PutAInARange(FullMets fullMets, List<string>? access, string? category) =>
+    private void PutAInARange(FullMets fullMets, List<string>? access, string? statement) =>
         metsManager.SetStructMap(fullMets, new LogicalRange
         {
             Id = "LOG_ROOT", Type = "Collection", Name = "Root",
@@ -94,24 +94,24 @@ public class DerivedAccessConditionsWriterTests
                 {
                     Id = "LOG_ITEM", Type = "Item", Name = "Item",
                     AccessRestrictions = access ?? [],
-                    OtherAccessConditions = category == null ? null : new Dictionary<string, string> { [Category] = category },
+                    OtherAccessConditions = statement == null ? null : new Dictionary<string, string> { [Statement] = statement },
                     Files = [new FilePointer { LocalPath = "objects/a.tif" }]
                 }
             ]
-        }, Category).Success.Should().BeTrue();
+        }, Statement).Success.Should().BeTrue();
 
     /// <summary>
     /// The invariant the review of #434 asked for: after a write, every node with an effective
-    /// input reads back exactly the derived value its EFFECTIVE restriction and category give.
+    /// input reads back exactly the derived value its EFFECTIVE restriction and statement give.
     /// (A node with no effective input at all carries no derived element: the writer does not
     /// materialise the none x none cell.)
     /// </summary>
     private static void AssertDerivedInvariant(MetsFileWrapper parsed, AccessConditionProfile profile)
     {
         static bool HasInput(ResourceBase r) =>
-            r.EffectiveAccessRestrictions.Count > 0 || r.EffectiveOtherAccessConditions.ContainsKey(Category);
+            r.EffectiveAccessRestrictions.Count > 0 || r.EffectiveOtherAccessConditions.ContainsKey(Statement);
         static Dictionary<string, string> Expected(AccessConditionProfile p, ResourceBase r) =>
-            p.ResolveDerived(r.EffectiveAccessRestrictions, r.EffectiveOtherAccessConditions.GetValueOrDefault(Category));
+            p.Statements!.ResolveDerived(r.EffectiveAccessRestrictions, r.EffectiveOtherAccessConditions.GetValueOrDefault(Statement));
         static Dictionary<string, string> Managed(ResourceBase r) =>
             r.EffectiveOtherAccessConditions.Where(kv => kv.Key == "tier").ToDictionary();
 
@@ -130,19 +130,19 @@ public class DerivedAccessConditionsWriterTests
         new[] { range }.Concat(range.Ranges.SelectMany(AllRanges));
 
     [Fact]
-    public async Task Tier_is_written_from_the_effective_PA_and_category_on_every_div_with_an_explicit_input()
+    public async Task Tier_is_written_from_the_effective_PA_and_statement_on_every_div_with_an_explicit_input()
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-effective-inputs.xml");
 
-        // PA on objects/, a category only on the child file: the file's tier must come from the
+        // PA on objects/, a statement only on the child file: the file's tier must come from the
         // INHERITED PA1 and its own public-domain (0), the folder's from PA1 x none (2).
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects/a.tif", "public-domain");
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.OutOfCopyright);
         await metsManager.WriteMets(fullMets);
 
         TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("2");
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("0");
-        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), Category).Should().Equal("public-domain");
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), Statement).Should().Equal(TestProfiles.OutOfCopyright);
         // c.tif sets nothing itself: no dmdSec of its own, it inherits on read.
         TypedConditions(metsUri, MetsIds.Dmd("objects/c.tif"), "tier").Should().BeEmpty();
 
@@ -156,21 +156,21 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
-    public async Task The_category_is_inherited_like_the_restriction()
+    public async Task The_statement_is_inherited_like_the_restriction()
     {
-        var (metsUri, fullMets) = await CreateMets("Outputs/derived-category-inherits.xml");
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-statement-inherits.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects", "holder-conditions");       // folder: PA1 x holder-conditions = 3
-        SetCategory(fullMets, "objects/a.tif", "low-risk");  // file overrides: PA1 x low-risk = 1
+        SetStatement(fullMets, "objects", TestProfiles.HolderConditions);       // folder: PA1 x holder-conditions = 3
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.LowRisk);  // file overrides: PA1 x low-risk = 1
         await metsManager.WriteMets(fullMets);
 
-        TypedConditions(metsUri, "DMD_objects", Category).Should().Equal("holder-conditions");
+        TypedConditions(metsUri, "DMD_objects", Statement).Should().Equal(TestProfiles.HolderConditions);
         TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("3");
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("1");
 
         var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         parsed.Files.Single(f => f.LocalPath == "objects/c.tif").EffectiveOtherAccessConditions
-            .Should().Equal(new Dictionary<string, string> { [Category] = "holder-conditions", ["tier"] = "3" });
+            .Should().Equal(new Dictionary<string, string> { [Statement] = TestProfiles.HolderConditions, ["tier"] = "3" });
         AssertDerivedInvariant(parsed, provider.Profile!);
     }
 
@@ -179,7 +179,7 @@ public class DerivedAccessConditionsWriterTests
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-rights-not-input.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects", "holder-conditions");
+        SetStatement(fullMets, "objects", TestProfiles.HolderConditions);
         metsManager.SetRightsStatementByPath(fullMets, "objects/a.tif", NoCUs);   // a public-domain statement...
         await metsManager.WriteMets(fullMets);
 
@@ -194,7 +194,7 @@ public class DerivedAccessConditionsWriterTests
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-stale-rewrite.xml");
 
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects/a.tif", "public-domain");  // PA1 x public-domain = 0
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.OutOfCopyright);  // PA1 x public-domain = 0
         await metsManager.WriteMets(fullMets);
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("0");
 
@@ -222,7 +222,7 @@ public class DerivedAccessConditionsWriterTests
 
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().BeEmpty();
         var a = (await parser.GetMetsFileWrapper(metsUri)).Value!.Files.Single(f => f.LocalPath == "objects/a.tif");
-        a.EffectiveOtherAccessConditions["tier"].Should().Be("2", "PA1 inherited, no category -> the __none__ column -> 2");
+        a.EffectiveOtherAccessConditions["tier"].Should().Be("2", "PA1 inherited, no statement -> the __none__ column -> 2");
     }
 
     [Fact]
@@ -242,18 +242,18 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
-    public async Task A_range_carries_its_chosen_category_through_SetStructMap()
+    public async Task A_range_carries_its_chosen_statement_through_SetStructMap()
     {
-        var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-category.xml");
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-statement.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "", ["PA1"]);
-        PutAInARange(fullMets, null, "holder-conditions");
+        PutAInARange(fullMets, null, TestProfiles.HolderConditions);
         await metsManager.WriteMets(fullMets);
 
-        TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), Category).Should().Equal("holder-conditions");
+        TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), Statement).Should().Equal(TestProfiles.HolderConditions);
         TypedConditions(metsUri, MetsIds.DmdFromDivId("LOG_ITEM"), "tier").Should().Equal("3");
         var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         parsed.LogicalStructures.Single().Ranges.Single().OtherAccessConditions
-            .Should().Equal(new Dictionary<string, string> { [Category] = "holder-conditions", ["tier"] = "3" });
+            .Should().Equal(new Dictionary<string, string> { [Statement] = TestProfiles.HolderConditions, ["tier"] = "3" });
         AssertDerivedInvariant(parsed, provider.Profile!);
     }
 
@@ -303,11 +303,11 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
-    public async Task Setting_a_category_without_a_category_axis_is_refused_and_null_is_a_no_op()
+    public async Task Setting_a_statement_without_a_statement_axis_is_refused_and_null_is_a_no_op()
     {
         var (_, fullMets) = await CreateMets("Outputs/derived-no-axis.xml");
-        metsManager.SetAccessCategoryByPath(fullMets, "objects", null, "holder-conditions").ErrorCode.Should().Be(ErrorCodes.BadRequest);
-        metsManager.SetAccessCategoryByPath(fullMets, "objects", null, null).Success.Should().BeTrue();
+        metsManager.SetAccessStatementByPath(fullMets, "objects", null, TestProfiles.HolderConditions).ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        metsManager.SetAccessStatementByPath(fullMets, "objects", null, null).Success.Should().BeTrue();
     }
 
     [Fact]
@@ -315,7 +315,7 @@ public class DerivedAccessConditionsWriterTests
     {
         var (_, fullMets) = await CreateMets("Outputs/derived-idempotent.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects/a.tif", "low-risk");
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.LowRisk);
 
         var first = await metsManager.ApplyDerivedAccessConditions(fullMets);
         first.Should().BeEquivalentTo([MetsIds.Phys("objects"), MetsIds.Phys("objects/a.tif")]);
@@ -327,14 +327,14 @@ public class DerivedAccessConditionsWriterTests
     // ---- Review of #434: the written document must agree with what the parser reads back ------------
 
     [Fact]
-    public async Task A_file_whose_PA_comes_from_its_range_and_category_from_its_folder_gets_its_own_tier()
+    public async Task A_file_whose_PA_comes_from_its_range_and_statement_from_its_folder_gets_its_own_tier()
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-mixed-range-pa.xml");
 
         // The folder says only public-domain; the range says only PA1. The parser's effective inputs
         // for a.tif are PA1 x public-domain = 0, which it could never inherit from the folder (none x
         // public-domain = 5).
-        SetCategory(fullMets, "objects", "public-domain");
+        SetStatement(fullMets, "objects", TestProfiles.OutOfCopyright);
         PutAInARange(fullMets, ["PA1"], null);
         await metsManager.WriteMets(fullMets);
 
@@ -349,12 +349,12 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
-    public async Task A_file_whose_category_comes_from_its_range_and_PA_from_its_folder_gets_its_own_tier()
+    public async Task A_file_whose_statement_comes_from_its_range_and_PA_from_its_folder_gets_its_own_tier()
     {
-        var (metsUri, fullMets) = await CreateMets("Outputs/derived-mixed-range-category.xml");
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-mixed-range-statement.xml");
 
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);  // folder: PA1 x none = 2
-        PutAInARange(fullMets, null, "low-risk");                               // a.tif: PA1 x low-risk = 1
+        PutAInARange(fullMets, null, TestProfiles.LowRisk);                               // a.tif: PA1 x low-risk = 1
         await metsManager.WriteMets(fullMets);
 
         TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("2");
@@ -363,13 +363,13 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
-    public async Task A_files_own_category_beats_its_range()
+    public async Task A_files_own_statement_beats_its_range()
     {
-        var (metsUri, fullMets) = await CreateMets("Outputs/derived-own-category-beats-range.xml");
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-own-statement-beats-range.xml");
 
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects/a.tif", "holder-conditions");   // 3
-        PutAInARange(fullMets, null, "public-domain");         // the range's 0 must NOT reach it
+        SetStatement(fullMets, "objects/a.tif", TestProfiles.HolderConditions);   // 3
+        PutAInARange(fullMets, null, TestProfiles.OutOfCopyright);         // the range's 0 must NOT reach it
         await metsManager.WriteMets(fullMets);
 
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("3");
@@ -380,13 +380,13 @@ public class DerivedAccessConditionsWriterTests
     public async Task Taking_a_file_out_of_its_range_removes_the_tier_the_range_gave_it()
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-removed.xml");
-        SetCategory(fullMets, "objects", "public-domain");
+        SetStatement(fullMets, "objects", TestProfiles.OutOfCopyright);
         PutAInARange(fullMets, ["PA1"], null);
         await metsManager.WriteMets(fullMets);
         TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("0");
 
         fullMets = await Reload(metsUri);
-        metsManager.SetStructMap(fullMets, new LogicalRange { Id = "LOG_ROOT", Type = "Collection", Name = "Root" }, Category);
+        metsManager.SetStructMap(fullMets, new LogicalRange { Id = "LOG_ROOT", Type = "Collection", Name = "Root" }, Statement);
         await metsManager.WriteMets(fullMets);
 
         // The file's dmdSec was minted by the platform, so the tier that no longer has a source goes.
@@ -437,17 +437,17 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
-    public async Task A_category_outside_the_vocabulary_gets_the_PA1_rows_wildcard_cell()
+    public async Task A_statement_outside_the_vocabulary_gets_the_PA1_rows_wildcard_cell()
     {
-        // SetAccessCategoryByPath accepts any string, as SetAccessRestrictionsByPath always has; a
+        // SetAccessStatementByPath accepts any string, as SetAccessRestrictionsByPath always has; a
         // mistyped or renamed status under PA1 must still derive something (re-review of #434, D).
-        var (metsUri, fullMets) = await CreateMets("Outputs/derived-unknown-category.xml");
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-unknown-statement.xml");
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
-        SetCategory(fullMets, "objects", "renamed-status");
+        SetStatement(fullMets, "objects", "renamed-statement");
         await metsManager.WriteMets(fullMets);
 
         TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("3");
-        TypedConditions(metsUri, "DMD_objects", Category).Should().Equal("renamed-status"); // the value itself is kept
+        TypedConditions(metsUri, "DMD_objects", Statement).Should().Equal("renamed-statement"); // the value itself is kept
         AssertDerivedInvariant((await parser.GetMetsFileWrapper(metsUri)).Value!, provider.Profile!);
     }
 

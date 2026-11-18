@@ -27,16 +27,19 @@ public class AccessConditionsTests(DigitalPreservationAppFactory<Program> factor
         root.TryGetProperty("allowMultipleRestrictions", out _).Should().BeTrue();
         root.GetProperty("restrictionAxis").GetProperty("values").ValueKind.Should().Be(JsonValueKind.Array);
         root.GetProperty("rightsAxis").GetProperty("label").ValueKind.Should().Be(JsonValueKind.String);
-        // categoryAxis is present only on an installation that derives something; the test
-        // environment inherits the Leeds profile from appsettings.json.
-        if (root.TryGetProperty("categoryAxis", out var axis))
-            axis.GetProperty("type").GetString().Should().NotBeNullOrEmpty();
-        root.GetProperty("derived").ValueKind.Should().Be(JsonValueKind.Array);
+        // statements is present only with a profile document; the test environment inherits
+        // the Leeds one from appsettings.json.
+        if (root.TryGetProperty("statements", out var statements))
+            statements.GetProperty("type").GetString().Should().NotBeNullOrEmpty();
 
         // Round-trips through the model the client deserialises into, and is a profile the API
         // itself would have accepted at startup.
         var profile = JsonSerializer.Deserialize<AccessConditionProfile>(json);
         profile.Should().NotBeNull();
         profile!.Validate().Should().BeEmpty();
+
+        // ...and is itself a profile document: what is served can be read with the strict reader
+        // a consumer such as iiif-builder would use on the file.
+        AccessConditionProfile.FromJson(json).Validate().Should().BeEmpty();
     }
 }

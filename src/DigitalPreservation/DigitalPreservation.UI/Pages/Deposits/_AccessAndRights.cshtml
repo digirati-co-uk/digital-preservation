@@ -37,7 +37,9 @@
     foreach (var item in items)
     {
         var iconId = item.Label switch { "Access" => "lock", "Rights" => "file-earmark-text", "Record" => "database-check", _ => "lock" };
-        <small class="dep-meta-item @(item.Inherited ? "dep-meta-inherited" : "dep-meta-asserted") ms-1" title="@item.Label">
+        // With a detail (a statement's IIIF rights, issue #433) the tooltip carries it too.
+        var title = item.Detail == null ? item.Label : $"{item.Label}: {item.Text}\n{item.Detail}";
+        <small class="dep-meta-item @(item.Inherited ? "dep-meta-inherited" : "dep-meta-asserted") ms-1" title="@title">
             <svg class="bi" aria-hidden="true"><use xlink:href="#@iconId"/></svg>
             @if (item.Inherited)
             {

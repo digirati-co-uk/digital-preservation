@@ -50,9 +50,9 @@ public abstract class ResourceBase
     /// <summary>
     /// Every <c>mods:accessCondition</c> on this resource of a type OTHER than <c>restriction on
     /// access</c> and <c>use and reproduction</c>, keyed by <c>@type</c>, first value per type. On an
-    /// installation with an access condition profile this holds its chosen category (for Leeds the
-    /// copyright status, under the profile's configured type) and its derived conditions (the access
-    /// tier); the profile says which is which. The parser cannot know a configuration's types, so a
+    /// installation with a statement profile this holds its chosen statement (for Leeds the
+    /// copyright statement, under the profile's configured type) and its derived conditions (the
+    /// access tier); the profile says which is which. The parser cannot know a configuration's types, so a
     /// third-party document's other typed conditions appear here too. Derived values are recomputed
     /// from the chosen ones on every write (issue #433).
     /// </summary>

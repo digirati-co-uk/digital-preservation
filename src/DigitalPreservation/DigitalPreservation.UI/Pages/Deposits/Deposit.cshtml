@@ -775,7 +775,6 @@
                     </div>
                     @{
                         var profile = Model.AccessConditionProfile;
-                        var categoryAxis = profile.CategoryAxis;
                         var allRights = RightsStatement.RightsStatements.Concat(RightsStatement.CreativeCommons).ToList();
                         var editable = Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable;
                     }
@@ -807,68 +806,33 @@
                             </ul>
                         }
                     </div>
-                    @if (categoryAxis != null)
+                    @if (profile.Statements is { } statements)
                     {
-                        @* The chosen category (issue #433): the second axis of the derived matrix - for
-                           Leeds, the copyright status. Inherited like the restriction. *@
+                        @* An installation with a statement profile (issue #433) chooses a statement
+                           instead of a rights statement; everything about it is in this partial. *@
+                        <partial name="_AccessStatementFields" model="(statements, editable)" />
+                    }
+                    else
+                    {
                         <div class="mb-3">
-                            <label id="accessCategorySelectLabel" for="accessCategorySelect" class="form-label">@categoryAxis.Label</label>
+                            <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">@profile.RightsAxis.Label</label>
                             @if (editable)
                             {
-                                <select id="accessCategorySelect" class="form-select" name="accessCategory" aria-labelledby="accessCategorySelectLabel">
+                                @* Tells the handler the form carries a rights choice: a form without one
+                                   (the partial above) leaves the node's rights as they are. *@
+                                <input type="hidden" name="rightsInForm" value="true" />
+                                <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
                                     <!option value="">(inherit from parent)</!option>
-                                    @foreach (var category in categoryAxis.Values)
+                                    <!option value="@RightsStatement.DoNotInheritSentinel">(not chosen — do not inherit)</!option>
+                                    @foreach (var rs in allRights)
                                     {
-                                        <!option value="@category.Value">@category.Label</!option>
+                                        <!option value="@rs.Value">@rs.Label</!option>
                                     }
                                 </select>
                             }
                             else
                             {
-                                <p id="nonEditableAccessCategory">(none)</p>
-                            }
-                        </div>
-                    }
-                    <div class="mb-3">
-                        <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">@profile.RightsAxis.Label</label>
-                        @if (editable)
-                        {
-                            @* One flat list; with a category axis, deposit.js moves the statements the
-                               profile permits under the chosen category to the top (data-order keeps the
-                               original order for the rest). Nothing is hidden or enforced. *@
-                            <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
-                                <!option value="">(inherit from parent)</!option>
-                                <!option value="@RightsStatement.DoNotInheritSentinel">(not chosen — do not inherit)</!option>
-                                @for (var i = 0; i < allRights.Count; i++)
-                                {
-                                    var rs = allRights[i];
-                                    <!option value="@rs.Value" data-short-label="@rs.ShortLabel" data-order="@i">@rs.Label</!option>
-                                }
-                            </select>
-                            @if (categoryAxis != null)
-                            {
-                                @* Shown by deposit.js when the chosen statement is not one the profile lists
-                                   for the chosen category. A warning, not a rule: the lists are advisory. *@
-                                <div id="rightsCategoryMismatch" class="form-text text-warning" aria-live="polite" hidden></div>
-                            }
-                        }
-                        else
-                        {
-                            <p id="nonEditableRightsStatement">(no rights statement)</p>
-                        }
-                    </div>
-                    @if (profile.Derived.Count > 0)
-                    {
-                        @* Derived conditions (issue #433) are never chosen: deposit.js recomputes this
-                           preview from the restriction and category dropdowns as they change, and the
-                           server writes the real value from the EFFECTIVE inputs when the form is saved. *@
-                        <div class="mb-3" id="derivedAccessConditionsSection">
-                            @foreach (var derived in profile.Derived)
-                            {
-                                <div class="form-label mb-0">@derived.Label</div>
-                                <p class="derived-access-condition mb-2" data-derived-type="@derived.Type" aria-live="polite">
-                                    <em>(determined on save)</em>
-                                </p>
+                                <p id="nonEditableRightsStatement">(no rights statement)</p>
                             }
                         </div>
                     }
@@ -970,6 +934,10 @@
         const recordInfoSources = @Html.Raw(Model.RecordInfoSourcesJson);
     </script>
     <script src="~/js/deposit.js" asp-append-version="true"></script>
+    @if (Model.AccessConditionProfile.HasStatements)
+    {
+        <script src="~/js/access-statements.js" asp-append-version="true"></script>
+    }
     <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
     <script src="~/js/file-links.js" asp-append-version="true"></script>
     @if (TempData[TempDataKeys.ActiveTab] != null)

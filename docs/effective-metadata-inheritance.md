@@ -70,9 +70,9 @@ the explicit presence of the element is treated as an intentional override.
 ### Physical files — Other typed access conditions (issue #433)
 
 Every `accessCondition` whose `type` is neither of the two above (nor Goobi's `status`) lands in
-`OtherAccessConditions`, a `type → value` map. On an installation with a two-axis access condition
-profile this holds the chosen category (the Leeds `copyright status`) and the derived conditions
-(the Leeds `tier`); the parser cannot know which types a configuration uses, so a third party's
+`OtherAccessConditions`, a `type → value` map. On an installation with a statement profile this
+holds the chosen statement (the Leeds `copyright statement`) and the derived conditions (the Leeds
+`tier`); the parser cannot know which types a configuration uses, so a third party's
 other typed conditions (`dz`, `player`...) appear here too.
 
 | Step | Source | Condition |
@@ -83,8 +83,8 @@ other typed conditions (`dz`, `player`...) appear here too.
 | D4 | `{}` | No source found |
 
 Inheritance is **per type**, merged, at every step: a file carrying only `tier` still inherits its
-folder's `dz`, and a type the whole physical chain lacks (the chosen category, when only the range
-sets it) comes from the range even when the chain supplies other types. The writer's category axis
+folder's `dz`, and a type the whole physical chain lacks (the chosen statement, when only the range
+sets it) comes from the range even when the chain supplies other types. The chosen statement
 therefore inherits exactly like the restriction, including the logical fallback.
 
 `MetsManager` keeps the explicit and effective derived values consistent with the chosen ones by

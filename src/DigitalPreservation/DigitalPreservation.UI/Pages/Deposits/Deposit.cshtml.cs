@@ -72,8 +72,8 @@ public class DepositModel(
     public List<LogicalRange> LogicalStructMaps { get; set; } = [];
     /// <summary>
     /// The installation's access condition profile (issue #433), fetched from the Preservation API:
-    /// the captions and vocabulary for the dropdowns, the optional chosen category axis with the
-    /// rights statements it suggests, and the derived conditions the dialogue previews live.
+    /// the captions and vocabulary for the dropdowns, the optional statements with their IIIF
+    /// rights, and the derived conditions the dialogue previews live.
     /// </summary>
     public AccessConditionProfile AccessConditionProfile { get; set; } = new();
 
@@ -687,7 +687,8 @@ public class DepositModel(
                 Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out rightsUri);
             }
             var result = await WorkspaceManager.SetModsInformation(form.ModsContext, form.AccessRestrictions, rightsUri, suppressRights, form.RecordIdentifiers, fileLinks,
-                string.IsNullOrEmpty(form.AccessCategory) ? null : form.AccessCategory);
+                string.IsNullOrEmpty(form.AccessStatement) ? null : form.AccessStatement,
+                setRights: form.RightsInForm);
             ReportOutcome(result, "Access Restrictions and Rights Statement updated.", TempDataKeys.AccessConditionsUpdated);
         }
 
@@ -892,9 +893,15 @@ public class SetRightsAndAccessFormModel
     public string ModsContext { get; set; } = "";
     public bool ModsContextIsFile { get; set; }
     public List<string> AccessRestrictions { get; set; } = [];
-    /// <summary>The chosen category on an installation with a category axis (issue #433); empty means inherit.</summary>
-    public string? AccessCategory { get; set; }
+    /// <summary>The chosen statement on an installation whose profile has statements (issue #433); empty means inherit.</summary>
+    public string? AccessStatement { get; set; }
     public string? RightsStatement { get; set; }
+    /// <summary>
+    /// True when the form carried a rights statement dropdown. On an installation whose profile has
+    /// statements it does not, and the node's rights are then left as they are rather than cleared
+    /// (issue #433).
+    /// </summary>
+    public bool RightsInForm { get; set; }
     public RecordIdentifier[] RecordIdentifiers { get; set; } = [];
     public string? FileLinksJson { get; set; }
 }

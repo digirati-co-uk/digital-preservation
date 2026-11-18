@@ -1,138 +1,143 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Text.Json;
 using DigitalPreservation.Common.Model.AccessConditions;
 using FluentAssertions;
 
 namespace DigitalPreservation.Common.Model.Tests.AccessConditions;
 
 /// <summary>
-/// The configured lookup behind derived access conditions (issue #433): the Leeds master matrix of
-/// Protected Access Level x copyright status -> Access Tier, and the profile validation that runs
-/// at Preservation API startup.
+/// The access condition profile (issue #433): the standard model, the deployed Leeds document read
+/// exactly as the Preservation API reads it and checked cell by cell against Leeds' spreadsheet, and
+/// the validation that runs at API startup, case by case.
 /// </summary>
 public class AccessConditionProfileTests
 {
-    private static readonly Uri InC = new("http://rightsstatements.org/vocab/InC/1.0/");
-    private static readonly Uri Cc0 = new("https://creativecommons.org/publicdomain/zero/1.0/");
+    /// <summary>The Leeds profile as deployed (Preservation.API/AccessConditionProfiles/leeds.json).</summary>
+    public static AccessConditionProfile Leeds() =>
+        AccessConditionProfile.FromJson(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditionProfiles", "leeds.json")));
 
-    /// <summary>The Leeds profile as deployed to dev (Preservation.API/appsettings.json).</summary>
-    public static AccessConditionProfile Leeds() => new()
+    // ---- The standard model -----------------------------------------------------------------
+
+    [Fact]
+    public void The_standard_profile_is_restrictions_and_rights_and_nothing_else()
     {
-        RestrictionAxis = new AccessAxis
-        {
-            Label = "Protected Access Level",
-            Values =
-            [
-                new AccessRestriction { Value = "PA1", Label = "Level 1" },
-                new AccessRestriction { Value = "PA2", Label = "Level 2" },
-                new AccessRestriction { Value = "PA3", Label = "Level 3" },
-                new AccessRestriction { Value = "PA4", Label = "Level 4" },
-                new AccessRestriction { Value = "PA-unassessed", Label = "Unassessed" }
-            ]
-        },
-        CategoryAxis = new CategoryAxis
-        {
-            Label = "Copyright status",
-            Type = "copyright status",
-            Values =
-            [
-                new AccessCategory { Value = "public-domain", Label = "Out of Copyright (Public Domain / CC0)", RightsStatements = ["NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0"] },
-                new AccessCategory { Value = "low-risk", Label = "In Copyright: Assessed (Low Risk)", RightsStatements = ["InC", "InC-EDU", "InC-NC", "InC-RUU", "InC-OW-EU", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"] },
-                new AccessCategory { Value = "medium-risk", Label = "In Copyright: Assessed (Medium Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
-                new AccessCategory { Value = "high-risk", Label = "In Copyright: Assessed (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
-                new AccessCategory { Value = "unassessed", Label = "In Copyright: Unassessed", RightsStatements = ["CNE", "UND"] },
-                new AccessCategory { Value = "holder-conditions", Label = "In Copyright: Holder Conditions (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] }
-            ]
-        },
-        RightsAxis = new RightsAxis { Label = "Rights Statement" },
-        Derived =
-        [
-            new DerivedAccessCondition
-            {
-                Type = "tier",
-                Label = "Access Tier",
-                Values =
-                [
-                    new AccessRestriction { Value = "0", Label = "Tier 0 - Open" },
-                    new AccessRestriction { Value = "1", Label = "Tier 1 - Open" },
-                    new AccessRestriction { Value = "2", Label = "Tier 2 - Restricted" },
-                    new AccessRestriction { Value = "3", Label = "Tier 3 - Protected" },
-                    new AccessRestriction { Value = "4", Label = "Tier 4 - Closed" },
-                    new AccessRestriction { Value = "5", Label = "Tier 5 - Unassessed" }
-                ],
-                Matrix = new Dictionary<string, Dictionary<string, string>>
-                {
-                    ["PA1"] = new()
-                    {
-                        ["public-domain"] = "0", ["low-risk"] = "1", ["medium-risk"] = "2",
-                        ["high-risk"] = "2", ["unassessed"] = "2", ["holder-conditions"] = "3", ["__none__"] = "2", ["*"] = "3"
-                    },
-                    ["PA2"] = new() { ["*"] = "3" },
-                    ["PA3"] = new() { ["*"] = "3" },
-                    ["PA4"] = new() { ["*"] = "4" },
-                    ["PA-unassessed"] = new() { ["*"] = "5" },
-                    ["__none__"] = new() { ["*"] = "5" },
-                    ["*"] = new() { ["*"] = "5" }
-                }
-            }
-        ]
-    };
+        var simple = AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }]);
+        simple.HasStatements.Should().BeFalse();
+        simple.Statements.Should().BeNull();
+        simple.Validate().Should().BeEmpty();
+
+        AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }], allowMultiple: true)
+            .Validate().Should().BeEmpty("multi-select is fine when nothing is derived");
+        new AccessConditionProfile().Validate().Should().BeEmpty("no configuration at all is a bare but usable profile");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_restriction_value_is_refused(string blank)
+    {
+        // "" is what the forms post for "(inherit from parent)", so no configured value may be blank.
+        var profile = AccessConditionProfile.Simple([new AccessRestriction { Value = blank, Label = "Blank" }]);
+        profile.Validate().Should().ContainSingle(e => e.StartsWith("restrictionAxis.values contains a blank value"));
+    }
+
+    // ---- The Leeds document, against the spreadsheet ----------------------------------------
 
     /// <summary>
-    /// Jodie's master matrix (v1.0, October 2026), restated here independently of the profile so that a
-    /// change to either fails loudly.
+    /// The tier each statement gives under Protected Access Level 1, restated independently of the
+    /// document from "Access Control - MASTER.xlsx": the statement's copyright status column on the
+    /// DATA FOR DIGIRATI tab, and that column's PA1 cell in the v1.0 matrix. Under every other
+    /// level the tier does not depend on the statement.
     /// </summary>
+    private static readonly Dictionary<string, string> Pa1TierByStatement = new()
+    {
+        ["out-of-copyright"] = "0",            // Out of Copyright
+        ["inc-low-risk"] = "1",                // In Copyright: Assessed (Low Risk)
+        ["inc-low-risk-orphan"] = "1",
+        ["inc-low-risk-orphan-2039"] = "1",
+        ["inc-low-risk-uol"] = "1",
+        ["inc-medium-risk-terminal"] = "2",    // medium risk
+        ["inc-high-risk"] = "2",               // high risk ("restrictions apply" on the tab)
+        ["inc-high-risk-orphan"] = "2",
+        ["inc-high-risk-orphan-2039"] = "2",
+        ["inc-high-risk-uol"] = "2",
+        ["inc-contractual"] = "2",
+        ["inc-unassessed"] = "2",              // In Copyright (Unassessed)
+        ["inc-holder-preservation"] = "3"      // Holder Conditions (High Risk)
+    };
+
     public static IEnumerable<object?[]> EveryCell()
     {
+        // null restriction: none on the node or above it; "dlip-open": a value outside the vocabulary.
         string?[] restrictions = ["PA1", "PA2", "PA3", "PA4", "PA-unassessed", null, "dlip-open"];
-        // "renamed-status" stands for a category value outside the vocabulary - mistyped by an API caller,
-        // or left behind by a rename - which the PA1 row's '*' cell must catch (re-review of #434, D).
-        string?[] categories = ["public-domain", "low-risk", "medium-risk", "high-risk", "unassessed", "holder-conditions", null, "renamed-status"];
-        var pa1 = new Dictionary<string, string>
-        {
-            ["public-domain"] = "0", ["low-risk"] = "1", ["medium-risk"] = "2",
-            ["high-risk"] = "2", ["unassessed"] = "2", ["holder-conditions"] = "3"
-        };
+        // null statement: none chosen; "renamed-statement": one outside the vocabulary (another
+        // source's, or since removed), which the PA1 row's '*' cell must catch.
+        var statements = Pa1TierByStatement.Keys.Cast<string?>().Append(null).Append("renamed-statement");
         foreach (var pa in restrictions)
         {
-            foreach (var category in categories)
+            foreach (var statement in statements)
             {
                 var expected = pa switch
                 {
-                    "PA1" => category == null ? "2" : pa1.GetValueOrDefault(category, "3"), // unknown status: the '*' cell
+                    "PA1" when statement == null => "2",                       // no statement: treated as unassessed
+                    "PA1" => Pa1TierByStatement.GetValueOrDefault(statement!, "3"), // unknown statement: the '*' cell
                     "PA2" or "PA3" => "3",
                     "PA4" => "4",
-                    _ => "5" // PA-unassessed, no restriction (the __none__ row), or a value outside the vocabulary (the '*' row)
+                    _ => "5" // PA-unassessed, no restriction (the __none__ row), or outside the vocabulary (the '*' row)
                 };
-                yield return [pa, category, expected];
+                yield return [pa, statement, expected];
             }
         }
     }
 
     [Theory]
     [MemberData(nameof(EveryCell))]
-    public void Every_cell_of_the_Leeds_master_matrix_resolves_to_the_agreed_tier(string? pa, string? category, string expectedTier)
+    public void Every_restriction_and_statement_resolves_to_the_agreed_tier(string? pa, string? statement, string expectedTier)
     {
-        var derived = Leeds().ResolveDerived(pa == null ? [] : [pa], category);
+        var derived = Leeds().Statements!.ResolveDerived(pa == null ? [] : [pa], statement);
         derived.Should().Equal(new Dictionary<string, string> { ["tier"] = expectedTier });
     }
 
     [Fact]
-    public void The_rights_statement_is_not_an_input_to_the_matrix_but_suggests_a_category()
+    public void The_deployed_Leeds_document_is_valid_and_covers_every_statement()
     {
-        // The statement is the public claim, the status is the assessment: InC can sit under four
-        // statuses with different tiers, so it can only suggest, never decide.
-        Leeds().ResolveDerived(["PA1"], "holder-conditions").Should().Equal(new Dictionary<string, string> { ["tier"] = "3" });
-        Leeds().CategoriesPermitting(InC).Should().BeEquivalentTo(["low-risk", "medium-risk", "high-risk", "holder-conditions"]);
-        Leeds().CategoriesPermitting(Cc0).Should().Equal("public-domain");
-        Leeds().CategoriesPermitting(new Uri("https://example.org/licence")).Should().BeEmpty();
-        Leeds().CategoriesPermitting(null).Should().BeEmpty();
+        var profile = Leeds();
+        profile.Validate().Should().BeEmpty();
+        profile.Statements!.Values.Select(s => s.Value).Should().BeEquivalentTo(Pa1TierByStatement.Keys,
+            "this test restates the spreadsheet; a statement added to one must be added to the other");
     }
 
     [Fact]
-    public void Every_rights_statement_is_permitted_under_at_least_one_Leeds_category()
+    public void Every_Leeds_statement_publishes_something_in_IIIF()
     {
-        var permitted = Leeds().CategoryAxis!.Values.SelectMany(c => c.RightsStatements).ToHashSet();
-        permitted.Should().BeEquivalentTo(RightsStatement.ByShortLabel.Keys);
+        var statements = Leeds().Statements!;
+        foreach (var statement in statements.Values)
+        {
+            var entry = statements.IiifRightsFor(statement.Value);
+            entry.Should().NotBeNull($"{statement.Value} must say what it publishes as");
+            entry!.RequiredStatement.Should().NotBeNullOrWhiteSpace($"{statement.Value} must have requiredStatement text");
+        }
+        statements.IiifRightsFor("out-of-copyright")!.Rights.Should().Be("https://creativecommons.org/publicdomain/mark/1.0/");
+        statements.IiifRightsFor(null).Should().BeNull();
+        statements.IiifRightsFor("renamed-statement").Should().BeNull();
+    }
+
+    [Fact]
+    public void Statements_that_share_IIIF_text_share_one_entry()
+    {
+        // The point of referencing entries by key: the same words are stated once.
+        var statements = Leeds().Statements!;
+        statements.IiifRightsFor("inc-high-risk").Should().BeSameAs(statements.IiifRightsFor("inc-medium-risk-terminal"));
+        statements.Iiif!.Entries.Select(e => e.RequiredStatement).Where(text => !text!.StartsWith("[PLACEHOLDER"))
+            .Should().OnlyHaveUniqueItems("two entries with the same text should be one entry");
+    }
+
+    [Fact]
+    public void The_matrix_column_is_the_statements_category()
+    {
+        var statements = Leeds().Statements!;
+        statements.ColumnFor(null).Should().Be(StatementProfile.NoneKey);
+        statements.ColumnFor("inc-low-risk-orphan-2039").Should().Be("low-risk");
+        statements.ColumnFor("renamed-statement").Should().Be(StatementProfile.Wildcard);
     }
 
     [Fact]
@@ -140,37 +145,62 @@ public class AccessConditionProfileTests
     {
         // Not reachable through the UI once anything is derived, but a legacy or third-party
         // document may carry several; the latest value in the Values order wins.
-        Leeds().ResolveDerived(["PA1", "PA4"], "public-domain")["tier"].Should().Be("4");
-        Leeds().ResolveDerived(["PA4", "PA1"], "public-domain")["tier"].Should().Be("4");
+        var statements = Leeds().Statements!;
+        statements.ResolveDerived(["PA1", "PA4"], "out-of-copyright")["tier"].Should().Be("4");
+        statements.ResolveDerived(["PA4", "PA1"], "out-of-copyright")["tier"].Should().Be("4");
     }
 
     [Fact]
     public void A_restriction_value_outside_the_vocabulary_gets_the_wildcard_row_or_nothing()
     {
+        var statements = Leeds().Statements!;
+        statements.ResolveDerived(["dlip-open"], "out-of-copyright").Should().Equal(new Dictionary<string, string> { ["tier"] = "5" });
+        statements.Derived[0].Matrix.Remove("*");
+        statements.ResolveDerived(["dlip-open"], "out-of-copyright").Should().BeEmpty();
+    }
+
+    // ---- The document format ----------------------------------------------------------------
+
+    [Fact]
+    public void The_served_JSON_is_the_document_format()
+    {
+        // GET /access-conditions serialises the profile with default options; that output must read
+        // back through the strict document reader, so a consumer can treat the two as one format.
+        var served = JsonSerializer.Serialize(Leeds());
+        var reread = AccessConditionProfile.FromJson(served);
+        reread.Validate().Should().BeEmpty();
+        JsonSerializer.Serialize(reread).Should().Be(served);
+    }
+
+    [Fact]
+    public void An_unknown_property_in_the_document_is_an_error()
+    {
+        var act = () => AccessConditionProfile.FromJson("""{ "restrictionAxis": { "label": "x", "valeus": [] } }""");
+        act.Should().Throw<JsonException>().WithMessage("*valeus*");
+    }
+
+    [Fact]
+    public void The_document_may_carry_comments_and_trailing_commas()
+    {
+        var profile = AccessConditionProfile.FromJson("""
+            // a comment
+            { "restrictionAxis": { "label": "Level", "values": [ { "value": "A", "label": "A" }, ], }, }
+            """);
+        profile.RestrictionAxis.Values.Should().ContainSingle();
+    }
+
+    // ---- Validation of the statements extension ---------------------------------------------
+
+    [Fact]
+    public void Statements_without_anything_derived_are_valid()
+    {
+        // An installation may want statements with IIIF text and no tier at all.
         var profile = Leeds();
-        profile.ResolveDerived(["dlip-open"], "public-domain").Should().Equal(new Dictionary<string, string> { ["tier"] = "5" });
-        profile.Derived[0].Matrix.Remove("*");
-        profile.ResolveDerived(["dlip-open"], "public-domain").Should().BeEmpty();
-    }
-
-    [Fact]
-    public void The_standard_profile_derives_nothing_and_is_valid()
-    {
-        var simple = AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }]);
-        simple.CategoryAxis.Should().BeNull();
-        simple.ResolveDerived(["Open"], null).Should().BeEmpty();
-        simple.Validate().Should().BeEmpty();
-        simple.CategoriesPermitting(InC).Should().BeEmpty();
-
-        AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }], allowMultiple: true)
-            .Validate().Should().BeEmpty("multi-select is fine when nothing is derived");
-        new AccessConditionProfile().Validate().Should().BeEmpty("an absent section is a bare but usable profile");
-    }
-
-    [Fact]
-    public void The_Leeds_profile_is_valid()
-    {
-        Leeds().Validate().Should().BeEmpty();
+        var statements = profile.Statements!;
+        statements.Derived.Clear();
+        statements.Categories.Clear();
+        foreach (var statement in statements.Values) statement.Category = null;
+        profile.Validate().Should().BeEmpty();
     }
 
     [Fact]
@@ -178,46 +208,78 @@ public class AccessConditionProfileTests
     {
         var profile = Leeds();
         profile.AllowMultipleRestrictions = true;
-        profile.Validate().Should().ContainSingle(e => e.Contains("AllowMultipleRestrictions"));
+        profile.Validate().Should().ContainSingle(e => e.Contains("allowMultipleRestrictions"));
     }
 
     [Fact]
-    public void A_category_axis_and_derived_conditions_go_together()
+    public void Every_reference_between_parts_of_the_profile_must_resolve()
     {
         var profile = Leeds();
-        profile.Derived.Clear();
-        profile.Validate().Should().ContainSingle(e => e.Contains("use the standard 'AccessConditions' list"));
-
-        profile = Leeds();
-        profile.CategoryAxis = null;
-        profile.Validate().Should().Contain(e => e.Contains("need a CategoryAxis"));
-    }
-
-    [Fact]
-    public void A_category_axis_needs_a_type_and_known_rights_statements()
-    {
-        var profile = Leeds();
-        profile.CategoryAxis!.Type = "";
-        profile.CategoryAxis.Values[0].RightsStatements.Add("Not-A-Statement");
-        profile.CategoryAxis.Values[0].RightsStatements.Add("CC0"); // already listed there
+        var values = profile.Statements!.Values;
+        values[0].Category = "very-low-risk";
+        values[1].Iiif = "no-such-entry";
+        values[2].Category = null;
 
         var errors = profile.Validate();
-        errors.Should().Contain(e => e.Contains("CategoryAxis.Type"));
-        errors.Should().Contain(e => e.Contains("'Not-A-Statement'"));
-        errors.Should().Contain(e => e.Contains("contains 'CC0' more than once"));
+        errors.Should().Contain(e => e.Contains("category 'very-low-risk' is not one of statements.categories"));
+        errors.Should().Contain(e => e.Contains("iiif 'no-such-entry' is not one of statements.iiif.entries"));
+        errors.Should().Contain(e => e.Contains($"statement '{values[2].Value}' has no category"));
+    }
+
+    [Fact]
+    public void Statements_need_an_unreserved_type_and_values()
+    {
+        var profile = Leeds();
+        profile.Statements!.Type = "";
+        profile.Validate().Should().Contain(e => e.Contains("statements.type"));
 
         profile = Leeds();
-        profile.CategoryAxis!.Type = "use and reproduction";
-        profile.Validate().Should().Contain(e => e.Contains("reserved for the restriction or rights statement"));
+        profile.Statements!.Type = "use and reproduction";
+        profile.Validate().Should().Contain(e => e.Contains("reserved for the standard restriction or rights statement"));
+
+        profile = Leeds();
+        profile.Statements!.Values.Clear();
+        profile.Validate().Should().Contain(e => e.Contains("statements.values is empty"));
+    }
+
+    [Fact]
+    public void IIIF_entries_must_publish_something_well_formed()
+    {
+        var profile = Leeds();
+        var entries = profile.Statements!.Iiif!.Entries;
+        entries.Add(new IiifRightsEntry { Id = "empty" });
+        entries.Add(new IiifRightsEntry { Id = "relative", Rights = "/licence" });
+        entries.Add(new IiifRightsEntry { Id = "blank", RequiredStatement = "  " });
+        entries.Add(new IiifRightsEntry { Id = "out-of-copyright", Rights = "https://example.org/" });
+
+        var errors = profile.Validate();
+        errors.Should().Contain(e => e.Contains("'empty' has neither rights nor requiredStatement"));
+        errors.Should().Contain(e => e.Contains("'/licence' is not an absolute http(s) URI"));
+        errors.Should().Contain(e => e.Contains("'blank': requiredStatement is blank"));
+        errors.Should().Contain(e => e.Contains("statements.iiif.entries contains 'out-of-copyright' more than once"));
+    }
+
+    [Fact]
+    public void An_external_id_may_belong_to_only_one_value_of_an_axis()
+    {
+        var profile = Leeds();
+        var statements = profile.Statements!;
+        statements.Values[0].ExternalIds = new() { ["emu-sprig"] = ["SPRIG-164"] }; // inc-unassessed's
+        statements.Derived[0].Values[1].ExternalIds!["emu-sprig"] = ["SPRIG-4006"];  // tier 0's
+
+        var errors = profile.Validate();
+        errors.Should().Contain(e => e.Contains("emu-sprig id 'SPRIG-164' belongs to both"));
+        errors.Should().Contain(e => e.Contains("emu-sprig id 'SPRIG-4006' belongs to both"));
     }
 
     [Fact]
     public void Matrix_references_must_name_configured_rows_columns_and_values()
     {
         var profile = Leeds();
-        profile.Derived[0].Matrix["PA9"] = new Dictionary<string, string> { ["public-domain"] = "0" };
-        profile.Derived[0].Matrix["PA1"]["very-high-risk"] = "2";
-        profile.Derived[0].Matrix["PA2"]["*"] = "9";
+        var matrix = profile.Statements!.Derived[0].Matrix;
+        matrix["PA9"] = new Dictionary<string, string> { ["public-domain"] = "0" };
+        matrix["PA1"]["very-high-risk"] = "2";
+        matrix["PA2"]["*"] = "9";
 
         var errors = profile.Validate();
         errors.Should().Contain(e => e.Contains("row 'PA9'"));
@@ -229,56 +291,57 @@ public class AccessConditionProfileTests
     public void A_matrix_must_give_every_restriction_a_value_for_every_category()
     {
         var profile = Leeds();
-        profile.Derived[0].Matrix.Remove("*");
-        profile.Derived[0].Matrix["PA1"].Remove("low-risk");
+        var matrix = profile.Statements!.Derived[0].Matrix;
+        matrix.Remove("*");
+        matrix["PA1"].Remove("low-risk");
         profile.Validate().Should().BeEmpty("the PA1 row's '*' cell covers the gap");
-        profile.Derived[0].Matrix["PA1"].Remove("*");
+        matrix["PA1"].Remove("*");
         profile.Validate().Should().ContainSingle(e => e.Contains("no value for restriction 'PA1' with category 'low-risk'"));
 
         profile = Leeds();
-        profile.Derived[0].Matrix.Remove("*");
-        profile.Derived[0].Matrix.Remove("__none__");
-        profile.Validate().Should().HaveCount(7, "no restriction at all must resolve for each of the six categories and for no category")
+        matrix = profile.Statements!.Derived[0].Matrix;
+        matrix.Remove("*");
+        matrix.Remove("__none__");
+        profile.Validate().Should().HaveCount(7, "no restriction at all must resolve for each of the six categories and for no statement")
             .And.AllSatisfy(e => e.Should().Contain("restriction '__none__'"));
 
         profile = Leeds();
-        profile.Derived[0].Matrix.Remove("__none__");
+        profile.Statements!.Derived[0].Matrix.Remove("__none__");
         profile.Validate().Should().BeEmpty("the wildcard row covers the gap");
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void A_blank_value_is_refused_on_every_axis(string blank)
+    public void A_blank_value_is_refused_on_every_part_of_the_extension(string blank)
     {
-        // "" is what the forms post for "(inherit from parent)", so no configured value may be blank.
         var profile = Leeds();
-        profile.RestrictionAxis.Values.Add(new AccessRestriction { Value = blank, Label = "Blank" });
-        profile.Validate().Should().Contain(e => e.StartsWith("RestrictionAxis.Values contains a blank value"));
+        profile.Statements!.Values.Add(new AccessStatement { Value = blank, Label = "Blank", Category = "low-risk" });
+        profile.Validate().Should().Contain(e => e.StartsWith("statements.values contains a blank value"));
 
         profile = Leeds();
-        profile.CategoryAxis!.Values.Add(new AccessCategory { Value = blank, Label = "Blank" });
-        profile.Validate().Should().Contain(e => e.StartsWith("CategoryAxis.Values contains a blank value"));
+        profile.Statements!.Categories.Add(new AccessCategory { Value = blank, Label = "Blank" });
+        profile.Validate().Should().Contain(e => e.StartsWith("statements.categories contains a blank value"));
 
         profile = Leeds();
-        profile.Derived[0].Values.Add(new AccessRestriction { Value = blank, Label = "Blank" });
-        profile.Validate().Should().Contain(e => e.StartsWith("Derived 'tier' Values contains a blank value"));
+        profile.Statements!.Derived[0].Values.Add(new AccessRestriction { Value = blank, Label = "Blank" });
+        profile.Validate().Should().Contain(e => e.StartsWith("derived 'tier' values contains a blank value"));
     }
 
     [Fact]
     public void A_derived_type_may_not_be_a_chosen_type_and_types_are_distinct()
     {
         var profile = Leeds();
-        profile.Derived[0].Type = "restriction on access";
+        profile.Statements!.Derived[0].Type = "restriction on access";
         profile.Validate().Should().Contain(e => e.Contains("reserved"));
 
         profile = Leeds();
-        profile.Derived[0].Type = profile.CategoryAxis!.Type;
+        profile.Statements!.Derived[0].Type = profile.Statements.Type;
         profile.Validate().Should().Contain(e => e.Contains("reserved"));
 
         profile = Leeds();
-        profile.Derived.Add(Leeds().Derived[0]);
-        profile.Validate().Should().Contain(e => e.Contains("Derived types contains 'tier' more than once"));
+        profile.Statements!.Derived.Add(Leeds().Statements!.Derived[0]);
+        profile.Validate().Should().Contain(e => e.Contains("statements.derived types contains 'tier' more than once"));
     }
 
     [Fact]

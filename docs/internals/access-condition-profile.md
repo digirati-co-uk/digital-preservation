@@ -8,20 +8,17 @@ wants the first.
 This page is for whoever deploys the platform. What a caller or a user sees is on the documentation
 site: the API shape at [Vocabularies](https://digirati-co-uk.github.io/digital-preservation-docs/preservation-api/vocabularies/),
 the METS at [Descriptive metadata and structure](https://digirati-co-uk.github.io/digital-preservation-docs/mets/mets-we-write-descriptive/),
-and the derived form at [Derived access conditions](https://digirati-co-uk.github.io/digital-preservation-docs/mets/derived-access-conditions/).
+and the extended form at [Derived access conditions](https://digirati-co-uk.github.io/digital-preservation-docs/mets/derived-access-conditions/).
 
 ## Which services read it
 
 | Service | Reads the configuration? |
 |---|---|
-| Preservation API | **Yes.** Builds its profile from whichever form is present at startup, validates it (a bad profile stops the service, with the reasons in the log), serves it at `GET /access-conditions`, and uses it when writing METS. |
+| Preservation API | **Yes.** Builds its profile from whichever form is configured at startup, validates it (a bad profile stops the service, with the reasons in the log), serves it at `GET /access-conditions`, and uses it when writing METS. |
 | Preservation UI | No. It fetches the API's profile and caches it for five minutes, so a change needs only the API redeployed. If the API cannot be reached it uses the last profile this process fetched; if there has never been one, a METS write is **refused** (503, nothing written) rather than saved with derived values that no longer match the chosen ones. |
 | Pipeline API, Deposit Archiver | No. Both write METS through the same `MetsManager`, but with no profile, which means they derive nothing and leave any derived elements they find untouched. |
 | Storage API, Storage API Importer | No. They never look inside METS. |
-
-So: one service's `appsettings.json` (or the equivalent environment variables, with
-`AccessConditions__0__Value` style keys). `Preservation.API/appsettings.Example.json` shows the
-standard form.
+| iiif-builder (or any other consumer) | Not configuration as such, but it can read the same profile from `GET /access-conditions` to turn the keys in METS into IIIF `rights` and `requiredStatement` - see [For iiif-builder](#for-iiif-builder). |
 
 ## The standard form: `AccessConditions`
 
@@ -32,7 +29,8 @@ in the METS, each chosen by a person and inherited down the folder tree:
 - a **rights statement** - one URI from the fixed [rightsstatements.org](https://rightsstatements.org/)
   and Creative Commons vocabularies (`type="use and reproduction"`).
 
-Nothing is computed from them. All you configure is the restriction vocabulary, as a plain list:
+Nothing is computed from them. All you configure is the restriction vocabulary, as a plain list in
+`appsettings.json` (or environment variables with `AccessConditions__0__Value` style keys):
 
 ```json
 "AccessConditions": [
@@ -52,173 +50,244 @@ list:
 
 **With no `AccessConditions` at all** the service still starts: `GET /access-conditions` returns a
 profile with an empty vocabulary, the UI's restriction dropdown offers only *(inherit from parent)*,
-and rights statements work as normal. Nothing in the platform requires any particular restriction
-value to exist.
+and rights statements work as normal.
 
-That is the whole of the standard form. The rest of this page is for an installation that needs a
-value **derived** from its choices; if that is not you, stop here.
+That is the whole of the standard form. The rest of this page is for an installation whose rules
+are richer; if that is not you, stop here.
 
-## The two-axis form: `AccessConditionProfile`
+## The statement profile: `AccessConditionProfileFile`
 
-Leeds needs an **Access Tier** (0-5) on every node, which their delivery systems map to IIIF
-authorisation roles. The tier is a function of two things: the **Protected Access Level** (the
-restriction) and the **copyright status** - an internal risk assessment (public domain, low risk,
-high risk...) that Leeds also record in EMu and EPrints. The rights statement is *not* one of the
-inputs: it is the public claim about what people may do, and the same statement (`InC`) can sit at
-low, medium or high risk. So the two-axis form adds a third chosen value and derives from the
-first two by a matrix.
+Leeds do not choose a rights statement. They choose a **specific copyright statement** from their
+own list (orphan work under the 2039 rule, low risk, held online; in copyright, University of Leeds
+the owner, not online...), which says three things at once:
 
-Replace the `AccessConditions` list with an `AccessConditionProfile` section (never both; the
-service refuses to start):
+- which **copyright status** it falls under (out of copyright, low risk, medium risk, high risk,
+  unassessed, holder conditions) - their risk assessment;
+- what text the public sees with the item - a IIIF `requiredStatement`, and for some a IIIF `rights` URI;
+- together with the **Protected Access Level** (the restriction), the item's **Access Tier** (0-5),
+  which their delivery systems map to IIIF authorisation roles.
 
-| Part | What it holds |
-|---|---|
-| `RestrictionAxis` | `Label` and `Values`, exactly as the standard list, plus a caption. |
-| `CategoryAxis` | The second chosen axis. `Label` (the caption), `Type` (the `mods:accessCondition/@type` it is written under, e.g. `copyright status`), and `Values`, each with `Value`, `Label` and `RightsStatements`: the rights statements, by short label (`InC`, `NoC-US`, `CC-BY`...), that make sense under that category. A statement may appear under several. The UI offers those first once the category is chosen and preselects the category when a chosen statement is permitted under exactly one; nothing is enforced on save. |
-| `RightsAxis` | `Label` only: the caption of the rights-statement choice. |
-| `Derived` | One entry per derived condition: `Type` (the METS `@type`, e.g. `tier`), `Label`, `Values` in order from least to most restrictive, and `Matrix`: restriction value → category value → derived value. Row and column keys may also be `__none__` ("no effective value on or above this node") and `*` ("anything a more specific key does not match"). |
-| `AllowMultipleRestrictions` | Must be false (the default): a derived value is a single matrix cell. |
-
-Validation at startup rejects: a `CategoryAxis` without `Derived` (use the standard form) or
-`Derived` without a `CategoryAxis`; a `CategoryAxis` with no `Type`, or a type that is one of the
-two chosen types or a derived type; an unknown rights short label under a category, or one listed
-twice there; a matrix row that is not a restriction value, `__none__` or `*`; a column that is not
-a category value, `__none__` or `*`; a cell that is not one of the `Values`; a **gap** - any
-restriction value (or `__none__`) that resolves to nothing for any category (or `__none__`), which a
-`*` row or column fills - note the check covers configured values only, so a cell or column of `*`
-is what catches a value outside the vocabulary; duplicate restriction values, category values or derived types; an empty
-`Values` or `Matrix`; and `AllowMultipleRestrictions` set. The error lists every problem it found.
-
-What then happens, in brief (the detail is on the documentation site and in
-[effective-metadata-inheritance.md](../effective-metadata-inheritance.md)):
-
-- The category is a third chosen `mods:accessCondition`, under `CategoryAxis.Type`, inherited down
-  the tree exactly like the restriction.
-- Every div, physical or logical, that carries a chosen element of its own gets each derived element
-  too, computed from that div's **effective** restriction and category. So does every **file** whose
-  effective inputs come partly from its logical range: the parser falls back to the range for an
-  axis the folders are silent on, and such a file could not inherit the right value from its folder.
-- Every write recomputes every derived value in the document, so changing a folder's restriction
-  changes the tier of everything beneath it that carries one, and a derived element whose source has
-  gone is removed - from any dmdSec the platform itself minted. A dmdSec the platform did **not**
-  mint (a Goobi export's, say) that carries a derived element and no chosen ones is left exactly as
-  found: Leeds intend Goobi to hand over only the resulting tier, and the platform must not strip it.
-  One exception, which predates this feature: saving a **logical structMap** rebuilds every logical
-  div's dmdSec from the client's copy (title, record identifiers, restriction, rights, category), so
-  a logical div's other typed conditions, a Goobi tier among them, do not survive a logical-structure
-  edit in the UI. Whether that matters depends on whether Goobi puts the tier on logical divs and
-  whether Goobi deposits' logical structure is ever edited here - both open on #433.
-- Only the types in `Derived` are touched. Other typed `accessCondition` elements - a third party's,
-  or a type you used to derive - are left as found.
-- Nothing is written for a node with no effective input at all; the `__none__` row and column are
-  for a node that has one input but not the other.
-- The UI shows the category and the derived value in the tree and recomputes the derived value
-  live in the metadata dialogue. It warns, and no more than warns, when the chosen rights statement
-  is not one the chosen category lists.
-
-## Worked example: the Leeds Access Tier
-
-Leeds choose a **Protected Access Level**, a **copyright status** and a **Rights Statement**
-(the rights statement), and derive the **Access Tier** from the first two using their master
-matrix. The configuration, as carried in `Preservation.API/appsettings.json` for the development
-environment:
+So the extended form replaces the rights statement with a statement from a configured list, and
+the configuration has to say, for each statement, its category and what it publishes; and how the
+tier follows from restriction x category. That is too much, and too important to get right, for
+`appsettings.json`, so it is a **document of its own**: a JSON file in the API's content root,
+named by one key.
 
 ```json
-"AccessConditionProfile": {
-  "RestrictionAxis": {
-    "Label": "Protected Access Level",
-    "Values": [
-      { "Value": "PA1", "Label": "Level 1" },
-      { "Value": "PA2", "Label": "Level 2" },
-      { "Value": "PA3", "Label": "Level 3" },
-      { "Value": "PA4", "Label": "Level 4" },
-      { "Value": "PA-unassessed", "Label": "Unassessed" }
-    ]
+"AccessConditionProfileFile": "AccessConditionProfiles/leeds.json"
+```
+
+Configure this **or** `AccessConditions` (with `AllowMultipleAccessConditions`), never both; the
+service refuses to start. Profile documents live in `Preservation.API/AccessConditionProfiles/`
+and are copied into the image. The document is the same JSON that `GET /access-conditions` serves,
+property for property, so whatever reads one can read the other.
+
+### The document
+
+The top level is the standard model; everything the extension adds is under `statements`.
+
+```jsonc
+{
+  "name": "Leeds University Library",          // informational
+  "version": "2026-11-18-draft",               // informational: lets a consumer say which it read
+  "restrictionAxis": {                         // the standard restriction dropdown
+    "label": "Protected Access Level",
+    "values": [ { "value": "PA1", "label": "Level 1" }, ... ]
   },
-  "CategoryAxis": {
-    "Label": "Copyright status",
-    "Type": "copyright status",
-    "Values": [
-      { "Value": "public-domain",      "Label": "Out of Copyright (Public Domain / CC0)",
-        "RightsStatements": [ "NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0" ] },
-      { "Value": "low-risk",           "Label": "In Copyright: Assessed (Low Risk)",
-        "RightsStatements": [ "InC", "InC-EDU", "InC-NC", "InC-RUU", "InC-OW-EU", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND" ] },
-      { "Value": "medium-risk",        "Label": "In Copyright: Assessed (Medium Risk)",
-        "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU" ] },
-      { "Value": "high-risk",          "Label": "In Copyright: Assessed (High Risk)",
-        "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU" ] },
-      { "Value": "unassessed",         "Label": "In Copyright: Unassessed",
-        "RightsStatements": [ "CNE", "UND" ] },
-      { "Value": "holder-conditions",  "Label": "In Copyright: Holder Conditions (High Risk)",
-        "RightsStatements": [ "InC", "InC-OW-EU", "InC-RUU" ] }
-    ]
-  },
-  "RightsAxis": { "Label": "Rights Statement" },
-  "Derived": [
-    {
-      "Type": "tier",
-      "Label": "Access Tier",
-      "Values": [
-        { "Value": "0", "Label": "Tier 0 - Open" },
-        { "Value": "1", "Label": "Tier 1 - Open" },
-        { "Value": "2", "Label": "Tier 2 - Restricted" },
-        { "Value": "3", "Label": "Tier 3 - Protected" },
-        { "Value": "4", "Label": "Tier 4 - Closed" },
-        { "Value": "5", "Label": "Tier 5 - Unassessed" }
-      ],
-      "Matrix": {
-        "PA1":           { "public-domain": "0", "low-risk": "1", "medium-risk": "2", "high-risk": "2", "unassessed": "2", "holder-conditions": "3", "__none__": "2", "*": "3" },
-        "PA2":           { "*": "3" },
-        "PA3":           { "*": "3" },
-        "PA4":           { "*": "4" },
-        "PA-unassessed": { "*": "5" },
-        "__none__":      { "*": "5" },
-        "*":             { "*": "5" }
+  "statements": {
+    "label": "Copyright Statement",            // the dropdown that replaces the rights statement
+    "type": "copyright statement",             // the mods:accessCondition/@type a chosen statement is written under
+    "values": [
+      {
+        "value": "inc-low-risk-orphan-2039",   // the key written to METS - never change once used
+        "label": "In Copyright: Assessed - LOW RISK (Online -orphan work-2039)",
+        "category": "low-risk",                // one of categories: its matrix column
+        "iiif": "orphan-2039-online",          // one of iiif.entries: what it publishes
+        "description": "To be applied to unpublished material (archives) where ...",  // shown when chosen
+        "externalIds": { "emu-sprig": [ "SPRIG-..." ], "emu-irn": [ "..." ] }         // optional
+      },
+      ...
+    ],
+    "categories": [ { "value": "low-risk", "label": "In Copyright: Assessed (Low Risk)", "description": "..." }, ... ],
+    "iiif": {
+      "requiredStatementLabel": "Rights",      // the requiredStatement label unless an entry gives its own
+      "entries": [
+        { "id": "out-of-copyright",
+          "rights": "https://creativecommons.org/publicdomain/mark/1.0/",
+          "requiredStatement": "This material is out of copyright." },
+        { "id": "orphan-2039-online", "requiredStatement": "We believe this material is ..." },
+        ...
+      ]
+    },
+    "derived": [
+      {
+        "type": "tier",                        // the mods:accessCondition/@type it is written under
+        "label": "Access Tier",
+        "values": [ { "value": "0", "label": "Tier 0 - Open", "externalIds": { ... } }, ... ],  // least to most restrictive
+        "matrix": {                            // restriction -> category -> value
+          "PA1": { "public-domain": "0", "low-risk": "1", ..., "__none__": "2", "*": "3" },
+          "PA2": { "*": "3" },
+          ...
+          "__none__": { "*": "5" },
+          "*": { "*": "5" }
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
+Some choices worth knowing about:
+
+- **Keys and labels are separate.** A statement's `value` goes into preserved METS and must never
+  change; its `label`, `description` and IIIF text can change whenever Leeds like, and the next
+  preview or manifest build shows the new wording.
+- **IIIF text is stated once.** Statements reference an `iiif` entry by `id`, so two statements
+  that publish the same words share one entry and cannot drift apart.
+- **Categories are never written to METS.** A node's category is its statement's, looked up here.
+  METS holds keys only: the restriction, the statement, the derived values.
+- **`externalIds`** (on restriction values, statements and derived values) record the same thing's
+  identifiers in other systems, by scheme - for Leeds, EMu Rights SPRIGs and IRNs - so a flow that
+  starts from EMu (EMu → Goobi) can map them to keys. Within one list an identifier may belong to
+  only one value.
+- In a matrix, a row or column key may also be `__none__` ("no effective value on or above this
+  node") or `*` ("anything a more specific key does not match"). The `*` row and column are what
+  give a value outside the vocabulary - a legacy restriction, a statement since removed - a result.
+- `derived` is optional. Statements with IIIF text and no tier is a valid profile; `category` is
+  then optional too.
+
+### Validation
+
+The document is read strictly and checked at startup; any failure stops the service and the log
+lists every problem found:
+
+- **Reading:** an unknown or misspelt property is an error (comments and trailing commas are fine).
+- **Keys:** restriction values, statement values, category values, IIIF entry ids and derived values
+  must be non-blank (a blank means *(inherit from parent)* in the forms), unique, and not `__none__`
+  or `*`.
+- **References:** every statement's `category` must be one of `categories` (and, when anything is
+  derived, every statement must have one); every `iiif` must be one of the entries; every matrix
+  row must be a restriction value, `__none__` or `*`; every column a category, `__none__` or `*`;
+  every cell one of the derived `values`.
+- **Coverage:** every restriction value (and `__none__`) must resolve to a value for every category
+  (and `__none__`). A gap would silently leave nodes without a tier.
+- **Types:** `statements.type` and each derived `type` must be distinct, and none may be
+  `restriction on access` or `use and reproduction`.
+- **IIIF:** every entry has `rights` or `requiredStatement` or both; `rights` is an absolute http(s)
+  URI; no text is blank.
+- **External ids:** one identifier, one value, per list.
+- `allowMultipleRestrictions` cannot be combined with `derived`: a derived value is one matrix cell.
+
+### What happens
+
+The detail is on the documentation site and in
+[effective-metadata-inheritance.md](../effective-metadata-inheritance.md); in brief:
+
+- The chosen statement is written as `mods:accessCondition type="{statements.type}"`, inherited down
+  the tree exactly like the restriction (including a file's fallback to its logical range).
+- The UI shows a statement dropdown, grouped by category, **in place of** the rights statement
+  dropdown, with the chosen statement's `description` beneath it. A node's existing
+  `use and reproduction` element is left exactly as it is: the form says nothing about rights.
+- Every div, physical or logical, that carries a chosen element of its own gets each derived element
+  too, computed from that div's **effective** restriction and statement. So does every **file** whose
+  effective inputs come partly from its logical range. Every write recomputes every derived value in
+  the document, so changing a folder's restriction changes the tier of everything beneath it.
+- A derived element whose source has gone is removed from any dmdSec the platform itself minted. A
+  dmdSec the platform did **not** mint (a Goobi export's) that carries a derived element and no
+  chosen ones is left exactly as found. One exception, which predates this feature: saving a
+  **logical structMap** rebuilds every logical div's dmdSec from the client's copy, so a Goobi tier
+  on a logical div does not survive a logical-structure edit in the UI (open on #433).
+- Only the derived types are rewritten. Other typed `accessCondition` elements are left as found.
+- The dialogue has a **Preview METS and IIIF** button: the `mods:accessCondition` elements the node
+  will carry after saving, and the `rights` and `requiredStatement` a IIIF manifest built from this
+  profile would carry. Nothing in the preview is saved; the IIIF text is never written to METS.
+- The tree shows the statement and the tier beside each node; hovering the statement shows its IIIF
+  text.
+
+The code follows the same split. The standard model is `AccessConditionProfile`, the restriction
+and rights setters in `MetsManager`, `deposit.js` and the dialogue in `Deposit.cshtml`. The extension
+is `StatementProfile` (with its validation), `DerivedAccessConditionWriter` (the whole-document pass
+`MetsManager.WriteMets` calls), `IDerivedAccessConditionResolver`, the `_AccessStatementFields`
+partial and `access-statements.js`, which the page loads only when the profile has statements.
+
+## For iiif-builder
+
+A manifest builder that follows the profile does, for each node it publishes:
+
+1. Find the node's **effective** statement in METS: its own `mods:accessCondition` of type
+   `statements.type`, else the nearest ancestor's, falling back to the file's logical range the way
+   [effective-metadata-inheritance.md](../effective-metadata-inheritance.md) describes. (The
+   platform's own METS parser computes this as `effectiveOtherAccessConditions`; a builder that
+   reads METS itself has to do the same walk.)
+2. Find that `value` in `statements.values`, then its `iiif` entry in `statements.iiif.entries`.
+3. Publish the entry's `rights` (if any) as the manifest's `rights`, and its `requiredStatement` (if
+   any) as `requiredStatement`, labelled with the entry's `requiredStatementLabel` or else
+   `statements.iiif.requiredStatementLabel`.
+4. No statement, or a statement the profile no longer knows: publish neither.
+
+The derived tier is written in METS and needs no lookup, only the same inheritance walk. The UI's
+preview implements steps 2-4 on the effective statement, so what an archivist sees there is what
+such a builder produces.
+
+## Worked example: Leeds
+
+The Leeds document is `Preservation.API/AccessConditionProfiles/leeds.json`; the development
+`appsettings.json` points at it. It was generated from Leeds' spreadsheet *Access Control -
+MASTER.xlsx*:
+
+| From the spreadsheet | Becomes |
+|---|---|
+| *DATA FOR DIGIRATI*, column C (the combined dropdown labels) | statement `label`s |
+| *SPRIGS LIST - NEW*: MATRIX column | statement `category` |
+| *SPRIGS LIST - NEW*: Condition (the public text) | `iiif` entries' `requiredStatement` (identical texts merged into one entry) |
+| *SPRIGS LIST - NEW*: Notes | statement `description` |
+| *SPRIGS LIST - NEW*: Right number / irn, where they exist | `externalIds` |
+| *Access Control Matrix - MASTER* (v1.0, October 2026) | the categories and the tier matrix |
+| *Access Control Logic - MASTER*: tier SPRIGs and IRNs | the tier values' `externalIds` |
+
 Reading the matrix:
 
-| Effective restriction | Effective copyright status | Tier |
+| Effective restriction | Effective statement's category | Tier |
 |---|---|---|
 | `PA1` | `public-domain` | 0 |
 | `PA1` | `low-risk` | 1 |
 | `PA1` | `medium-risk`, `high-risk` or `unassessed` | 2 |
 | `PA1` | `holder-conditions` | 3 |
-| `PA1` | none (nothing set, nothing inherited) | 2 |
-| `PA1` | a value outside the vocabulary (mistyped, or renamed since) | 3 (the `*` cell) |
+| `PA1` | no statement (nothing set, nothing inherited) | 2 - treated as unassessed |
+| `PA1` | a statement the profile does not know | 3 (the `*` cell) |
 | `PA2` or `PA3` | anything | 3 |
 | `PA4` | anything | 4 |
 | `PA-unassessed`, or none | anything | 5 |
-| `dlip-open` (a value outside the vocabulary) | anything | 5 (the `*` row) |
+| a value outside the vocabulary | anything | 5 (the `*` row) |
 
-Configuration keys are case-insensitive, so this block is also, key for key, what `GET /access-conditions`
-returns (in camelCase). The documentation site's
-[Derived access conditions](https://digirati-co-uk.github.io/digital-preservation-docs/mets/derived-access-conditions/)
-page shows the same example from the caller's side.
+`AccessConditionProfileTests` checks every statement against every restriction, reading the deployed
+document itself, against an expected table restated from the spreadsheet.
 
-**Assumptions in this example, pending confirmation from Leeds** (tracked on
-[issue #433](https://github.com/digirati-co-uk/digital-preservation/issues/433)): the `tier` and
-`copyright status` type names, the `PA1`..`PA-unassessed` and category values, and the rights
-statements permitted under each category. The matrix itself is Leeds' master matrix verbatim (Access Control Matrix, version 1.0, October 2026).
+**Open, pending Leeds** (tracked on [issue #433](https://github.com/digirati-co-uk/digital-preservation/issues/433)):
+the statement keys are ours (most statements have no SPRIG yet); two statements have placeholder
+text (contractual restrictions, preservation copies only); only out of copyright has a IIIF `rights`
+URI; the contractual statement is placed under high risk as its label says, though the matrix lists
+in-contract material under medium (the same tier under PA1); *Copyright - in - high risk (no
+copying)* is in the SPRIGS list but not the dropdown; the `requiredStatement` label (`Rights`) and
+the type names (`copyright statement`, `tier`) are our choices.
 
 ## Changing a profile that is already in use
 
-- **Adding or relabelling** restriction values, categories or permitted statements is safe. Labels
-  are presentation only; a value that no longer exists in the vocabulary still reads back and still
-  appears in the UI, it just cannot be chosen afresh - and the `*` row says what such a value derives
-  (for Leeds, 5). Without one, validation would fail on the gap.
-- **Changing a matrix** does not rewrite preserved METS. Each deposit's derived values are recomputed
-  the next time *that* METS is written, so a corrected matrix reaches existing content only when it
-  is next edited and preserved. Plan a re-save campaign if the change must be universal.
-- **Changing `CategoryAxis.Type`** orphans every category already written under the old type: it
+- **Adding or relabelling** restriction values, statements, categories or IIIF text is safe.
+  Labels and text are presentation only; a value that no longer exists still reads back and still
+  appears in the UI (as itself), it just cannot be chosen afresh - and the `*` row and column say
+  what it derives.
+- **Moving a statement to another category, or changing a matrix,** does not rewrite preserved METS.
+  Each deposit's derived values are recomputed the next time *that* METS is written, so a change
+  reaches existing content only when it is next edited and preserved. Plan a re-save campaign if the
+  change must be universal. A IIIF text change, by contrast, needs nothing: it is looked up when a
+  manifest is built.
+- **Changing a statement's `value`** orphans every use of the old key. Don't; add a new statement
+  and retire the old one instead.
+- **Changing `statements.type`** orphans every statement already written under the old type: it
   becomes an unknown typed condition, reported in `otherAccessConditions` and inherited, but no
   longer an input. Treat it like a vocabulary migration.
 - **Removing a derived type** leaves the old elements in place in every METS, as unknown typed
-  conditions; they are reported in `otherAccessConditions` and inherited like any other, but never
-  rewritten.
-- **Moving from the two-axis form back to the standard list** keeps every category and tier element
-  already written, as above, and the UI stops showing them.
+  conditions, never rewritten.
+- **Moving back to the standard list** keeps every statement and tier element already written, and
+  the UI stops showing them.

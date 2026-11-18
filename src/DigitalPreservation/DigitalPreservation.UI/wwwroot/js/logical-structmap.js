@@ -294,14 +294,14 @@ function buildMetadataSummaryText(range) {
         const label = getRightsShortLabel(range.rightsStatement);
         if (label) parts.push(label);
     }
-    // The chosen category and the derived conditions (issue #433), the latter as last saved; the
+    // The chosen statement and the derived conditions (issue #433), the latter as last saved; the
     // server recomputes them when the structMap is saved.
     const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
-    const axis = profile?.categoryAxis;
-    const category = axis ? range.otherAccessConditions?.[axis.type] : undefined;
-    if (category !== undefined)
-        parts.push(axis.values.find(v => v.value === category)?.label ?? category);
-    for (const derived of profile?.derived ?? []) {
+    const statements = profile?.statements;
+    const statement = statements ? range.otherAccessConditions?.[statements.type] : undefined;
+    if (statement !== undefined)
+        parts.push(statements.values.find(v => v.value === statement)?.label ?? statement);
+    for (const derived of statements?.derived ?? []) {
         const value = range.otherAccessConditions?.[derived.type];
         if (value !== undefined)
             parts.push(derived.values.find(v => v.value === value)?.label ?? value);
@@ -450,19 +450,20 @@ function removeFileFromRange(structmapId, rangeId, fp) {
     renderLogicalStructMap(structmapId);
 }
 
-function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers, accessCategory) {
+function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers, accessStatement) {
     const root = logicalStructMapState[structmapId];
     const range = findRange(root, rangeId);
     if (!range) return;
     range.accessRestrictions = accessRestrictions.length > 0 ? accessRestrictions : null;
-    // The chosen category rides in otherAccessConditions under the profile's type (issue #433).
-    const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.categoryAxis : null;
+    // The chosen statement rides in otherAccessConditions under the profile's type (issue #433).
+    const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.statements : null;
     if (axis) {
         const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => type !== axis.type);
-        if (accessCategory) kept.push([axis.type, accessCategory]);
+        if (accessStatement) kept.push([axis.type, accessStatement]);
         range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
     }
-    range.rightsStatement = rightsStatementUri || null;
+    // With statements there is no rights dropdown (issue #433): the range's rights stay as they are.
+    if (rightsStatementUri !== undefined) range.rightsStatement = rightsStatementUri || null;
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }
         : null;
@@ -587,9 +588,9 @@ function wireModsModalIntercept() {
         const accessRestrictions = readAccessRestrictionsFromForm();
         const rightsStatementUri = readRightsStatementUriFromForm();
         const recordIdentifiers = readRecordIdentifiersFromForm();
-        const accessCategory = readAccessCategoryFromForm();
+        const accessStatement = readAccessStatementFromForm();
 
-        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers, accessCategory);
+        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers, accessStatement);
         hideModsModal(modsModal);
     }, { capture: true });
 }
@@ -651,14 +652,16 @@ function readAccessRestrictionsFromForm() {
     return Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
-function readAccessCategoryFromForm() {
-    const sel = document.getElementById('accessCategorySelect');
+function readAccessStatementFromForm() {
+    const sel = document.getElementById('accessStatementSelect');
     return sel?.value || null;
 }
 
+// undefined when the form has no rights dropdown (a profile with statements): leave rights alone.
 function readRightsStatementUriFromForm() {
     const sel = document.getElementById('rightsStatementSelect');
-    return sel?.value || null;
+    if (!sel) return undefined;
+    return sel.value || null;
 }
 
 function readRecordIdentifiersFromForm() {

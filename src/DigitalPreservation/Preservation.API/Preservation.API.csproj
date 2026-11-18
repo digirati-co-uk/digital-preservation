@@ -67,4 +67,9 @@
     <InternalsVisibleTo Include="Preservation.API.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Access condition profile documents (issue #433), named by AccessConditionProfileFile. -->
+    <Content Update="AccessConditionProfiles\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

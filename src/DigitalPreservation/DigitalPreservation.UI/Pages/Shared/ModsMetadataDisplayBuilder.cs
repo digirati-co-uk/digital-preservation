@@ -15,7 +15,7 @@ public static class ModsMetadataDisplayBuilder
     /// </summary>
     public const string ProfileViewDataKey = "AccessConditionProfile";
 
-    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
+    public static List<ModsDisplayItem> GetDisplayItems(
         CombinedBase? combinedBase, ILogger? logger = null, AccessConditionProfile? profile = null)
     {
         if (combinedBase == null)
@@ -34,7 +34,7 @@ public static class ModsMetadataDisplayBuilder
             combinedBase.EffectiveRecordInfo), profile, logger);
     }
 
-    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
+    public static List<ModsDisplayItem> GetDisplayItems(
         ResourceBase? resourceBase, ILogger? logger = null, AccessConditionProfile? profile = null)
     {
         if (resourceBase == null)
@@ -65,13 +65,13 @@ public static class ModsMetadataDisplayBuilder
         RecordInfo? Record,
         RecordInfo? EffectiveRecord);
 
-    private static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
+    private static List<ModsDisplayItem> GetDisplayItems(
         ModsDisplayInputs inputs, AccessConditionProfile? profile, ILogger? logger)
     {
         // Collect display items as (label, text, inherited). Inherited items render in muted style.
-        var items = new List<(string Label, string Text, bool Inherited)>();
+        var items = new List<ModsDisplayItem>();
         AddAccess(items, inputs, profile, logger);
-        AddCategory(items, inputs, profile);
+        AddStatement(items, inputs, profile?.Statements);
         AddRights(items, inputs, logger);
         AddOtherTyped(items, inputs, profile);
         AddRecord(items, inputs, logger);
@@ -85,7 +85,7 @@ public static class ModsMetadataDisplayBuilder
     // for the whole page.
 
     private static void AddAccess(
-        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs,
+        List<ModsDisplayItem> items, ModsDisplayInputs inputs,
         AccessConditionProfile? profile, ILogger? logger)
     {
         if (inputs.Access is { Count: > 0 })
@@ -96,33 +96,49 @@ public static class ModsMetadataDisplayBuilder
                     "Effective access restrictions ({Effective}) don't match explicit access restrictions ({Explicit}); showing the explicit value",
                     string.Join(", ", inputs.EffectiveAccess), string.Join(", ", inputs.Access));
             }
-            items.Add(("Access", string.Join(", ", inputs.Access.Select(v => RestrictionLabel(profile, v))), false));
+            items.Add(new ModsDisplayItem("Access", string.Join(", ", inputs.Access.Select(v => RestrictionLabel(profile, v))), false));
         }
         else if (inputs.EffectiveAccess is { Count: > 0 })
         {
-            items.Add(("Access", string.Join(", ", inputs.EffectiveAccess.Select(v => RestrictionLabel(profile, v))), true));
+            items.Add(new ModsDisplayItem("Access", string.Join(", ", inputs.EffectiveAccess.Select(v => RestrictionLabel(profile, v))), true));
         }
     }
 
-    /// <summary>The chosen category (issue #433), shown under its configured label; only with a profile that has one.</summary>
-    private static void AddCategory(
-        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
+    /// <summary>
+    /// The chosen statement (issue #433), shown by its label, with what it publishes in IIIF as the
+    /// item's detail (a tooltip). Only on an installation with statements.
+    /// </summary>
+    private static void AddStatement(List<ModsDisplayItem> items, ModsDisplayInputs inputs, StatementProfile? statements)
     {
-        var axis = profile?.CategoryAxis;
-        if (axis == null || string.IsNullOrEmpty(axis.Type)) return;
-        string Text(string value) => axis.Values.FirstOrDefault(v => v.Value == value)?.Label ?? value;
-        if (inputs.Other != null && inputs.Other.TryGetValue(axis.Type, out var explicitValue))
+        if (statements == null || string.IsNullOrEmpty(statements.Type)) return;
+        var (value, inherited) = OwnOrInherited(inputs, statements.Type);
+        if (value == null) return;
+        var label = statements.Find(value)?.Label ?? value;
+        items.Add(new ModsDisplayItem(statements.Label, label, inherited, IiifDetail(statements, value)));
+    }
+
+    /// <summary>What a node with this statement publishes in IIIF, as text.</summary>
+    public static string IiifDetail(StatementProfile statements, string statement)
+    {
+        var entry = statements.IiifRightsFor(statement);
+        if (entry == null) return "IIIF: nothing configured for this statement";
+        var lines = new List<string>();
+        if (entry.Rights != null)
         {
-            items.Add((axis.Label, Text(explicitValue), false));
+            var name = Uri.TryCreate(entry.Rights, UriKind.Absolute, out var uri) && RightsStatement.ByUri.TryGetValue(uri, out var rs)
+                ? $" ({rs.Label})" : "";
+            lines.Add($"IIIF rights: {entry.Rights}{name}");
         }
-        else if (inputs.EffectiveOther != null && inputs.EffectiveOther.TryGetValue(axis.Type, out var effectiveValue))
+        if (entry.RequiredStatement != null)
         {
-            items.Add((axis.Label, Text(effectiveValue), true));
+            var label = entry.RequiredStatementLabel ?? statements.Iiif?.RequiredStatementLabel;
+            lines.Add($"IIIF requiredStatement - {label}: {entry.RequiredStatement}");
         }
+        return string.Join("\n", lines);
     }
 
     private static void AddRights(
-        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, ILogger? logger)
+        List<ModsDisplayItem> items, ModsDisplayInputs inputs, ILogger? logger)
     {
         if (inputs.Rights != null)
         {
@@ -132,40 +148,34 @@ public static class ModsMetadataDisplayBuilder
                     "Effective rights statement ({Effective}) does not match explicit rights statement ({Explicit}); showing the explicit value",
                     inputs.EffectiveRights, inputs.Rights);
             }
-            items.Add(("Rights", RightsStatement.GetShortLabel(inputs.Rights) ?? "", false));
+            items.Add(new ModsDisplayItem("Rights", RightsStatement.GetShortLabel(inputs.Rights) ?? "", false));
         }
         else if (inputs.RightsSuppressed)
         {
             // Explicit-but-empty rights: deliberately records "no rights statement chosen here" and does not inherit.
-            items.Add(("Rights", "not chosen (not inherited)", false));
+            items.Add(new ModsDisplayItem("Rights", "not chosen (not inherited)", false));
         }
         else if (inputs.EffectiveRights != null)
         {
-            items.Add(("Rights", RightsStatement.GetShortLabel(inputs.EffectiveRights) ?? "", true));
+            items.Add(new ModsDisplayItem("Rights", RightsStatement.GetShortLabel(inputs.EffectiveRights) ?? "", true));
         }
     }
 
     /// <summary>
     /// The other typed conditions (issue #433). With a profile, only its derived types are shown,
-    /// under their configured labels (the category has its own item above); without one (the
-    /// Browse page), every other typed condition the parser found is shown under its raw type,
-    /// which is still true and still useful.
+    /// under their configured labels; without one (the Browse page), every other typed condition the
+    /// parser found is shown under its raw type, which is still true and still useful.
     /// </summary>
     private static void AddOtherTyped(
-        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
+        List<ModsDisplayItem> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
     {
         foreach (var type in TypesToShow(inputs, profile))
         {
-            var derived = profile?.Derived.FirstOrDefault(d => d.Type == type);
+            var (value, inherited) = OwnOrInherited(inputs, type);
+            if (value == null) continue;
+            var derived = profile?.Statements?.Derived.FirstOrDefault(d => d.Type == type);
             var label = derived?.Label is { Length: > 0 } l ? l : type;
-            if (inputs.Other != null && inputs.Other.TryGetValue(type, out var explicitValue))
-            {
-                items.Add((label, derived?.LabelFor(explicitValue) ?? explicitValue, false));
-            }
-            else if (inputs.EffectiveOther != null && inputs.EffectiveOther.TryGetValue(type, out var effectiveValue))
-            {
-                items.Add((label, derived?.LabelFor(effectiveValue) ?? effectiveValue, true));
-            }
+            items.Add(new ModsDisplayItem(label, derived?.LabelFor(value) ?? value, inherited));
         }
     }
 
@@ -173,14 +183,22 @@ public static class ModsMetadataDisplayBuilder
     {
         if (profile != null)
         {
-            return profile.Derived.Select(d => d.Type);
+            return profile.Statements?.Derived.Select(d => d.Type) ?? [];
         }
         return (inputs.EffectiveOther?.Keys ?? Enumerable.Empty<string>())
             .Union(inputs.Other?.Keys ?? Enumerable.Empty<string>());
     }
 
+    /// <summary>A typed condition's own value if the node has one, else the one it inherits.</summary>
+    private static (string? Value, bool Inherited) OwnOrInherited(ModsDisplayInputs inputs, string type)
+    {
+        if (inputs.Other != null && inputs.Other.TryGetValue(type, out var own)) return (own, false);
+        if (inputs.EffectiveOther != null && inputs.EffectiveOther.TryGetValue(type, out var inherited)) return (inherited, true);
+        return (null, false);
+    }
+
     private static void AddRecord(
-        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, ILogger? logger)
+        List<ModsDisplayItem> items, ModsDisplayInputs inputs, ILogger? logger)
     {
         if (inputs.Record != null)
         {
@@ -190,11 +208,11 @@ public static class ModsMetadataDisplayBuilder
                     "Effective record identifiers ({Effective}) do not match explicit record identifiers ({Explicit}); showing the explicit value",
                     inputs.EffectiveRecord?.ToCompactString(", "), inputs.Record.ToCompactString(", "));
             }
-            items.Add(("Record", inputs.Record.ToCompactString(", ") ?? "", false));
+            items.Add(new ModsDisplayItem("Record", inputs.Record.ToCompactString(", ") ?? "", false));
         }
         else if (inputs.EffectiveRecord != null)
         {
-            items.Add(("Record", inputs.EffectiveRecord.ToCompactString(", ") ?? "", true));
+            items.Add(new ModsDisplayItem("Record", inputs.EffectiveRecord.ToCompactString(", ") ?? "", true));
         }
     }
 
@@ -202,3 +220,6 @@ public static class ModsMetadataDisplayBuilder
     private static string RestrictionLabel(AccessConditionProfile? profile, string value) =>
         profile?.RestrictionAxis.Values.FirstOrDefault(v => v.Value == value)?.Label ?? value;
 }
+
+/// <summary>One metadata item shown beside a node; <see cref="Detail"/>, when present, is shown on hover.</summary>
+public sealed record ModsDisplayItem(string Label, string Text, bool Inherited, string? Detail = null);

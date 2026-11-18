@@ -15,7 +15,8 @@ public class SetModsInformation(
     bool suppressRightsInheritance,
     IEnumerable<RecordIdentifier> recordIdentifiers,
     List<FileLink>? fileLinks = null,
-    string? accessCategory = null) : IRequest<Result>
+    string? accessStatement = null,
+    bool setRights = true) : IRequest<Result>
 {
     public Uri DepositFiles { get; } = depositFiles;
 
@@ -31,11 +32,18 @@ public class SetModsInformation(
     public bool SuppressRightsInheritance { get; } = suppressRightsInheritance;
 
     /// <summary>
-    /// The chosen category on an installation whose access condition profile has a category axis
-    /// (for Leeds, the copyright status); null clears the node's own value so it inherits. Ignored
+    /// The chosen statement on an installation whose access condition profile has a statement axis
+    /// (for Leeds, the specific copyright statement); null clears the node's own value so it inherits. Ignored
     /// when null on an installation without one, refused otherwise (issue #433).
     /// </summary>
-    public string? AccessCategory { get; } = accessCategory;
+    public string? AccessStatement { get; } = accessStatement;
+
+    /// <summary>
+    /// False leaves the node's <c>use and reproduction</c> element exactly as it is: on an installation
+    /// whose profile has statements there is no rights statement dropdown, so the form says nothing
+    /// about rights and must not be read as "clear them" (issue #433).
+    /// </summary>
+    public bool SetRights { get; } = setRights;
 
     public RecordInfo RecordInfo { get; } = new(){ RecordIdentifiers = recordIdentifiers.ToList() };
     public string DepositETag { get; } = depositETag;
@@ -53,14 +61,17 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
             var setResult = metsManager.SetAccessRestrictionsByPath(fullMets, request.LocalPath, request.AccessRestrictions);
             if (setResult.Failure) return setResult;
 
-            var categoryType = await metsManager.GetAccessCategoryTypeAsync();
-            setResult = metsManager.SetAccessCategoryByPath(fullMets, request.LocalPath, categoryType, request.AccessCategory);
+            var statementType = await metsManager.GetAccessStatementTypeAsync();
+            setResult = metsManager.SetAccessStatementByPath(fullMets, request.LocalPath, statementType, request.AccessStatement);
             if (setResult.Failure) return setResult;
 
-            setResult = request.SuppressRightsInheritance
-                ? metsManager.SuppressRightsInheritanceByPath(fullMets, request.LocalPath)
-                : metsManager.SetRightsStatementByPath(fullMets, request.LocalPath, request.RightsStatement);
-            if (setResult.Failure) return setResult;
+            if (request.SetRights)
+            {
+                setResult = request.SuppressRightsInheritance
+                    ? metsManager.SuppressRightsInheritanceByPath(fullMets, request.LocalPath)
+                    : metsManager.SetRightsStatementByPath(fullMets, request.LocalPath, request.RightsStatement);
+                if (setResult.Failure) return setResult;
+            }
 
             setResult = metsManager.SetRecordInfoByPath(fullMets, request.LocalPath, request.RecordInfo);
             if (setResult.Failure) return setResult;

@@ -6,21 +6,36 @@ namespace Preservation.API.Tests.AccessConditions;
 
 /// <summary>
 /// The two configuration forms behind <c>GET /access-conditions</c> (issue #433): the standard
-/// <c>AccessConditions</c> list, and the two-axis <c>AccessConditionProfile</c> section for an
-/// installation that derives something. Never both.
+/// <c>AccessConditions</c> list, and a profile document named by <c>AccessConditionProfileFile</c>.
+/// Never both.
 /// </summary>
-public class AccessConditionConfigurationTests
+public class AccessConditionConfigurationTests : IDisposable
 {
+    private readonly string contentRoot = Directory.CreateTempSubdirectory("acp-").FullName;
+
+    public void Dispose()
+    {
+        Directory.Delete(contentRoot, recursive: true);
+        GC.SuppressFinalize(this);
+    }
+
     private static IConfiguration Config(params (string Key, string Value)[] pairs) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(pairs.Select(p => new KeyValuePair<string, string?>(p.Key, p.Value)))
             .Build();
 
-    private static AccessConditionProfile Apply(IConfiguration configuration)
+    private AccessConditionProfile Apply(IConfiguration configuration, string? root = null)
     {
         var profile = new AccessConditionProfile();
-        ServiceCollectionX.ApplyConfiguration(profile, configuration);
+        ServiceCollectionX.ApplyConfiguration(profile, configuration, root ?? contentRoot);
         return profile;
+    }
+
+    private void WriteDocument(string relativePath, string json)
+    {
+        var path = Path.Combine(contentRoot, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, json);
     }
 
     [Fact]
@@ -33,8 +48,8 @@ public class AccessConditionConfigurationTests
         profile.RestrictionAxis.Values.Select(v => v.Value).Should().Equal("Open", "Closed");
         profile.RestrictionAxis.Label.Should().Be("Access Restriction(s)");
         profile.AllowMultipleRestrictions.Should().BeFalse();
-        profile.CategoryAxis.Should().BeNull();
-        profile.Derived.Should().BeEmpty();
+        profile.HasStatements.Should().BeFalse();
+        profile.Statements.Should().BeNull();
         profile.Validate().Should().BeEmpty();
     }
 
@@ -57,48 +72,69 @@ public class AccessConditionConfigurationTests
     }
 
     [Fact]
-    public void The_two_axis_section_is_bound_as_a_whole()
+    public void The_profile_document_is_read_from_the_content_root()
     {
-        var profile = Apply(Config(
-            ("AccessConditionProfile:RestrictionAxis:Label", "Protected Access Level"),
-            ("AccessConditionProfile:RestrictionAxis:Values:0:Value", "PA1"),
-            ("AccessConditionProfile:RestrictionAxis:Values:0:Label", "Level 1"),
-            ("AccessConditionProfile:CategoryAxis:Label", "Copyright status"),
-            ("AccessConditionProfile:CategoryAxis:Type", "copyright status"),
-            ("AccessConditionProfile:CategoryAxis:Values:0:Value", "public-domain"),
-            ("AccessConditionProfile:CategoryAxis:Values:0:Label", "Out of copyright"),
-            ("AccessConditionProfile:CategoryAxis:Values:0:RightsStatements:0", "CC0"),
-            ("AccessConditionProfile:Derived:0:Type", "tier"),
-            ("AccessConditionProfile:Derived:0:Values:0:Value", "0"),
-            ("AccessConditionProfile:Derived:0:Values:0:Label", "Open"),
-            ("AccessConditionProfile:Derived:0:Matrix:*:*", "0")));
+        WriteDocument("profiles/test.json", """
+            // comments are allowed
+            {
+              "name": "Test",
+              "restrictionAxis": { "label": "Level", "values": [ { "value": "L1", "label": "One" } ] },
+              "statements": {
+                "label": "Statement", "type": "statement",
+                "values": [ { "value": "s1", "label": "S1", "category": "c1", "iiif": "e1" } ],
+                "categories": [ { "value": "c1", "label": "C1" } ],
+                "iiif": { "entries": [ { "id": "e1", "requiredStatement": "Text" } ] },
+                "derived": [ { "type": "tier", "values": [ { "value": "0", "label": "Zero" } ], "matrix": { "*": { "*": "0" } } } ],
+              },
+            }
+            """);
+        var profile = Apply(Config(("AccessConditionProfileFile", "profiles/test.json")));
 
-        profile.RestrictionAxis.Label.Should().Be("Protected Access Level");
-        profile.CategoryAxis!.Type.Should().Be("copyright status");
-        profile.CategoryAxis.Values.Single().RightsStatements.Should().Equal("CC0");
-        profile.Derived.Single().Lookup("PA1", "public-domain").Should().Be("0");
+        profile.Name.Should().Be("Test");
+        profile.Statements!.Type.Should().Be("statement");
+        profile.Statements.IiifRightsFor("s1")!.RequiredStatement.Should().Be("Text");
+        profile.Statements.ResolveDerived(["L1"], "s1").Should().Equal(new Dictionary<string, string> { ["tier"] = "0" });
         profile.Validate().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void The_deployed_Leeds_document_loads_and_is_valid()
+    {
+        // The API project's AccessConditionProfiles folder is copied to this test's output.
+        var profile = Apply(Config(("AccessConditionProfileFile", "AccessConditionProfiles/leeds.json")), AppContext.BaseDirectory);
+        profile.HasStatements.Should().BeTrue();
+        profile.Statements!.Derived.Should().ContainSingle(d => d.Type == "tier");
+        profile.Validate().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_missing_or_malformed_document_stops_the_service()
+    {
+        var missing = () => Apply(Config(("AccessConditionProfileFile", "nope.json")));
+        missing.Should().Throw<InvalidOperationException>().WithMessage("*does not exist*");
+
+        WriteDocument("typo.json", """{ "restrictionAxis": { "lable": "Level" } }""");
+        var typo = () => Apply(Config(("AccessConditionProfileFile", "typo.json")));
+        typo.Should().Throw<InvalidOperationException>().WithMessage("*could not be read*lable*");
     }
 
     [Fact]
     public void Both_forms_at_once_is_a_configuration_error()
     {
-        var config = Config(
+        WriteDocument("p.json", "{}");
+        var act = () => Apply(Config(
             ("AccessConditions:0:Value", "Open"), ("AccessConditions:0:Label", "Open"),
-            ("AccessConditionProfile:RestrictionAxis:Values:0:Value", "PA1"),
-            ("AccessConditionProfile:RestrictionAxis:Values:0:Label", "Level 1"));
-        var act = () => Apply(config);
+            ("AccessConditionProfileFile", "p.json")));
         act.Should().Throw<InvalidOperationException>().WithMessage("*not both*");
+
+        var multiple = () => Apply(Config(("AllowMultipleAccessConditions", "true"), ("AccessConditionProfileFile", "p.json")));
+        multiple.Should().Throw<InvalidOperationException>().WithMessage("*not both*");
     }
 
     [Fact]
-    public void AllowMultipleAccessConditions_beside_the_two_axis_section_is_a_configuration_error()
+    public void The_retired_inline_section_says_where_the_profile_went()
     {
-        var config = Config(
-            ("AllowMultipleAccessConditions", "true"),
-            ("AccessConditionProfile:RestrictionAxis:Values:0:Value", "PA1"),
-            ("AccessConditionProfile:RestrictionAxis:Values:0:Label", "Level 1"));
-        var act = () => Apply(config);
-        act.Should().Throw<InvalidOperationException>().WithMessage("*AllowMultipleAccessConditions*");
+        var act = () => Apply(Config(("AccessConditionProfile:RestrictionAxis:Label", "Level")));
+        act.Should().Throw<InvalidOperationException>().WithMessage("*AccessConditionProfileFile*");
     }
 }

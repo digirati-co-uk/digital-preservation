@@ -1477,7 +1477,7 @@ public class MetsParser(
         Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
         // Per TYPE: own → physical parent → exactly-one whole-file fptr range → smLink-associated
-        // range. A type the physical chain lacks (the chosen category when only the range sets it,
+        // range. A type the physical chain lacks (the chosen statement when only the range sets it,
         // review of #434) comes from the range even when the chain supplies other types.
         var effective = MergeDerived(parentDerived, file.OtherAccessConditions);
         if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRanges) && wholeRanges.Count == 1)
