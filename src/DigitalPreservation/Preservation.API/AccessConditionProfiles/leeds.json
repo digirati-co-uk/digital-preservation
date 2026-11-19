@@ -64,7 +64,7 @@
         "shortLabel": "InC low risk",
         "category": "low-risk",
         "iiif": "in-copyright-online",
-        "description": "This statement should be used for material where our copyright risk assessment has determined that it is very low risk and no due dilligence is required. This may include unpublished material subject to the 2039 rule, material where we do not know the end copyright date and low risk published material. [Ask Jodie if ok to include 2039 material if we aren't doing this level of due diligence]"
+        "description": "This statement should be used for material where our copyright risk assessment has determined that it is very low risk and no due diligence is required. This may include unpublished material subject to the 2039 rule, material where we do not know the end copyright date and low risk published material. [Ask Jodie if ok to include 2039 material if we aren't doing this level of due diligence]"
       },
       {
         "value": "inc-low-risk-orphan",
@@ -96,7 +96,7 @@
         "shortLabel": "InC medium risk, terminal",
         "category": "medium-risk",
         "iiif": "in-copyright-copies",
-        "description": "This statement should be used for material where our copyright risk assessment has determined that it is medium risk and no due dilligence has been done."
+        "description": "This statement should be used for material where our copyright risk assessment has determined that it is medium risk and no due diligence has been done."
       },
       {
         "value": "inc-high-risk",

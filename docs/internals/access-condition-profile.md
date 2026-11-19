@@ -90,7 +90,7 @@ The top level is the standard model; everything the extension adds is under `sta
 ```jsonc
 {
   "name": "Leeds University Library",          // informational
-  "version": "2026-11-18-draft",               // informational: lets a consumer say which it read
+  "version": "2026-11-19-draft",               // informational: lets a consumer say which it read
   "restrictionAxis": {                         // the standard restriction dropdown
     "label": "Protected Access Level",
     "values": [ { "value": "PA1", "label": "Level 1", "shortLabel": "PA1" }, ... ]  // shortLabel: optional, for the tree
