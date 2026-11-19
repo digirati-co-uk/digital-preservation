@@ -19,10 +19,11 @@ namespace DigitalPreservation.Mets.Conformance;
 /// </summary>
 public static class EditabilityJudge
 {
-    private static readonly XNamespace MetsNs = "http://www.loc.gov/METS/";
-    private static readonly XNamespace XlinkNs = "http://www.w3.org/1999/xlink";
-    private static readonly XNamespace PremisNs = "http://www.loc.gov/premis/v3";
-    private static readonly XNamespace ModsNs = "http://www.loc.gov/mods/v3";
+    // The parser's namespaces (XNames), so the judge and the parser cannot disagree on them.
+    private static readonly XNamespace MetsNs = XNames.mets;
+    private static readonly XNamespace XlinkNs = XNames.xlink;
+    private static readonly XNamespace PremisNs = XNames.premis;
+    private static readonly XNamespace ModsNs = XNames.mods;
 
     // Both patterns are anchored and cannot backtrack pathologically, so the timeouts can never
     // be reached; they are here because a regex run against documents we did not write should

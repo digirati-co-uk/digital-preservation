@@ -16,7 +16,11 @@ namespace DigitalPreservation.Mets.Conformance;
 /// </summary>
 internal static class SchematronRunner
 {
+    // A namespace name is an identifier, never fetched, and fixed by the ISO Schematron spec:
+    // https would be a different (wrong) namespace.
+#pragma warning disable S5332
     private static readonly XNamespace Svrl = "http://purl.oclc.org/dsdl/svrl";
+#pragma warning restore S5332
     private static readonly Dictionary<string, XslCompiledTransform> Transforms = new();
     private static readonly object TransformsLock = new();
 
