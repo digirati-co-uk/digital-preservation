@@ -1,0 +1,28 @@
+{
+  "source": "The Leeds Access Tier for every restriction and statement, restated independently of leeds.json from 'Access Control - MASTER.xlsx': each statement's copyright status column on the DATA FOR DIGIRATI tab, and the v1.0 matrix. Only the PA1 row depends on the statement. Read by AccessConditionProfileTests (C#) and access-statements.test.mjs (the UI's JavaScript), so both implementations are held to the same table.",
+  "pa1TierByStatement": {
+    "out-of-copyright": "0",
+    "inc-low-risk": "1",
+    "inc-low-risk-orphan": "1",
+    "inc-low-risk-orphan-2039": "1",
+    "inc-low-risk-uol": "1",
+    "inc-medium-risk-terminal": "2",
+    "inc-high-risk": "2",
+    "inc-high-risk-orphan": "2",
+    "inc-high-risk-orphan-2039": "2",
+    "inc-high-risk-uol": "2",
+    "inc-contractual": "2",
+    "inc-unassessed": "2",
+    "inc-holder-preservation": "3"
+  },
+  "pa1WithNoStatement": "2",
+  "pa1WithAnUnknownStatement": "3",
+  "tierByOtherRestriction": {
+    "PA2": "3",
+    "PA3": "3",
+    "PA4": "4",
+    "PA-unassessed": "5"
+  },
+  "noRestriction": "5",
+  "unknownRestriction": "5"
+}

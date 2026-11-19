@@ -57,10 +57,16 @@ public class AccessConditionProfileTests
     /// document from "Access Control - MASTER.xlsx" (see the fixture's "source"). The UI's
     /// JavaScript test reads the same fixture, so the C# and JavaScript lookups are held to one table.
     /// </summary>
-    private static readonly Dictionary<string, string> Pa1TierByStatement =
-        JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditions", "leeds-pa1-tiers.json")))
-            .RootElement.GetProperty("pa1TierByStatement")
-            .EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
+    private static readonly JsonElement ExpectedTiers =
+        JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditions", "leeds-tiers.json"))).RootElement;
+
+    private static string ExpectedTier(string name) => ExpectedTiers.GetProperty(name).GetString()!;
+
+    private static Dictionary<string, string> ExpectedTierTable(string name) =>
+        ExpectedTiers.GetProperty(name).EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
+
+    private static readonly Dictionary<string, string> Pa1TierByStatement = ExpectedTierTable("pa1TierByStatement");
+    private static readonly Dictionary<string, string> TierByOtherRestriction = ExpectedTierTable("tierByOtherRestriction");
 
     public static TheoryData<string?, string?, string> EveryCell()
     {
@@ -76,11 +82,10 @@ public class AccessConditionProfileTests
             {
                 var expected = pa switch
                 {
-                    "PA1" when statement == null => "2",                       // no statement: treated as unassessed
-                    "PA1" => Pa1TierByStatement.GetValueOrDefault(statement!, "3"), // unknown statement: the '*' cell
-                    "PA2" or "PA3" => "3",
-                    "PA4" => "4",
-                    _ => "5" // PA-unassessed, no restriction (the __none__ row), or outside the vocabulary (the '*' row)
+                    "PA1" when statement == null => ExpectedTier("pa1WithNoStatement"),
+                    "PA1" => Pa1TierByStatement.GetValueOrDefault(statement!, ExpectedTier("pa1WithAnUnknownStatement")),
+                    null => ExpectedTier("noRestriction"),
+                    _ => TierByOtherRestriction.GetValueOrDefault(pa, ExpectedTier("unknownRestriction"))
                 };
                 data.Add(pa, statement, expected);
             }

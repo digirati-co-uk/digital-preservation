@@ -1,9 +1,9 @@
 // Tests for wwwroot/js/access-statements.js, the metadata dialogue's tier and METS/IIIF previews on
 // an installation with a statement profile (issue #433). The script mirrors C# (the matrix lookup
 // and the rights written from a statement), so it is run here against the deployed Leeds profile
-// and the same expected-tier table as the C# tests (leeds-pa1-tiers.json).
+// and the same expected-tier table as the C# tests (leeds-tiers.json).
 //
-// Run from src/DigitalPreservation:  node --test DigitalPreservation.UI.Tests/js/
+// Run from src/DigitalPreservation:  node --test DigitalPreservation.UI.Tests/js/*.test.mjs
 // No packages: node:test, and a small stand-in for the few DOM calls the script makes.
 
 import { test } from 'node:test';
@@ -16,7 +16,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = path => readFileSync(root + path, 'utf8');
 
 const leeds = JSON.parse(read('Preservation.API/AccessConditionProfiles/leeds.json'));
-const pa1TierByStatement = JSON.parse(read('DigitalPreservation.Common.Model.Tests/AccessConditions/leeds-pa1-tiers.json')).pa1TierByStatement;
+const expectedTiers = JSON.parse(read('DigitalPreservation.Common.Model.Tests/AccessConditions/leeds-tiers.json'));
 const script = read('DigitalPreservation.UI/wwwroot/js/access-statements.js');
 
 const statementType = leeds.statements.type;
@@ -54,7 +54,7 @@ class Select extends Element {
 
 // The dialogue: editable (both dropdowns) or read-only (neither), opened on a node whose own and
 // inherited values are as given. Returns what it shows.
-function openDialogue({ editable = true, own = {}, inherited = {}, effectiveOther = {} } = {}) {
+function openDialogue({ editable = true, own = {}, inherited = {}, effectiveOther = {}, effectiveRights = '' } = {}) {
     const elements = {
         accessStatementDescription: new Element('div'),
         accessPreviewMets: new Element('div'),
@@ -86,13 +86,14 @@ function openDialogue({ editable = true, own = {}, inherited = {}, effectiveOthe
     vm.runInContext(script, context);
 
     const ownOther = { ...(own.statement ? { [statementType]: own.statement } : {}), ...(own.other ?? {}) };
-    const inheritedOther = inherited.statement ? { [statementType]: inherited.statement } : {};
+    const inheritedOther = { ...(inherited.statement ? { [statementType]: inherited.statement } : {}), ...(inherited.other ?? {}) };
     context.applyAccessStatementFields({
         dataset: {
             access: (own.restrictions ?? []).join(','),
             inhAccess: (inherited.restrictions ?? []).join(','),
             rights: own.rights ?? '',
             rightsSuppressed: 'false',
+            effRights: own.rights ?? effectiveRights,
             other: JSON.stringify(ownOther),
             inhOther: JSON.stringify(inheritedOther),
             effOther: JSON.stringify(effectiveOther)
@@ -117,9 +118,20 @@ const element = (type, value) => `<mods:accessCondition type="${type}">${value}<
 
 // ---- The matrix, cell by cell: the same table as AccessConditionProfileTests -------------------
 
+// The tier the shared table gives; null for no restriction or statement, and values outside the
+// vocabulary for unknown ones.
+function expectedTier(pa, statement) {
+    if (pa === 'PA1') {
+        if (statement === null) return expectedTiers.pa1WithNoStatement;
+        return expectedTiers.pa1TierByStatement[statement] ?? expectedTiers.pa1WithAnUnknownStatement;
+    }
+    if (pa === null) return expectedTiers.noRestriction;
+    return expectedTiers.tierByOtherRestriction[pa] ?? expectedTiers.unknownRestriction;
+}
+
 test('every restriction and statement previews the agreed tier', () => {
     const restrictions = ['PA1', 'PA2', 'PA3', 'PA4', 'PA-unassessed', null, 'dlip-open'];
-    const statements = [...Object.keys(pa1TierByStatement), null, 'renamed-statement'];
+    const statements = [...Object.keys(expectedTiers.pa1TierByStatement), null, 'renamed-statement'];
     for (const pa of restrictions) {
         for (const statement of statements) {
             const dialogue = openDialogue();
@@ -129,12 +141,7 @@ test('every restriction and statement previews the agreed tier', () => {
                 assert.match(dialogue.tier(), /no access conditions/, 'nothing chosen anywhere');
                 continue;
             }
-            let expected;
-            if (pa === 'PA1') expected = statement === null ? '2' : (pa1TierByStatement[statement] ?? '3');
-            else if (pa === 'PA2' || pa === 'PA3') expected = '3';
-            else if (pa === 'PA4') expected = '4';
-            else expected = '5';
-            assert.equal(dialogue.tier(), computed(expected), `${pa} x ${statement}`);
+            assert.equal(dialogue.tier(), computed(expectedTier(pa, statement)), `${pa} x ${statement}`);
         }
     }
 });
@@ -188,6 +195,25 @@ test('a node with no access conditions anywhere previews no tier and writes none
     assert.ok(!dialogue.mets().some(line => line.includes('type="tier"')));
 });
 
+test('clearing a node\'s restriction and statement leaves it no inputs, though it had rights', () => {
+    // The rights were written from the statement, so they go with it on save.
+    const dialogue = openDialogue({ own: { restrictions: ['PA1'], statement: 'out-of-copyright', rights: 'PDM' } });
+    dialogue.choose(null, null);
+    assert.match(dialogue.tier(), /no access conditions/);
+});
+
+test('a rights statement above counts as an input, as it does to the writer', () => {
+    // An ancestor with only a rights statement kept from before the profile: once saved it carries
+    // the none x none tier, which descendants inherit; before then, its rights are inherited.
+    const saved = openDialogue({ inherited: { other: { tier: '5' } } });
+    saved.choose(null, null);
+    assert.equal(saved.tier(), computed(expectedTiers.noRestriction));
+
+    const notYetSaved = openDialogue({ effectiveRights: 'InC' });
+    notYetSaved.choose(null, null);
+    assert.equal(notYetSaved.tier(), computed(expectedTiers.noRestriction));
+});
+
 // ---- The rights statement written from the statement ---------------------------------------------
 
 test('the rights statement follows the chosen statement and goes when it is cleared', () => {
@@ -212,9 +238,16 @@ test('the rights statement follows the chosen statement and goes when it is clea
 // the rest of it drives the page.
 function rangeInheritance() {
     const source = read('DigitalPreservation.UI/wwwroot/js/logical-structmap.js');
+    // A function's source: from its declaration to the brace that closes its body.
     const take = name => {
         const start = source.indexOf(`function ${name}(`);
-        return source.slice(start, source.indexOf('\n}', start) + 2);
+        assert.ok(start >= 0, `${name} is in logical-structmap.js`);
+        let depth = 0;
+        for (let i = source.indexOf('{', start); i < source.length; i++) {
+            if (source[i] === '{') depth++;
+            if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
+        }
+        throw new Error(`${name} has no closing brace`);
     };
     const context = vm.createContext({});
     vm.runInContext(['findParentAndIndex', 'ancestorsOf', 'inheritedForRange'].map(take).join('\n'), context);

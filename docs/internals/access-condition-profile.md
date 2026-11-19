@@ -88,6 +88,17 @@ name is case-sensitive on Linux). Profile documents live in
 JSON that `GET /access-conditions` serves, property for property, so whatever reads one can read the
 other.
 
+**Holding an environment on the standard model.** To keep an environment on the standard list
+although its `appsettings.{env}.json` names a profile - prod, say, until Leeds have confirmed the
+statements and their texts - set the environment variable `AccessConditionProfileFile` to an empty
+value in that environment's task definition (in `preservation-ops`, beside
+`ASPNETCORE_ENVIRONMENT`). An environment variable overrides the settings file, and an empty or
+blank value means "no profile document", so the base `appsettings.json`'s standard list applies. If
+the deployment tooling drops variables with empty values, a single space has the same effect.
+Remove the variable to let the profile take effect. A test
+(`An_empty_profile_file_setting_holds_an_environment_on_the_standard_model`) checks this against the
+real settings files.
+
 ### The document
 
 The top level is the standard model; everything the extension adds is under `statements`.
@@ -218,7 +229,8 @@ The detail is on the documentation site and in
 - **Content with no access conditions at all** - nothing on a node or above it, such as material
   migrated from EPrints - gets no derived element, and the dialogue shows none ("no access
   conditions here or above"). The platform does not decide what that means: for Leeds, a builder
-  that knows the content's origin can treat it as open.
+  that knows the content's origin can treat it as open. A missing tier on its own is not enough
+  to conclude that; see [For iiif-builder](#for-iiif-builder).
 - A derived element whose source has gone is removed from any dmdSec the platform itself minted. A
   dmdSec the platform did **not** mint (a Goobi export's) that carries a derived element and no
   chosen ones is left exactly as found. One exception, which predates this feature: saving a
@@ -262,10 +274,13 @@ inheritance walk; the effective `use and reproduction` is the `rights` of step 3
 preview implements steps 2-4 on the effective statement, so what an archivist sees there is what
 such a builder produces.
 
-A node with **no tier** - its own or inherited - has no access conditions on it or above it: the
-platform derived nothing. The matrix's `__none__` row is not applied to it. What such content means
-is the builder's decision; Leeds' migrated EPrints material, for example, has none and is meant to
-be open.
+A node with **no access conditions** on it or above it gets **no tier**: the platform derives
+nothing, and the matrix's `__none__` row is not applied. The reverse does not hold. A node can have
+no tier and still have access conditions: a Goobi export with a `status` restriction (the platform
+never writes one), or platform METS with a restriction or rights statement that has not been saved
+since the profile arrived. So a builder must not read a missing tier as "open": it should check the
+effective restriction and statement itself, and decide what content with **none** of them means.
+Leeds' migrated EPrints material, for example, has none and is meant to be open.
 
 ## Worked example: Leeds
 
@@ -329,5 +344,5 @@ the type names (`copyright statement`, `tier`) are our choices.
 - **Removing a derived type** leaves the old elements in place in every METS, as unknown typed
   conditions, never rewritten.
 - **Moving back to the standard list** keeps every statement and tier element already written. The
-  metadata dialogue and deposit tree stop showing them; the Browse listing still shows them, as raw
-  type and value, as it shows any typed `accessCondition`.
+  dialogue no longer offers a statement, and the deposit tree and Browse show both elements under
+  their raw type and value, as they show any typed `accessCondition` the profile does not name.

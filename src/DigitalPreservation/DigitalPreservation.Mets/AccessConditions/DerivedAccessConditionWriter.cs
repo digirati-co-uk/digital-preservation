@@ -99,9 +99,10 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
     private static ChosenInputs ReadChosenInputs(DerivedPass pass, XmlGen.Mods.V3.ModsDefinition mods)
     {
         // Only the platform's own chosen elements are inputs. Goobi's "status" element, which the
-        // parser reads as a restriction, never reaches here: Goobi METS is never editable (#223).
-        // Nor do ranges associated with files through div-to-div smLinks, another Goobi idiom the
-        // parser follows (docs/effective-metadata-inheritance.md, "Other typed access conditions").
+        // parser reads as a restriction, never reaches here, nor do ranges associated with files
+        // through div-to-div smLinks: GetFullMets refuses any METS the platform did not create, so
+        // a Goobi export is never written (docs/effective-metadata-inheritance.md, "Other typed
+        // access conditions").
         var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
         var statement = pass.StatementType == null ? null : mods.GetAccessConditions(pass.StatementType).FirstOrDefault();
         var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
@@ -257,11 +258,15 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
         return map;
     }
 
-    /// <summary>No area, or one with none of the <see cref="AreaExtent.Attributes"/>: the whole file.</summary>
+    /// <summary>
+    /// No area, or one with none of the <see cref="AreaExtent.Attributes"/>, typed or not (an
+    /// attribute the schema types loosely is kept in <c>AnyAttribute</c>): the whole file.
+    /// </summary>
     private static bool IsWholeFile(AreaType? area) =>
         area == null
         || (area.Begin == null && area.End == null && area.Coords == null && area.Extent == null
-            && !area.ShapeValueSpecified && !area.BetypeValueSpecified);
+            && !area.ShapeValueSpecified && !area.BetypeValueSpecified && !area.ExttypeValueSpecified
+            && !AreaExtent.AnyIn(area.AnyAttribute.Select(a => a.LocalName)));
 
     /// <summary>
     /// Writes the managed types for <paramref name="inputs"/>; or, when that is null because the

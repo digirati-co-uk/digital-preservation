@@ -102,11 +102,13 @@ the lookup of its effective inputs).
 The writer and the parser share these definitions: a whole-file pointer is an `fptr` with no
 `area`, or with an `area` that picks out no part of the file (`AreaExtent`); a range that lists a
 file twice is one range; an empty `accessCondition` is no value. Two things the parser reads, the
-writer never meets, because they are Goobi's idioms and **Goobi METS is never editable** (#223, the
-editability judge in #238): files associated with a range through div-to-div `smLink`s (step A5 and
-its per-type equivalent), and Goobi's `status` element read as a restriction. If METS from another
-producer that uses either ever becomes editable, the writer needs the same fallback before it may
-write derived values there.
+writer never meets, because they are Goobi's idioms and **Goobi METS is never written**: files
+associated with a range through div-to-div `smLink`s (step A5 and its per-type equivalent), and
+Goobi's `status` element read as a restriction. Today the guarantee is the storage layer's:
+`GetFullMets` refuses any METS whose creating agent is not the platform's. The editability work
+(#223, the judge in #238) keeps Goobi read-only whatever its shape. If METS from another producer
+that uses either idiom ever becomes editable, the writer needs the same fallback before it may write
+derived values there.
 
 ### Physical files — Record Info
 

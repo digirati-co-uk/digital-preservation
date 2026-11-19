@@ -1,3 +1,4 @@
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -175,5 +176,25 @@ public class ModsMetadataDisplayBuilderStatementTests
             .Should().NotContain(i => i.Label == "Rights");
         ModsMetadataDisplayBuilder.GetDisplayItems(Resource(NoCUs), profile: Profile)
             .Should().ContainSingle(i => i.Label == "Rights" && i.Text == "NoC-US", "a value left from before is worth seeing");
+    }
+
+    [Fact]
+    public void Typed_conditions_the_profile_does_not_name_are_shown_raw()
+    {
+        // A standard profile (Browse always has one now), or a Leeds one meeting a third party's type:
+        // what the parser found is still shown, under its raw type.
+        var resource = Resource(InC);
+        resource.OtherAccessConditions!["goobi type"] = "x";
+        resource.EffectiveOtherAccessConditions["goobi type"] = "x";
+
+        var standard = ModsMetadataDisplayBuilder.GetDisplayItems(resource,
+            profile: AccessConditionProfile.Simple([new AccessRestriction { Value = "PA1", Label = "Level 1" }]));
+        standard.Select(i => (i.Label, i.Text)).Should().Contain(new[]
+        {
+            ("copyright statement", "inc"), ("tier", "1"), ("goobi type", "x")
+        });
+
+        var leeds = ModsMetadataDisplayBuilder.GetDisplayItems(resource, profile: Profile);
+        leeds.Select(i => i.Text).Should().Equal("PA1", "InC low risk", "Tier 1", "x");
     }
 }

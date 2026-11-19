@@ -664,4 +664,25 @@ public class DerivedAccessConditionsWriterTests
         doc.Descendants(MetsNs + "dmdSec").Single(d => (string?)d.Attribute("ID") == dmdId)
             .Descendants(ModsNs + "accessCondition").Where(ac => (string?)ac.Attribute("type") == "tier").Remove();
     }
+
+    [Fact]
+    public async Task An_area_with_an_untyped_extent_is_part_of_a_file_for_writer_and_parser()
+    {
+        // BETYPE="BYTE" is kept as an extra attribute, so the writer meets it in AnyAttribute on the
+        // same write: it must not read the range as painting the whole file.
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-untyped-extent.xml");
+        await WriteRangeOverA(fullMets,
+        [
+            new FilePointer
+            {
+                LocalPath = "objects/a.tif",
+                ExtraAreaAttributes = new Dictionary<string, string> { ["BETYPE"] = "BYTE", ["BEGIN"] = "0", ["END"] = "1024" }
+            }
+        ]);
+
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().BeEmpty();
+        var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        parsed.Files.Single(f => f.LocalPath == "objects/a.tif").EffectiveAccessRestrictions.Should().BeEmpty();
+        AssertDerivedInvariant(parsed, provider.Profile!);
+    }
 }

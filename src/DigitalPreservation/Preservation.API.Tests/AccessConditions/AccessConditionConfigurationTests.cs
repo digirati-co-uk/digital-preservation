@@ -161,4 +161,23 @@ public class AccessConditionConfigurationTests : IDisposable
         var act = () => Apply(Config(("AccessConditionProfile:RestrictionAxis:Label", "Level")));
         act.Should().Throw<InvalidOperationException>().WithMessage("*AccessConditionProfileFile*");
     }
+
+    [Fact]
+    public void An_empty_profile_file_setting_holds_an_environment_on_the_standard_model()
+    {
+        // appsettings.PROD.json names the Leeds document; an environment variable
+        // AccessConditionProfileFile="" (or blank) set over it keeps that environment standard.
+        var api = Path.Combine(AppContext.BaseDirectory, "PreservationApiSettings");
+        foreach (var blank in new[] { "", " " })
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddJsonFile(Path.Combine(api, "appsettings.json"))
+                .AddJsonFile(Path.Combine(api, "appsettings.PROD.json"))
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["AccessConditionProfileFile"] = blank })
+                .Build();
+            var profile = Apply(configuration, AppContext.BaseDirectory);
+            profile.HasStatements.Should().BeFalse();
+            profile.RestrictionAxis.Values.Select(v => v.Value).Should().Equal("Open", "Restricted", "Closed");
+        }
+    }
 }

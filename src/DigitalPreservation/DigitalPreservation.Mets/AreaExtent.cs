@@ -3,8 +3,8 @@ namespace DigitalPreservation.Mets;
 /// <summary>
 /// Whether a <c>mets:area</c> picks out part of a file. One with none of these attributes - only a
 /// FILEID, say - points at the whole file, exactly like an <c>mets:fptr</c> with no area. The
-/// parser reads these; the writer checks the same attributes on its typed area (DerivedAccessConditionWriter), so they agree on which logical ranges a file falls back to
-/// for its access conditions (issue #433).
+/// parser and the writer (<c>DerivedAccessConditionWriter.IsWholeFile</c>) both apply this list,
+/// so they agree on which logical ranges a file falls back to for its access conditions (#433).
 /// </summary>
 public static class AreaExtent
 {

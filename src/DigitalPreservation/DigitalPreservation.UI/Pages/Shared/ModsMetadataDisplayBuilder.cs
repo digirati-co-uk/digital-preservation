@@ -185,9 +185,10 @@ public static class ModsMetadataDisplayBuilder
     }
 
     /// <summary>
-    /// The other typed conditions (issue #433). With a profile, only its derived types are shown,
-    /// under their configured labels; without one (the Browse page), every other typed condition the
-    /// parser found is shown under its raw type, which is still true and still useful.
+    /// The other typed conditions (issue #433): the profile's derived types first, under their
+    /// configured labels and short labels; then every other typed condition the parser found, under
+    /// its raw type - a third party's, or a statement or tier left from an earlier profile - which is
+    /// still true and still useful. A statement is shown by <see cref="AddStatement"/>.
     /// </summary>
     private static void AddOtherTyped(
         List<ModsDisplayItem> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
@@ -206,12 +207,11 @@ public static class ModsMetadataDisplayBuilder
 
     private static IEnumerable<string> TypesToShow(ModsDisplayInputs inputs, AccessConditionProfile? profile)
     {
-        if (profile != null)
-        {
-            return profile.Statements?.Derived.Select(d => d.Type) ?? [];
-        }
-        return (inputs.EffectiveOther?.Keys ?? Enumerable.Empty<string>())
+        var derived = profile?.Statements?.Derived.Select(d => d.Type).ToList() ?? [];
+        var statementType = profile?.Statements?.Type;
+        var found = (inputs.EffectiveOther?.Keys ?? Enumerable.Empty<string>())
             .Union(inputs.Other?.Keys ?? Enumerable.Empty<string>());
+        return derived.Concat(found.Where(type => type != statementType && !derived.Contains(type)));
     }
 
     /// <summary>A typed condition's own value if the node has one, else the one it inherits.</summary>
