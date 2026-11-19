@@ -93,7 +93,9 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
          dotnet tool install --global dotnet-coverage
-         dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+         # RightsStatement.cs is the fixed rights statement vocabulary: its URIs are identifiers (some
+         # http:// by the rightsstatements.org spec), not configuration, so S1075 and S5332 don't apply.
+         dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml /d:sonar.issue.ignore.multicriteria=rsuri,rshttp /d:sonar.issue.ignore.multicriteria.rsuri.ruleKey=csharpsquid:S1075 /d:sonar.issue.ignore.multicriteria.rsuri.resourceKey="**/RightsStatement.cs" /d:sonar.issue.ignore.multicriteria.rshttp.ruleKey=csharpsquid:S5332 /d:sonar.issue.ignore.multicriteria.rshttp.resourceKey="**/RightsStatement.cs"
          # Deliberately Debug (no --configuration): coverage is collected from this build, and
          # Release inlining/optimisation can mis-attribute or drop covered lines. The Release
          # build that matters for shipping is test-dotnet's, below.

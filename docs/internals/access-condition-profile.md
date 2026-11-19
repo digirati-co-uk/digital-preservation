@@ -169,7 +169,10 @@ Some choices worth knowing about:
 The document is read strictly and checked at startup; any failure stops the service and the log
 lists every problem found:
 
-- **Reading:** an unknown or misspelt property is an error (comments and trailing commas are fine).
+- **Reading:** an unknown or misspelt property is an error. The reader skips comments and trailing
+  commas, but keep a profile document plain JSON: other consumers read the same document (a Python
+  IIIF builder's `json` module accepts neither), so notes about it belong on this page, not in the file.
+  A test checks `leeds.json` parses as strict JSON.
 - **Keys:** restriction values, statement values, category values, IIIF entry ids and derived values
   must be non-blank (a blank means *(inherit from parent)* in the forms), unique, and not `__none__`
   or `*`.

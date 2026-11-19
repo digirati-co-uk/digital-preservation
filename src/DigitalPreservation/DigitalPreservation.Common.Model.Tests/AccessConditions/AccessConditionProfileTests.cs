@@ -15,6 +15,16 @@ public class AccessConditionProfileTests
     public static AccessConditionProfile Leeds() =>
         AccessConditionProfile.FromJson(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditionProfiles", "leeds.json")));
 
+    [Fact]
+    public void The_Leeds_profile_is_plain_JSON()
+    {
+        // Our reader skips comments, but other consumers of the same document (a Python IIIF
+        // builder, Sonar's JSON analyser) accept neither comments nor trailing commas.
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditionProfiles", "leeds.json"));
+        var parse = () => JsonDocument.Parse(text);
+        parse.Should().NotThrow();
+    }
+
     // ---- The standard model -----------------------------------------------------------------
 
     [Fact]
