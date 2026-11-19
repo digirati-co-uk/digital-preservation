@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Xml.Linq;
 using FluentAssertions;
 using Xunit;
@@ -5,13 +6,17 @@ using Xunit;
 namespace DigitalPreservation.Mets.Conformance.Tests;
 
 /// <summary>
-/// CONTRACT.md's acceptance table over the real sample corpus, plus the native rules. The
-/// Python judge (src/mets-editability/tests.py) enforces the same table over the same files;
-/// a divergence between the two suites is a contract violation, and CONTRACT.md decides which
-/// implementation is wrong.
+/// CONTRACT.md's acceptance table over the real sample corpus, the golden judgements in
+/// src/mets-editability/fixtures/judgements.json, and unit cases for the rules. The Python judge
+/// (src/mets-editability/tests.py) asserts the same table and the same golden file; a divergence
+/// between the two suites is a contract violation, and CONTRACT.md decides which implementation
+/// is wrong.
 /// </summary>
 public class EditabilityJudgeTests
 {
+    /// <summary>A real SHA-256 (of "abc"): the fixity rules require 64 hex digits.</summary>
+    private const string Sha256OfAbc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
     private static Judgement JudgeSample(string name) =>
         EditabilityJudge.JudgeFile(Path.Combine(AppContext.BaseDirectory, "Samples", name));
 
@@ -27,9 +32,13 @@ public class EditabilityJudgeTests
     }
 
     [Fact]
-    public void Wow_Is_Editable()
+    public void Wow_Is_Read_Only_For_Its_Placeholder_Digests()
     {
-        JudgeSample("wow.mets.xml").Verdict.Should().Be(Verdicts.Editable);
+        // A hand-made platform-shaped fixture whose "SHA256" digests are 8-character
+        // placeholders: no import job could ever match them.
+        var judgement = JudgeSample("wow.mets.xml");
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("P_SHA256");
     }
 
     [Fact]
@@ -58,6 +67,7 @@ public class EditabilityJudgeTests
         JudgeSample("EPrints.10315.METS.xml").Mutations.Should().Equal(
             "set TYPE=\"PHYSICAL\" on the structMap",
             "set TYPE=\"Directory\" on the root div",
+            "set LABEL=\"__ROOT\" on the root div",
             "set TYPE=\"Item\" on 4 file div(s)",
             "materialise the objects Directory div (amdSec/techMD with premis:originalName) " +
             "and re-parent 4 file div(s) under it",
@@ -132,7 +142,7 @@ public class EditabilityJudgeTests
     }
 
     private static Judgement EPrintsLike(
-        string href = "objects/a.jpg", string algorithm = "SHA256", string digest = "abc",
+        string href = "objects/a.jpg", string algorithm = "SHA256", string digest = Sha256OfAbc,
         string fileId = "eprint_1_1", string? fptrId = null,
         bool wrapped = false, string rootAttrs = "", string divId = "", string extra = "")
     {
@@ -383,7 +393,7 @@ public class EditabilityJudgeTests
         judgement.Mutations.Should().NotContain(m => m.StartsWith("wrap the payload"));
     }
 
-    private static Judgement PlatformLike(string algorithm = "SHA256", string digest = "abc")
+    private static Judgement PlatformLike(string algorithm = "SHA256", string digest = Sha256OfAbc)
     {
         return Build(
             header: """
@@ -447,13 +457,14 @@ public class EditabilityJudgeTests
         Codes(judgement.Reasons).Should().Contain("C_LOGICAL_ROOT_HAS_ID");
     }
 
-    // One test per fixed finding from the 2026-08-21 adversarial review of PR #238.
+    // Tests for findings fixed after the adversarial reviews of PR #238.
 
     [Fact]
-    public void A_Physical_Fptr_Without_Fileid_Demotes()
+    public void A_Physical_Fptr_Without_Fileid_Is_Not_Editable()
     {
-        // The platform's physical walk calls GetRequiredFileId on every fptr; an area-only
-        // fptr (legal in a logical map, where the platform itself writes them) crashes it.
+        // The parser calls GetRequiredFileId on every physical fptr; an area-only fptr (legal in
+        // a logical map, where the platform itself writes them) crashes it - so the platform
+        // cannot open the document at all.
         var judgement = Build(
             fileSec: """
                 <mets:fileSec><mets:fileGrp USE="reference">
@@ -466,14 +477,14 @@ public class EditabilityJudgeTests
                     BEGIN="00:00:01" END="00:00:02"/></mets:fptr></mets:div>
                 </mets:div></mets:structMap>
                 """);
-        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
-        Codes(judgement.Reasons).Should().Contain("C_PHYSICAL_FPTR_HAS_FILEID");
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("FPTR_NO_FILEID");
     }
 
     [Fact]
-    public void A_File_With_Two_FLocats_Demotes()
+    public void A_Referenced_File_With_Two_FLocats_Is_Not_Editable()
     {
-        // The platform's parser takes .Single() FLocat per file; two locations throw it.
+        // The parser takes .Single() FLocat of every file the physical map references.
         var judgement = Build(
             fileSec: """
                 <mets:fileSec><mets:fileGrp USE="reference">
@@ -487,8 +498,8 @@ public class EditabilityJudgeTests
                 <mets:div><mets:fptr FILEID="f1"/></mets:div>
                 </mets:div></mets:structMap>
                 """);
-        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
-        Codes(judgement.Reasons).Should().Contain("C_ONE_FLOCAT");
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("FILE_SEVERAL_FLOCATS");
     }
 
     [Fact]
@@ -534,13 +545,21 @@ public class EditabilityJudgeTests
     }
 
     [Fact]
-    public void An_Empty_Document_Gives_Its_Reason()
+    public void The_Platforms_Empty_Skeleton_Is_Editable()
     {
-        // The platform's own freshly-created deposit skeleton: structure, no files yet.
+        // The platform's own freshly-created deposit skeleton: structure, no files yet. Once the
+        // verdict replaces the agent gate, a skeleton that was not editable could never receive
+        // its first file - so no files is a note, not a blocker.
         var judgement = Build(
             header: """
                 <mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
                 Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>
+                """,
+            amdSec: """
+                <mets:amdSec ID="ADM_objects"><mets:techMD ID="TECH_objects">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:originalName>objects</premis:originalName>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
                 """,
             fileSec: """<mets:fileSec><mets:fileGrp USE="OBJECTS"/></mets:fileSec>""",
             structMap: """
@@ -549,24 +568,27 @@ public class EditabilityJudgeTests
                 <mets:div ID="PHYS_objects" LABEL="objects" TYPE="Directory" ADMID="ADM_objects"/>
                 </mets:div></mets:structMap>
                 """);
-        judgement.Verdict.Should().Be(Verdicts.NotEditable);
-        Codes(judgement.Reasons).Should().BeEquivalentTo("NO_FILES");
+        judgement.Verdict.Should().Be(Verdicts.Editable);
+        Codes(judgement.Notes).Should().BeEquivalentTo("NO_FILES");
     }
 
     [Fact]
-    public void One_File_Referenced_From_Two_Divs_Is_Not_A_Duplicate_Path()
+    public void One_File_Referenced_From_Two_Divs_Is_Not_Editable()
     {
+        // The parser makes one entry per physical fptr, then indexes them by path - so the
+        // second reference to one file throws. It is not a duplicate PATH (one file, one path),
+        // but the platform cannot open the document.
         var judgement = Build(
             header: """
                 <mets:metsHdr><mets:agent><mets:name>EPrints 3.3.15</mets:name></mets:agent>
                 </mets:metsHdr>
                 """,
-            amdSec: """
+            amdSec: $"""
                 <mets:amdSec ID="AMD_0"><mets:techMD ID="AMD_1">
                 <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>{Sha256OfAbc}</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>
                 """,
@@ -582,8 +604,8 @@ public class EditabilityJudgeTests
                 <mets:div><mets:fptr FILEID="f1"/></mets:div>
                 </mets:div></mets:structMap>
                 """);
-        Codes(judgement.Reasons).Should().NotContain("DUPLICATE_PATH");
-        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("FILE_REFERENCED_TWICE");
         judgement.FileCount.Should().Be(1);
     }
 
@@ -611,13 +633,13 @@ public class EditabilityJudgeTests
                 <mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
                 Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>
                 """,
-            amdSec: """
+            amdSec: $"""
                 <mets:amdSec ID="ADM_objects_x002F_a.jpg">
                 <mets:techMD ID="TECH_objects_x002F_a.jpg">
                 <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>{Sha256OfAbc}</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
                 """,
@@ -643,20 +665,21 @@ public class EditabilityJudgeTests
     // Open findings from the METS Identifier Audit that belong to the judge's contract.
 
     [Fact]
-    public void A_Labelless_Directory_Div_Fails_The_Platform_Tier()
+    public void A_Labelless_Directory_Div_Is_Not_Editable()
     {
-        // Audit finding P7: adding into a LABEL-less parent crashes the platform.
+        // The parser throws on a Directory div without a LABEL, so the platform cannot open
+        // the document at all (and adding into a LABEL-less parent would crash it too).
         var judgement = Build(
             header: """
                 <mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
                 Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>
                 """,
-            amdSec: """
+            amdSec: $"""
                 <mets:amdSec ID="ADM_1"><mets:techMD ID="TECH_1">
                 <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>{Sha256OfAbc}</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 <premis:originalName>objects/a.jpg</premis:originalName>
                 </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
@@ -675,8 +698,8 @@ public class EditabilityJudgeTests
                 <mets:fptr FILEID="FILE_1"/></mets:div>
                 </mets:div></mets:div></mets:structMap>
                 """);
-        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
-        Codes(judgement.Reasons).Should().Contain("P_DIRECTORY_LABEL");
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("DIRECTORY_NO_LABEL");
     }
 
     [Theory]
@@ -685,8 +708,8 @@ public class EditabilityJudgeTests
     [InlineData("objects/a.jpg/")]
     public void An_Unnormalised_Href_Is_A_Blocker(string href)
     {
-        // Audit finding M3: the platform's path cache does not collapse empty segments, so
-        // normalising here would make the judge more tolerant than the platform.
+        // The platform's path cache does not collapse empty segments, so normalising here
+        // would make the judge more tolerant than the platform.
         var judgement = EPrintsLike(href: href);
         judgement.Verdict.Should().Be(Verdicts.NotEditable);
         Codes(judgement.Reasons).Should().Contain("HREF_NOT_NORMALISED");
@@ -695,8 +718,8 @@ public class EditabilityJudgeTests
     [Fact]
     public void A_Shared_Editable_DmdSec_Demotes()
     {
-        // Audit finding P5: editing metadata on one div rewrites the shared section in place,
-        // silently changing the other div's metadata.
+        // Editing metadata on one div rewrites the shared section in place, silently changing
+        // the other div's metadata.
         var judgement = EPrintsLike(
             rootAttrs: "DMDID=\"DMD_1\"", divId: "DMDID=\"DMD_1\" ID=\"PHYS_1\"",
             extra: """
@@ -743,7 +766,7 @@ public class EditabilityJudgeTests
                 <mets:metsHdr><mets:agent><mets:name>EPrints 3.3.15</mets:name></mets:agent>
                 </mets:metsHdr>
                 """,
-            amdSec: """
+            amdSec: $"""
                 <mets:amdSec ID="AMD_0"><mets:techMD ID="AMD_1">
                 <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
                 <premis:storage><premis:contentLocation>
@@ -752,7 +775,7 @@ public class EditabilityJudgeTests
                 </premis:contentLocation></premis:storage>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>{Sha256OfAbc}</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>
                 """,
@@ -769,5 +792,106 @@ public class EditabilityJudgeTests
                 """);
         judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
         Codes(judgement.Notes).Should().Contain("FOREIGN_STORAGE_LOCATION");
+    }
+
+    // The golden judgements: one curated document per rule and parity edge, asserted here and
+    // in tests.py from the same file, so the two judges are tested to agree.
+
+    private static readonly string Fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
+
+    private static IEnumerable<JsonElement> Golden() =>
+        JsonDocument.Parse(File.ReadAllText(Path.Combine(Fixtures, "judgements.json")))
+            .RootElement.GetProperty("judgements").EnumerateArray().ToList();
+
+    public static TheoryData<string> GoldenDocuments() =>
+        new(Golden().Select(entry => entry.GetProperty("document").GetString()!));
+
+    [Fact]
+    public void Every_Fixture_Has_A_Golden_Judgement()
+    {
+        Golden().Select(entry => entry.GetProperty("document").GetString())
+            .Should().BeEquivalentTo(Directory.GetFiles(Fixtures, "*.xml").Select(Path.GetFileName));
+    }
+
+    [Theory]
+    [MemberData(nameof(GoldenDocuments))]
+    public void Every_Fixture_Is_Judged_As_The_Golden_File_Says(string document)
+    {
+        var expected = Golden().Single(entry => entry.GetProperty("document").GetString() == document);
+        var judgement = EditabilityJudge.JudgeFile(Path.Combine(Fixtures, document));
+
+        static List<string> Listed(IEnumerable<Finding> findings) =>
+            findings.Select(f => f.Count == 1 ? f.Code : $"{f.Code} x{f.Count}").ToList();
+        static List<string> Strings(JsonElement entry, string name) =>
+            entry.GetProperty(name).EnumerateArray().Select(item => item.GetString()!).ToList();
+
+        judgement.Verdict.Should().Be(expected.GetProperty("verdict").GetString());
+        judgement.FileCount.Should().Be(expected.GetProperty("fileCount").GetInt32());
+        Listed(judgement.Reasons).Should().Equal(Strings(expected, "reasons"));
+        Listed(judgement.Assumptions).Should().Equal(Strings(expected, "assumptions"));
+        Listed(judgement.Notes).Should().Equal(Strings(expected, "notes"));
+        judgement.Mutations.Should().Equal(Strings(expected, "mutations"));
+    }
+
+    // Whatever it is given, the judge returns a judgement.
+
+    [Fact]
+    public void A_Very_Deep_Document_Is_Refused_Not_Transformed()
+    {
+        // 20,000 nested elements overflowed XslCompiledTransform's stack - an exception that
+        // kills the process. Refused before any rule runs, from a file and from a document.
+        var xml = "<mets:mets xmlns:mets=\"http://www.loc.gov/METS/\">"
+                  + string.Concat(Enumerable.Repeat("<mets:div>", 20000))
+                  + string.Concat(Enumerable.Repeat("</mets:div>", 20000)) + "</mets:mets>";
+        var path = Path.Combine(Path.GetTempPath(), $"deep-{Guid.NewGuid():N}.xml");
+        File.WriteAllText(path, xml);
+        try
+        {
+            Codes(EditabilityJudge.JudgeFile(path).Reasons).Should().BeEquivalentTo("TOO_DEEP");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+        Codes(EditabilityJudge.Judge(XDocument.Parse(xml)).Reasons).Should().BeEquivalentTo("TOO_DEEP");
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:9/mets.xml")]
+    [InlineData("")]
+    public void A_Path_That_Is_Not_A_Readable_File_Is_A_Judgement(string path)
+    {
+        // XDocument.Load(string) would fetch a URL; the judge reads local files only.
+        var judgement = EditabilityJudge.JudgeFile(path);
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("PARSE_FAILED");
+    }
+
+    [Fact]
+    public void A_Folder_Is_A_Judgement_Not_A_Crash()
+    {
+        var judgement = EditabilityJudge.JudgeFile(Fixtures);
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("PARSE_FAILED");
+    }
+
+    [Fact]
+    public void Judging_From_Many_Threads_Gives_The_Single_Threaded_Answers()
+    {
+        var documents = new[] { "platform-minimal.xml", "eprints-minimal.xml", "two-root-divs.xml" }
+            .Select(name => Path.Combine(Fixtures, name)).ToList();
+        static string Summary(Judgement j) =>
+            j.Verdict + string.Join(",", j.Reasons.Select(f => $"{f.Code}x{f.Count}"));
+        var expected = documents.ToDictionary(path => path, path => Summary(EditabilityJudge.JudgeFile(path)));
+        var wrong = 0;
+        Parallel.For(0, 200, i =>
+        {
+            var path = documents[i % documents.Count];
+            if (Summary(EditabilityJudge.JudgeFile(path)) != expected[path])
+            {
+                Interlocked.Increment(ref wrong);
+            }
+        });
+        wrong.Should().Be(0);
     }
 }

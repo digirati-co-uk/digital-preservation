@@ -32,6 +32,9 @@
              measured #223 table came from, and the same files the Python judge's tests use. -->
         <None Include="..\XmlGen.Tests\Samples\*.xml" LinkBase="Samples"
               CopyToOutputDirectory="PreserveNewest" />
+        <!-- The golden judgements, asserted here and by the Python suite from the same files. -->
+        <None Include="..\..\mets-editability\fixtures\*" LinkBase="Fixtures"
+              CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

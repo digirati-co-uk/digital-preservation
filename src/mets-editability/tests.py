@@ -3,20 +3,26 @@ Tests for the editability judge. Run from src/mets-editability/:
 
     python -m unittest tests -v
 
-Two kinds: the acceptance table from CONTRACT.md over the repository's real sample corpus (the
-measured #223 table re-expressed as verdicts - the .NET twin enforces the same table), and unit
-cases over small synthetic documents for each native rule.
+Three kinds: the acceptance table from CONTRACT.md over the repository's real sample corpus (the
+measured #223 table re-expressed as verdicts); the golden judgements in fixtures/judgements.json,
+one curated document per rule and parity edge; and unit cases over small synthetic documents.
+The .NET twin (EditabilityJudgeTests.cs) asserts the same table and the same golden file.
 """
 
+import json
 import pathlib
+import tempfile
+import threading
 import unittest
 
-from lxml import etree, isoschematron
+from lxml import etree
 
 from app import judge, ncname, schematron
+from tools import compile_schematron
 
-SAMPLES = pathlib.Path(__file__).resolve().parent.parent \
-    / "DigitalPreservation" / "XmlGen.Tests" / "Samples"
+HERE = pathlib.Path(__file__).resolve().parent
+SAMPLES = HERE.parent / "DigitalPreservation" / "XmlGen.Tests" / "Samples"
+FIXTURES = HERE / "fixtures"
 
 
 def judge_sample(name: str) -> judge.Judgement:
@@ -35,9 +41,12 @@ class TheAcceptanceTable(unittest.TestCase):
         self.assertEqual(judgement.verdict, judge.EDITABLE)
         self.assertEqual(judgement.reasons, [])
 
-    def test_wow_is_editable(self):
+    def test_wow_is_read_only_for_its_placeholder_digests(self):
+        # A hand-made platform-shaped fixture whose "SHA256" digests are 8-character
+        # placeholders: no import job could ever match them.
         judgement = judge_sample("wow.mets.xml")
-        self.assertEqual(judgement.verdict, judge.EDITABLE)
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("P_SHA256", codes(judgement.reasons))
 
     def test_legacy_platform_mets_is_editable_with_a_legacy_ids_note(self):
         judgement = judge_sample("path-fixture-spaces.xml")
@@ -58,6 +67,7 @@ class TheAcceptanceTable(unittest.TestCase):
         self.assertEqual(judgement.mutations, [
             'set TYPE="PHYSICAL" on the structMap',
             'set TYPE="Directory" on the root div',
+            'set LABEL="__ROOT" on the root div',
             'set TYPE="Item" on 4 file div(s)',
             "materialise the objects Directory div (amdSec/techMD with premis:originalName) "
             "and re-parent 4 file div(s) under it",
@@ -115,7 +125,7 @@ def build(struct_map="", file_sec="", amd_sec="", header=""):
 
 
 def eprints_like(href="objects/a.jpg", use="reference", file_id="eprint_1_1",
-                 admid='ADMID="AMD_1"', algorithm="SHA256", digest="abc", fptr_id=None,
+                 admid='ADMID="AMD_1"', algorithm="SHA256", digest="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", fptr_id=None,
                  wrapped=False, root_attrs="", div_id="", extra=""):
     """
     The smallest document that reaches the EPrints tier, with one knob per test. `wrapped`
@@ -249,7 +259,7 @@ class TheNativeRules(unittest.TestCase):
                 </premis:contentLocation></premis:storage>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>""",
             file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
@@ -268,7 +278,7 @@ class TheNativeRules(unittest.TestCase):
         self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
 
 
-def platform_like(algorithm="SHA256", digest="abc"):
+def platform_like(algorithm="SHA256", digest="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"):
     """The smallest document that reaches the platform tier."""
     return build(
         header="""<mets:metsHdr><mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
@@ -418,12 +428,13 @@ class TheEditableSurface(unittest.TestCase):
         self.assertIn("C_LOGICAL_ROOT_HAS_ID", codes(judgement.reasons))
 
 
-class TheAdversarialReviewFindings(unittest.TestCase):
-    """One test per fixed finding from the 2026-08-21 adversarial review of PR #238."""
+class TheReviewFindings(unittest.TestCase):
+    """Tests for findings fixed after the adversarial reviews of PR #238."""
 
-    def test_a_physical_fptr_without_fileid_demotes(self):
-        # The platform's physical walk calls GetRequiredFileId on every fptr; an area-only
-        # fptr (legal in a logical map, where the platform itself writes them) crashes it.
+    def test_a_physical_fptr_without_fileid_is_not_editable(self):
+        # The parser calls GetRequiredFileId on every physical fptr; an area-only fptr (legal in
+        # a logical map, where the platform itself writes them) crashes it - so the platform
+        # cannot open the document at all.
         judgement = build(
             file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
                 <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
@@ -432,11 +443,11 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 <mets:div><mets:fptr><mets:area FILEID="f1" BETYPE="TIME"
                     BEGIN="00:00:01" END="00:00:02"/></mets:fptr></mets:div>
                 </mets:div></mets:structMap>""")
-        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
-        self.assertIn("C_PHYSICAL_FPTR_HAS_FILEID", codes(judgement.reasons))
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"FPTR_NO_FILEID"})
 
-    def test_a_file_with_two_flocats_demotes(self):
-        # The platform's parser takes .Single() FLocat per file; two locations throw it.
+    def test_a_referenced_file_with_two_flocats_is_not_editable(self):
+        # The parser takes .Single() FLocat of every file the physical map references.
         judgement = build(
             file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
                 <mets:file ID="f1">
@@ -446,8 +457,8 @@ class TheAdversarialReviewFindings(unittest.TestCase):
             struct_map="""<mets:structMap><mets:div>
                 <mets:div><mets:fptr FILEID="f1"/></mets:div>
                 </mets:div></mets:structMap>""")
-        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
-        self.assertIn("C_ONE_FLOCAT", codes(judgement.reasons))
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"FILE_SEVERAL_FLOCATS"})
 
     def test_an_empty_digest_fails_the_fixity_rule(self):
         # An algorithm label with no digest value is a record of having lost the checksum.
@@ -480,25 +491,29 @@ class TheAdversarialReviewFindings(unittest.TestCase):
         self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
         self.assertIn("E_MIXED_FILEGRP_USE", codes(judgement.reasons))
 
-    def test_an_empty_document_gives_its_reason(self):
-        # The platform's own freshly-created deposit skeleton: structure, no files yet.
-        # A verdict must carry its reasons.
+    def test_the_platforms_empty_skeleton_is_editable(self):
+        # The platform's own freshly-created deposit skeleton: structure, no files yet. Once the
+        # verdict replaces the agent gate, a skeleton that was not editable could never receive
+        # its first file - so no files is a note, not a blocker.
         judgement = build(
             header="""<mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
                 Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>""",
+            amd_sec="""<mets:amdSec ID="ADM_objects"><mets:techMD ID="TECH_objects">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:originalName>objects</premis:originalName>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
             file_sec="""<mets:fileSec><mets:fileGrp USE="OBJECTS"/></mets:fileSec>""",
             struct_map="""<mets:structMap TYPE="PHYSICAL">
                 <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
                 <mets:div ID="PHYS_objects" LABEL="objects" TYPE="Directory" ADMID="ADM_objects"/>
                 </mets:div></mets:structMap>""")
-        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
-        self.assertEqual(codes(judgement.reasons), {"NO_FILES"})
+        self.assertEqual(judgement.verdict, judge.EDITABLE)
+        self.assertEqual(codes(judgement.notes), {"NO_FILES"})
 
-    def test_one_file_referenced_from_two_divs_is_not_a_duplicate_path(self):
-        judgement = eprints_like(extra="")
-        # Reference the same file from a second div via a second structMap-level div: use the
-        # builder's own structMap plus a logical map pointing at the same file, and also a
-        # physical second div sharing the file.
+    def test_one_file_referenced_from_two_divs_is_not_editable(self):
+        # The parser makes one entry per physical fptr, then indexes them by path - so the
+        # second reference to one file throws. It is not a duplicate PATH (one file, one path),
+        # but the platform cannot open the document.
         judgement = build(
             header="""<mets:metsHdr><mets:agent><mets:name>EPrints 3.3.15</mets:name>
                 </mets:agent></mets:metsHdr>""",
@@ -506,7 +521,7 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>""",
             file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
@@ -517,8 +532,8 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 <mets:div><mets:fptr FILEID="f1"/></mets:div>
                 <mets:div><mets:fptr FILEID="f1"/></mets:div>
                 </mets:div></mets:structMap>""")
-        self.assertNotIn("DUPLICATE_PATH", codes(judgement.reasons))
-        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"FILE_REFERENCED_TWICE"})
         self.assertEqual(judgement.file_count, 1)
 
     def test_an_unchosen_second_structmap_cannot_demote(self):
@@ -542,7 +557,7 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
             file_sec="""<mets:fileSec><mets:fileGrp USE="OBJECTS">
@@ -567,8 +582,9 @@ class TheAdversarialReviewFindings(unittest.TestCase):
     def test_an_id_with_a_trailing_newline_is_not_legal(self):
         self.assertFalse(ncname.is_valid_id("FILE_1\n"))
 
-    def test_a_labelless_directory_div_fails_the_platform_tier(self):
-        # Audit finding P7: adding into a LABEL-less parent crashes the platform.
+    def test_a_labelless_directory_div_is_not_editable(self):
+        # The parser throws on a Directory div without a LABEL, so the platform cannot open
+        # the document at all (and adding into a LABEL-less parent would crash it too).
         judgement = build(
             header="""<mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
                 Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>""",
@@ -576,7 +592,7 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 <premis:originalName>objects/a.jpg</premis:originalName>
                 </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
@@ -590,12 +606,12 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 <mets:div ID="PHYS_1" LABEL="a.jpg" TYPE="Item">
                 <mets:fptr FILEID="FILE_1"/></mets:div>
                 </mets:div></mets:div></mets:structMap>""")
-        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
-        self.assertIn("P_DIRECTORY_LABEL", codes(judgement.reasons))
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"DIRECTORY_NO_LABEL"})
 
     def test_an_unnormalised_href_is_a_blocker(self):
-        # Audit finding M3: the platform's path cache does not collapse empty segments, so
-        # normalising here would make the judge more tolerant than the platform.
+        # The platform's path cache does not collapse empty segments, so normalising here
+        # would make the judge more tolerant than the platform.
         for href in ("objects//a.jpg", "objects/./a.jpg", "objects/a.jpg/"):
             with self.subTest(href=href):
                 judgement = eprints_like(href=href)
@@ -603,8 +619,8 @@ class TheAdversarialReviewFindings(unittest.TestCase):
                 self.assertIn("HREF_NOT_NORMALISED", codes(judgement.reasons))
 
     def test_a_shared_editable_dmdsec_demotes(self):
-        # Audit finding P5: editing metadata on one div rewrites the shared section in place,
-        # silently changing the other div's metadata.
+        # Editing metadata on one div rewrites the shared section in place, silently changing
+        # the other div's metadata.
         judgement = eprints_like(
             root_attrs='DMDID="DMD_1"', div_id='DMDID="DMD_1" ID="PHYS_1"',
             extra="""<mets:dmdSec ID="DMD_1"><mets:mdWrap MDTYPE="MODS"><mets:xmlData>
@@ -627,7 +643,7 @@ class TheAdversarialReviewFindings(unittest.TestCase):
         self.assertNotIn("SHARED_DMDSEC", codes(judgement.reasons))
 
     def test_admid_on_a_filegrp_is_noted(self):
-        # Audit finding M4: the platform's deletion reasoning does not consult these.
+        # The platform's deletion reasoning does not consult these.
         judgement = eprints_like(
             use='reference" ADMID="AMD_0')  # smuggle the attr onto the fileGrp
         self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
@@ -652,23 +668,18 @@ class TheSharedAuthorities(unittest.TestCase):
             / "mets-id-migration" / "app" / "ncname_ranges.json"
         self.assertEqual(ours.read_bytes(), theirs.read_bytes())
 
-    def test_the_compiled_xslt_behaves_like_the_schematron_source(self):
-        # The .NET judge runs schematron/compiled/*.xsl; regenerating is a manual step
-        # (tools/compile_schematron.py), so prove behavioural equivalence rather than trusting
-        # the checkout: both forms must fail the same asserts on a real document.
-        document = etree.parse(
-            str(SAMPLES / "archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml"))
-        for name in ("common", "eprints-tier", "platform-tier"):
-            with self.subTest(tier=name):
-                direct = {code for code, _ in schematron.failures(
-                    f"{name}.sch", document.getroot())}
-                compiled = etree.XSLT(etree.parse(
-                    str(schematron.SCHEMATRON_DIR / "compiled" / f"{name}.xsl")))
-                svrl = compiled(document)
-                via_compiled = {
-                    failed.get("id") for failed in svrl.getroot().iter(
-                        f"{{{schematron.SVRL_NS}}}failed-assert")}
-                self.assertEqual(direct, via_compiled)
+    def test_the_compiled_rules_are_the_schematron_source_compiled(self):
+        # Both judges run schematron/compiled/*.xsl, and the .sch files are the source people
+        # edit. Recompile in memory: every committed file must be what the source compiles to
+        # (line endings aside - a Windows checkout has CRLF), and nothing else may be there.
+        # CI checks the same on the tree.
+        expected = compile_schematron.compiled_rules()
+        committed = {path.name: path.read_bytes().replace(b"\r\n", b"\n")
+                     for path in schematron.COMPILED_DIR.glob("*.xsl")}
+        self.assertEqual(sorted(committed), sorted(expected))
+        for name, content in expected.items():
+            with self.subTest(rules=name):
+                self.assertEqual(committed[name], content)
 
     def test_ncname_agrees_with_the_platform_on_the_known_edge_cases(self):
         # The fourth/fifth edition gap: XmlConvert (the platform) rejects these letters.
@@ -678,6 +689,80 @@ class TheSharedAuthorities(unittest.TestCase):
         self.assertFalse(ncname.is_valid_id("PHYS_objects/a.tif"))
         self.assertFalse(ncname.is_valid_id("FILE a b"))
         self.assertFalse(ncname.is_valid_id(""))
+
+
+class TheGoldenJudgements(unittest.TestCase):
+    """
+    fixtures/judgements.json: the expected judgement of one curated document per rule and
+    parity edge. The .NET suite asserts the same file, so the two judges are tested to agree.
+    """
+
+    def test_every_fixture_has_a_golden_judgement(self):
+        golden = {entry["document"] for entry in _golden()}
+        self.assertEqual(golden, {path.name for path in FIXTURES.glob("*.xml")})
+
+    def test_every_fixture_is_judged_as_the_golden_file_says(self):
+        for expected in _golden():
+            with self.subTest(document=expected["document"]):
+                judgement = judge.judge_file(FIXTURES / expected["document"])
+                self.assertEqual(_as_golden(judgement), {
+                    key: expected[key] for key in
+                    ("verdict", "fileCount", "reasons", "assumptions", "notes", "mutations")})
+
+
+def _golden():
+    return json.loads((FIXTURES / "judgements.json").read_text(encoding="utf-8"))["judgements"]
+
+
+def _as_golden(judgement):
+    def listed(findings):
+        return [f.code if f.count == 1 else f"{f.code} x{f.count}" for f in findings]
+    return {"verdict": judgement.verdict, "fileCount": judgement.file_count,
+            "reasons": listed(judgement.reasons), "assumptions": listed(judgement.assumptions),
+            "notes": listed(judgement.notes), "mutations": judgement.mutations}
+
+
+class TheRobustness(unittest.TestCase):
+    """Whatever it is given, the judge returns a judgement - and the same one every time."""
+
+    def test_judging_from_many_threads_gives_the_single_threaded_answers(self):
+        documents = [FIXTURES / name for name in (
+            "platform-minimal.xml", "eprints-minimal.xml", "logical-root-empty-id.xml",
+            "platform-digest-not-hex.xml", "two-root-divs.xml")]
+        expected = {path: judge.judge_file(path).as_dict() for path in documents}
+        wrong = []
+
+        def work():
+            for _ in range(40):
+                for path in documents:
+                    if judge.judge_file(path).as_dict() != expected[path]:
+                        wrong.append(path.name)
+
+        threads = [threading.Thread(target=work) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(wrong, [])
+
+    def test_a_very_deep_document_is_refused_not_walked(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / "deep.xml"
+            path.write_text('<mets:mets xmlns:mets="http://www.loc.gov/METS/">'
+                            + "<mets:div>" * 20000 + "</mets:div>" * 20000 + "</mets:mets>")
+            judgement = judge.judge_file(path)
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"TOO_DEEP"})
+
+    def test_a_url_is_not_fetched(self):
+        judgement = judge.judge_file("http://127.0.0.1:9/mets.xml")
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
+
+    def test_a_folder_is_a_judgement_not_a_crash(self):
+        judgement = judge.judge_file(FIXTURES)
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
 
 
 if __name__ == "__main__":
