@@ -24,12 +24,17 @@ public class SetModsInformation(Uri depositFiles, string localPath, string depos
 /// </param>
 /// <param name="RecordIdentifiers">The node's record identifiers.</param>
 /// <param name="FileLinks">A file's links to other files; null leaves them as they are.</param>
+/// <param name="StatementInForm">
+/// False when the form had no statement dropdown (it was rendered without the statement profile):
+/// the node's statement, and the rights written from it, are then left as they are.
+/// </param>
 public record ModsChanges(
     List<string> AccessRestrictions,
     RightsChoice Rights,
     string? AccessStatement,
     IEnumerable<RecordIdentifier> RecordIdentifiers,
-    List<FileLink>? FileLinks);
+    List<FileLink>? FileLinks,
+    bool StatementInForm = true);
 
 /// <summary>The four things a form can say about a node's rights statement.</summary>
 public enum RightsAction
@@ -68,18 +73,21 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
 
         var written = await metsManager.WriteMets(fullMets);
         return written.Failure
-            ? Result.Fail(written.ErrorCode!, "Unable to write METS file.")
+            ? Result.Fail(written.ErrorCode!, written.ErrorMessage ?? "Unable to write METS file.")
             : Result.Ok();
     }
 
     private async Task<Result> ApplyChanges(FullMets mets, string path, ModsChanges changes)
     {
         var statementType = await metsManager.GetAccessStatementTypeAsync();
+        if (statementType.Failure) return statementType;
         var recordInfo = new RecordInfo { RecordIdentifiers = changes.RecordIdentifiers.ToList() };
         Func<Result>[] steps =
         [
             () => metsManager.SetAccessRestrictionsByPath(mets, path, changes.AccessRestrictions),
-            () => metsManager.SetAccessStatementByPath(mets, path, statementType, changes.AccessStatement),
+            () => changes.StatementInForm
+                ? metsManager.SetAccessStatementByPath(mets, path, statementType.Value, changes.AccessStatement)
+                : Result.Ok(),
             () => SetRights(mets, path, changes.Rights),
             () => metsManager.SetRecordInfoByPath(mets, path, recordInfo)
         ];

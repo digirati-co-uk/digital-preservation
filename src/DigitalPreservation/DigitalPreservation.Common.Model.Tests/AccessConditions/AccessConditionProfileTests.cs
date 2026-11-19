@@ -54,26 +54,13 @@ public class AccessConditionProfileTests
 
     /// <summary>
     /// The tier each statement gives under Protected Access Level 1, restated independently of the
-    /// document from "Access Control - MASTER.xlsx": the statement's copyright status column on the
-    /// DATA FOR DIGIRATI tab, and that column's PA1 cell in the v1.0 matrix. Under every other
-    /// level the tier does not depend on the statement.
+    /// document from "Access Control - MASTER.xlsx" (see the fixture's "source"). The UI's
+    /// JavaScript test reads the same fixture, so the C# and JavaScript lookups are held to one table.
     /// </summary>
-    private static readonly Dictionary<string, string> Pa1TierByStatement = new()
-    {
-        ["out-of-copyright"] = "0",            // Out of Copyright
-        ["inc-low-risk"] = "1",                // In Copyright: Assessed (Low Risk)
-        ["inc-low-risk-orphan"] = "1",
-        ["inc-low-risk-orphan-2039"] = "1",
-        ["inc-low-risk-uol"] = "1",
-        ["inc-medium-risk-terminal"] = "2",    // medium risk
-        ["inc-high-risk"] = "2",               // high risk ("restrictions apply" on the tab)
-        ["inc-high-risk-orphan"] = "2",
-        ["inc-high-risk-orphan-2039"] = "2",
-        ["inc-high-risk-uol"] = "2",
-        ["inc-contractual"] = "2",
-        ["inc-unassessed"] = "2",              // In Copyright (Unassessed)
-        ["inc-holder-preservation"] = "3"      // Holder Conditions (High Risk)
-    };
+    private static readonly Dictionary<string, string> Pa1TierByStatement =
+        JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditions", "leeds-pa1-tiers.json")))
+            .RootElement.GetProperty("pa1TierByStatement")
+            .EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
 
     public static TheoryData<string?, string?, string> EveryCell()
     {

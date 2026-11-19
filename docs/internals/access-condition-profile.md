@@ -8,14 +8,14 @@ wants the first.
 This page is for whoever deploys the platform. What a caller or a user sees is on the documentation
 site: the API shape at [Vocabularies](https://digirati-co-uk.github.io/digital-preservation-docs/preservation-api/vocabularies/),
 the METS at [Descriptive metadata and structure](https://digirati-co-uk.github.io/digital-preservation-docs/mets/mets-we-write-descriptive/),
-and the extended form at [Derived access conditions](https://digirati-co-uk.github.io/digital-preservation-docs/mets/derived-access-conditions/).
+and the extended form at [Statements and derived access conditions](https://digirati-co-uk.github.io/digital-preservation-docs/mets/derived-access-conditions/).
 
 ## Which services read it
 
 | Service | Reads the configuration? |
 |---|---|
 | Preservation API | **Yes.** Builds its profile from whichever form is configured at startup, validates it (a bad profile stops the service, with the reasons in the log), serves it at `GET /access-conditions`, and uses it when writing METS. |
-| Preservation UI | No. It fetches the API's profile and caches it for five minutes, so a change needs only the API redeployed. If the API cannot be reached it uses the last profile this process fetched; if there has never been one, a METS write is **refused** (503, nothing written) rather than saved with derived values that no longer match the chosen ones. |
+| Preservation UI | No. It fetches the API's profile and caches it for five minutes, so a change needs only the API redeployed. If the API cannot be reached it uses the last profile this process fetched; if there has never been one, a save is **refused** (the dialogue or structure editor reports why, and nothing is written) rather than saved with derived values that no longer match the chosen ones. |
 | Pipeline API, Deposit Archiver | No. Both write METS through the same `MetsManager`, but with no profile, which means they derive nothing and leave any derived elements they find untouched. |
 | Storage API, Storage API Importer | No. They never look inside METS. |
 | iiif-builder (or any other consumer) | Not configuration as such, but it can read the same profile from `GET /access-conditions` to turn the keys in METS into IIIF `rights` and `requiredStatement` - see [For iiif-builder](#for-iiif-builder). |
@@ -78,10 +78,15 @@ named by one key.
 "AccessConditionProfileFile": "AccessConditionProfiles/leeds.json"
 ```
 
-Configure this **or** `AccessConditions` (with `AllowMultipleAccessConditions`), never both; the
-service refuses to start. Profile documents live in `Preservation.API/AccessConditionProfiles/`
-and are copied into the image. The document is the same JSON that `GET /access-conditions` serves,
-property for property, so whatever reads one can read the other.
+A profile document **replaces** the `AccessConditions` list (and `AllowMultipleAccessConditions`).
+That is what lets the base `appsettings.json` carry the standard list while an environment's
+`appsettings.{env}.json` names the document: layered configuration cannot remove the base list.
+Leeds' environments do this in `appsettings.DEV.json`, `appsettings.TEST.json` and
+`appsettings.PROD.json`, read when `ASPNETCORE_ENVIRONMENT` is `DEV`, `TEST` or `PROD` (the file
+name is case-sensitive on Linux). Profile documents live in
+`Preservation.API/AccessConditionProfiles/` and are copied into the image. The document is the same
+JSON that `GET /access-conditions` serves, property for property, so whatever reads one can read the
+other.
 
 ### The document
 
@@ -205,10 +210,15 @@ The detail is on the documentation site and in
   stops a parent's rights being inherited; clearing a statement clears the rights written from it;
   a statement the profile does not know leaves the div's rights as found. A `use and reproduction`
   on a div with no statement of its own (from before the profile, or another producer) is kept.
-- Every div, physical or logical, that carries a chosen element of its own gets each derived element
-  too, computed from that div's **effective** restriction and statement. So does every **file** whose
-  effective inputs come partly from its logical range. Every write recomputes every derived value in
-  the document, so changing a folder's restriction changes the tier of everything beneath it.
+- Every div, physical or logical, that carries a chosen element of its own (a restriction, a
+  statement, or a rights statement kept from before) gets each derived element too, computed from
+  that div's **effective** restriction and statement. So does every **file** whose effective inputs
+  come partly from its logical range. Every write recomputes every derived value in the document, so
+  changing a folder's restriction changes the tier of everything beneath it.
+- **Content with no access conditions at all** - nothing on a node or above it, such as material
+  migrated from EPrints - gets no derived element, and the dialogue shows none ("no access
+  conditions here or above"). The platform does not decide what that means: for Leeds, a builder
+  that knows the content's origin can treat it as open.
 - A derived element whose source has gone is removed from any dmdSec the platform itself minted. A
   dmdSec the platform did **not** mint (a Goobi export's) that carries a derived element and no
   chosen ones is left exactly as found. One exception, which predates this feature: saving a
@@ -252,10 +262,15 @@ inheritance walk; the effective `use and reproduction` is the `rights` of step 3
 preview implements steps 2-4 on the effective statement, so what an archivist sees there is what
 such a builder produces.
 
+A node with **no tier** - its own or inherited - has no access conditions on it or above it: the
+platform derived nothing. The matrix's `__none__` row is not applied to it. What such content means
+is the builder's decision; Leeds' migrated EPrints material, for example, has none and is meant to
+be open.
+
 ## Worked example: Leeds
 
-The Leeds document is `Preservation.API/AccessConditionProfiles/leeds.json`; the development
-`appsettings.json` points at it. It was generated from Leeds' spreadsheet *Access Control -
+The Leeds document is `Preservation.API/AccessConditionProfiles/leeds.json`; Leeds' environment
+settings (`appsettings.DEV.json`, `appsettings.TEST.json`, `appsettings.PROD.json`) point at it. It was generated from Leeds' spreadsheet *Access Control -
 MASTER.xlsx*:
 
 | From the spreadsheet | Becomes |
@@ -313,5 +328,6 @@ the type names (`copyright statement`, `tier`) are our choices.
   longer an input. Treat it like a vocabulary migration.
 - **Removing a derived type** leaves the old elements in place in every METS, as unknown typed
   conditions, never rewritten.
-- **Moving back to the standard list** keeps every statement and tier element already written, and
-  the UI stops showing them.
+- **Moving back to the standard list** keeps every statement and tier element already written. The
+  metadata dialogue and deposit tree stop showing them; the Browse listing still shows them, as raw
+  type and value, as it shows any typed `accessCondition`.

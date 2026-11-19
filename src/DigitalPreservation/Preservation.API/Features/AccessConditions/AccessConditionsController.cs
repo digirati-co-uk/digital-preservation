@@ -5,9 +5,10 @@ using Microsoft.Extensions.Options;
 namespace Preservation.API.Features.AccessConditions;
 
 /// <summary>
-/// The installation's <see cref="AccessConditionProfile"/> (issue #433): the restriction vocabulary,
-/// the rights-statement grouping and the derived conditions, as the UI needs them to render the
-/// dropdowns and show a derived value live. Read-only: the profile is deployment configuration.
+/// The installation's <see cref="AccessConditionProfile"/> (issue #433): the restriction vocabulary
+/// and, with a statement profile, the statements, what each publishes in IIIF and the derived
+/// conditions, as the UI needs them to render the dialogue and preview its results. Read-only: the
+/// profile is deployment configuration.
 /// </summary>
 [Route("access-conditions")]
 [ApiController]

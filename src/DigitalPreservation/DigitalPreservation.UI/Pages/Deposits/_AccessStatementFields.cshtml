@@ -43,6 +43,7 @@
             }
         </select>
         <div id="accessStatementDescription" class="form-text small" aria-live="polite"></div>
+        <input type="hidden" name="statementInForm" value="true" />
     }
     else
     {
@@ -58,9 +59,7 @@
         @foreach (var derived in statements.Derived)
         {
             <div class="form-label mb-0">@derived.Label</div>
-            <p class="derived-access-condition mb-2" data-derived-type="@derived.Type" aria-live="polite">
-                <em>(determined on save)</em>
-            </p>
+            <p class="derived-access-condition mb-2" data-derived-type="@derived.Type" aria-live="polite"></p>
         }
     </div>
 }

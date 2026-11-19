@@ -6,8 +6,8 @@ namespace Preservation.API.Tests.AccessConditions;
 
 /// <summary>
 /// The two configuration forms behind <c>GET /access-conditions</c> (issue #433): the standard
-/// <c>AccessConditions</c> list, and a profile document named by <c>AccessConditionProfileFile</c>.
-/// Never both.
+/// <c>AccessConditions</c> list, and a profile document named by <c>AccessConditionProfileFile</c>,
+/// which replaces the list (an environment's settings name the document over the base list).
 /// </summary>
 public class AccessConditionConfigurationTests : IDisposable
 {
@@ -119,16 +119,40 @@ public class AccessConditionConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void Both_forms_at_once_is_a_configuration_error()
+    public void A_profile_document_replaces_the_standard_list()
     {
-        WriteDocument("p.json", "{}");
-        var act = () => Apply(Config(
+        // The base appsettings.json has the standard list; appsettings.{env}.json names the document,
+        // and layered configuration cannot remove the base list's entries.
+        WriteDocument("p.json", """{ "restrictionAxis": { "values": [ { "value": "L1", "label": "Level 1" } ] } }""");
+        var profile = Apply(Config(
             ("AccessConditions:0:Value", "Open"), ("AccessConditions:0:Label", "Open"),
+            ("AllowMultipleAccessConditions", "true"),
             ("AccessConditionProfileFile", "p.json")));
-        act.Should().Throw<InvalidOperationException>().WithMessage("*not both*");
+        profile.RestrictionAxis.Values.Select(v => v.Value).Should().Equal("L1");
+        profile.AllowMultipleRestrictions.Should().BeFalse();
+    }
 
-        var multiple = () => Apply(Config(("AllowMultipleAccessConditions", "true"), ("AccessConditionProfileFile", "p.json")));
-        multiple.Should().Throw<InvalidOperationException>().WithMessage("*not both*");
+    [Fact]
+    public void Each_environment_names_its_profile_and_the_base_settings_are_standard()
+    {
+        var api = Path.Combine(AppContext.BaseDirectory, "PreservationApiSettings");
+        var base_ = Apply(Settings(api, "appsettings.json"), AppContext.BaseDirectory);
+        base_.HasStatements.Should().BeFalse("the base settings give the standard model");
+        base_.RestrictionAxis.Values.Should().NotBeEmpty();
+
+        foreach (var environment in new[] { "DEV", "TEST", "PROD" })
+        {
+            var profile = Apply(Settings(api, "appsettings.json", $"appsettings.{environment}.json"), AppContext.BaseDirectory);
+            profile.HasStatements.Should().BeTrue($"{environment} names the Leeds profile");
+            profile.Validate().Should().BeEmpty();
+        }
+    }
+
+    private static IConfiguration Settings(string folder, params string[] files)
+    {
+        var builder = new ConfigurationBuilder();
+        foreach (var file in files) builder.AddJsonFile(Path.Combine(folder, file), optional: false);
+        return builder.Build();
     }
 
     [Fact]

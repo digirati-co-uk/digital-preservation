@@ -25,9 +25,10 @@ public static class ServiceCollectionX
     /// profile document, for an installation with statements, IIIF rights and derived values
     /// (Leeds). The document is the same JSON <c>GET /access-conditions</c> serves.</item>
     /// </list>
-    /// Both present is a configuration error and stops the service, as does an unreadable or
-    /// inconsistent profile. Must be called before <c>AddDepositWorkspace</c>, which otherwise
-    /// installs the null provider.
+    /// A profile document replaces the standard list: the base appsettings.json carries the standard
+    /// list and an environment's appsettings.{env}.json names the document, and layered configuration
+    /// cannot remove the base list. An unreadable or inconsistent profile stops the service. Must be
+    /// called before <c>AddDepositWorkspace</c>, which otherwise installs the null provider.
     /// </summary>
     public static IServiceCollection AddAccessConditionProfile(this IServiceCollection services, IConfiguration configuration)
     {
@@ -49,23 +50,14 @@ public static class ServiceCollectionX
                 $"document named by '{AccessConditionProfile.FileKey}' (see docs/internals/access-condition-profile.md).");
         }
 
-        var simple = configuration.GetSection(AccessConditionProfile.SimpleSectionName);
         var file = configuration[AccessConditionProfile.FileKey];
-        var allowMultiple = configuration.GetSection(AccessConditionProfile.AllowMultipleKey);
-
         if (!string.IsNullOrWhiteSpace(file))
         {
-            if (simple.Exists() || allowMultiple.Exists())
-            {
-                throw new InvalidOperationException(
-                    $"Configure either '{AccessConditionProfile.SimpleSectionName}' (with '{AccessConditionProfile.AllowMultipleKey}') " +
-                    $"or '{AccessConditionProfile.FileKey}', not both.");
-            }
             CopyFrom(profile, Load(Path.Combine(contentRoot, file)));
             return;
         }
-        profile.RestrictionAxis.Values = simple.Get<List<AccessRestriction>>() ?? [];
-        profile.AllowMultipleRestrictions = allowMultiple.Get<bool>();
+        profile.RestrictionAxis.Values = configuration.GetSection(AccessConditionProfile.SimpleSectionName).Get<List<AccessRestriction>>() ?? [];
+        profile.AllowMultipleRestrictions = configuration.GetSection(AccessConditionProfile.AllowMultipleKey).Get<bool>();
     }
 
     private static AccessConditionProfile Load(string path)

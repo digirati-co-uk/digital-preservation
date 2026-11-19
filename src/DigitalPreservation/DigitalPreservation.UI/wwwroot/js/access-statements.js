@@ -44,13 +44,18 @@ function findStatement(value) {
     return accessStatements.values.find(v => v.value === value) ?? null;
 }
 
-function chosenStatement() {
-    return document.getElementById("accessStatementSelect")?.value || null;
+// The node's own statement after saving: the dropdown's choice, or on a read-only dialogue (no
+// dropdown) the statement it already has.
+function chosenStatement(node) {
+    const select = document.getElementById("accessStatementSelect");
+    if (!select) return node.ownOther[accessStatements.type] ?? null;
+    return select.value || null;
 }
 
-function chosenRestrictions() {
+// The node's own restrictions after saving, the same way.
+function chosenRestrictions(node) {
     const select = document.getElementById("accessRestrictionsSelect");
-    if (!select) return null;
+    if (!select) return node.ownRestrictions;
     return Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
@@ -72,23 +77,33 @@ function showOwnStatement(value) {
 
 function showStatementDescription() {
     const target = document.getElementById("accessStatementDescription");
-    if (target) target.textContent = findStatement(chosenStatement())?.description ?? "";
+    const chosen = document.getElementById("accessStatementSelect")?.value;
+    if (target) target.textContent = findStatement(chosen)?.description ?? "";
 }
 
 // ---- What the node will have after saving ---------------------------------------------------
 
-// The node's effective statement: the chosen one, else what it inherits (null for none).
+// The node's effective statement: its own, else what it inherits (null for none).
 function effectiveStatement(node) {
-    const chosen = chosenStatement();
-    if (chosen) return { value: chosen, inherited: false };
+    const own = chosenStatement(node);
+    if (own) return { value: own, inherited: false };
     return { value: node.inheritedOther[accessStatements.type] ?? null, inherited: true };
 }
 
-// The matrix rows: the chosen restriction(s), else the inherited ones, else the "none" row.
+// The matrix rows: the node's own restriction(s), else the inherited ones, else the "none" row.
 function effectiveRestrictions(node) {
-    const chosen = chosenRestrictions() ?? [];
-    if (chosen.length > 0) return chosen;
+    const own = chosenRestrictions(node);
+    if (own.length > 0) return own;
     return node.inheritedRestrictions.length > 0 ? node.inheritedRestrictions : [noneKey];
+}
+
+// Nothing on the node or above it: no restriction, no statement, no rights. The writer derives
+// nothing for such a node, so the dialogue shows no value either; what content with no access
+// conditions at all means (for Leeds, migrated material meant to be open) is for the builder.
+function hasNoInputsAnywhere(node) {
+    return effectiveRestrictions(node)[0] === noneKey
+        && effectiveStatement(node).value === null
+        && !hasOwnRights(node);
 }
 
 // Mirrors StatementProfile.ColumnFor.
@@ -105,9 +120,13 @@ function lookupCell(derived, row, column) {
 }
 
 // Mirrors StatementProfile.ResolveDerived: the most restrictive value over the rows.
-// Returns type -> { value, label } | { none: true }.
+// Returns type -> { value, label } | { none: true } (no cell) | { unset: true } (no inputs at all).
 function derivedValues(node) {
     const result = {};
+    if (hasNoInputsAnywhere(node)) {
+        for (const derived of accessStatements.derived) result[derived.type] = { unset: true };
+        return result;
+    }
     const rows = effectiveRestrictions(node);
     const column = columnFor(effectiveStatement(node).value);
     for (const derived of accessStatements.derived) {
@@ -132,11 +151,17 @@ function updateStatementPreviews() {
     showIiifPreview(statementNode);
 }
 
+function derivedText(v) {
+    if (v.unset) return "(none: no access conditions here or above)";
+    if (v.none) return "(no value for this combination)";
+    return `${v.label} (computed)`;
+}
+
 function showDerivedValues(derived) {
     for (const target of document.querySelectorAll(".derived-access-condition")) {
         const v = derived[target.dataset.derivedType];
-        const el = document.createElement(v.none ? "em" : "strong");
-        el.textContent = v.none ? "(no value for this combination)" : `${v.label} (computed)`;
+        const el = document.createElement(v.value === undefined ? "em" : "strong");
+        el.textContent = derivedText(v);
         target.replaceChildren(el);
     }
 }
@@ -176,9 +201,8 @@ function showMetsPreview(node, derived) {
 }
 
 function chosenElementLines(node) {
-    const restrictions = chosenRestrictions() ?? node.ownRestrictions;
-    const lines = restrictions.flatMap(r => accessConditionLines("restriction on access", r));
-    const statement = chosenStatement();
+    const lines = chosenRestrictions(node).flatMap(r => accessConditionLines("restriction on access", r));
+    const statement = chosenStatement(node);
     if (statement) lines.push(...accessConditionLines(accessStatements.type, statement));
     return lines;
 }
@@ -191,7 +215,7 @@ function hasOwnRights(node) {
 // knows (its rights URI, or the "none" sentinel); removed with a statement being cleared, since it
 // was written from it; otherwise whatever the node has, kept. Null when it will have none.
 function rightsAfterSave(node) {
-    const statement = chosenStatement();
+    const statement = chosenStatement(node);
     const found = findStatement(statement);
     if (found) {
         const entry = accessStatements.iiif?.entries.find(e => e.id === found.iiif);
@@ -231,7 +255,7 @@ function keptElementLines(node) {
 
 function derivedElementLines(derived, note) {
     return Object.entries(derived)
-        .filter(([, v]) => !v.none)
+        .filter(([, v]) => v.value !== undefined)
         .flatMap(([type, v]) => accessConditionLines(type, v.value, note));
 }
 

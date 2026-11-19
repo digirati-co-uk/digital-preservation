@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.AccessConditions;
 using DigitalPreservation.Mets.StorageImpl;
+using DigitalPreservation.Workspace.Requests;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -530,5 +531,50 @@ public class DerivedAccessConditionsWriterTests
         result.ErrorCode.Should().Be(ErrorCodes.UpstreamUnavailable);
         TypedConditions(metsUri, "DMD_objects", "restriction on access").Should().Equal("PA1"); // nothing was written
         TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("2");
+    }
+
+    // ---- The UI's two save paths (SetModsInformation, SetLogicalStructMap) --------------------
+
+    private Task<DigitalPreservation.Common.Model.Results.Result> SaveDialogue(Uri metsUri, string path, ModsChanges changes) =>
+        new SetModsInformationHandler(metsManager).Handle(new SetModsInformation(metsUri, path, null!, changes), CancellationToken.None);
+
+    [Fact]
+    public async Task A_dialogue_rendered_without_the_statement_field_leaves_the_statement_and_its_rights()
+    {
+        // The page could not fetch the profile when it rendered, so its form had no statement
+        // dropdown; by the time it is saved the profile is back. The save must not read the
+        // missing field as "clear the statement".
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-statement-not-in-form.xml");
+        SetStatement(fullMets, "objects", TestProfiles.HolderConditions);
+        await metsManager.WriteMets(fullMets);
+        var rights = TypedConditions(metsUri, "DMD_objects", "use and reproduction");
+        rights.Should().ContainSingle();
+
+        var changes = new ModsChanges(["PA1"], RightsChoice.LeaveUnchanged, null, [], null, StatementInForm: false);
+        (await SaveDialogue(metsUri, "objects", changes)).Success.Should().BeTrue();
+
+        TypedConditions(metsUri, "DMD_objects", Statement).Should().Equal(TestProfiles.HolderConditions);
+        TypedConditions(metsUri, "DMD_objects", "use and reproduction").Should().Equal(rights);
+        TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("3");
+    }
+
+    [Fact]
+    public async Task An_unavailable_profile_refuses_both_save_paths_with_its_reason()
+    {
+        var (metsUri, _) = await CreateMets("Outputs/derived-profile-unavailable-handlers.xml");
+        provider.Unavailable = true;
+
+        var dialogue = await SaveDialogue(metsUri, "objects",
+            new ModsChanges(["PA1"], RightsChoice.LeaveUnchanged, TestProfiles.LowRisk, [], null));
+        dialogue.ErrorCode.Should().Be(ErrorCodes.UpstreamUnavailable);
+        dialogue.ErrorMessage.Should().Contain("API down");
+
+        var structMap = await new SetLogicalStructMapHandler(metsManager).Handle(
+            new SetLogicalStructMap(metsUri, null!, new LogicalRange { Id = "LOG_ROOT", Type = "Collection", Name = "Root" }),
+            CancellationToken.None);
+        structMap.ErrorCode.Should().Be(ErrorCodes.UpstreamUnavailable);
+        structMap.ErrorMessage.Should().Contain("API down");
+
+        TypedConditions(metsUri, "DMD_objects", "restriction on access").Should().BeEmpty(); // nothing was written
     }
 }

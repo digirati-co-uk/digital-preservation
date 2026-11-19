@@ -89,8 +89,8 @@ therefore inherits exactly like the restriction, including the logical fallback.
 
 `MetsManager` keeps the explicit and effective derived values consistent with the chosen ones by
 construction, on every write: it rewrites the configured derived types from the *effective* chosen
-inputs (restriction and category) on every div that has an explicit chosen element, **and on every
-file div whose effective inputs come partly from its logical range** (A4a, or D3 for the category,
+inputs (restriction and statement) on every div that has an explicit chosen element, **and on every
+file div whose effective inputs come partly from its logical range** (A4a, or D3 for the statement,
 supplied an axis the folders were silent on - such a file could not inherit the right value through
 D2). It removes a derived element
 whose source has gone from any dmdSec it minted itself, and leaves a third party's dmdSec alone. D1-D4

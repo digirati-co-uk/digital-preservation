@@ -67,8 +67,11 @@ public interface IMetsManager
     Result SuppressRightsInheritanceByDivId(FullMets mets, string divId);
     Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
 
-    /// <summary>The <c>@type</c> of the installation's chosen statement axis (issue #433), or null without one.</summary>
-    Task<string?> GetAccessStatementTypeAsync();
+    /// <summary>
+    /// The <c>@type</c> of the installation's chosen statement axis (issue #433), or null without
+    /// one; a failure when the profile cannot be fetched.
+    /// </summary>
+    Task<Result<string?>> GetAccessStatementTypeAsync();
 
     /// <summary>Set, or with null clear, a node's chosen statement; see <see cref="GetAccessStatementTypeAsync"/>.</summary>
     Result SetAccessStatementByPath(FullMets mets, string localPath, string? statementType, string? statement);

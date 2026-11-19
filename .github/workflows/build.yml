@@ -126,6 +126,9 @@ jobs:
         run: dotnet build $SOLUTION --configuration $BUILD_CONFIG --no-restore
       - id: test-dotnet
         run: dotnet test --solution $SOLUTION --filter-not-trait 'Category=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
+      - id: test-ui-js
+        # The UI's JavaScript that mirrors C# (the access statements preview, issue #433). No packages.
+        run: node --test DigitalPreservation.UI.Tests/js/*.test.mjs
 
   build-push-images:
     runs-on: ubuntu-latest

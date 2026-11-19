@@ -21,7 +21,12 @@ public class SetLogicalStructMapHandler(IMetsManager metsManager) : IRequestHand
         if (metsResult is { Success: true, Value: not null })
         {
             var fullMets = metsResult.Value;
-            var setResult = metsManager.SetStructMap(fullMets, request.LogicalRange, await metsManager.GetAccessStatementTypeAsync());
+            var statementType = await metsManager.GetAccessStatementTypeAsync();
+            if (statementType.Failure)
+            {
+                return statementType;
+            }
+            var setResult = metsManager.SetStructMap(fullMets, request.LogicalRange, statementType.Value);
             if (setResult.Failure)
             {
                 return setResult;
@@ -29,7 +34,7 @@ public class SetLogicalStructMapHandler(IMetsManager metsManager) : IRequestHand
             var writeMetsResult = await metsManager.WriteMets(fullMets);
             if (writeMetsResult.Failure)
             {
-                return Result.Fail(writeMetsResult.ErrorCode!, "Unable to write METS file.");
+                return Result.Fail(writeMetsResult.ErrorCode!, writeMetsResult.ErrorMessage ?? "Unable to write METS file.");
             }
             return Result.Ok();
         }

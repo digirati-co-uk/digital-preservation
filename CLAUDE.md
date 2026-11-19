@@ -20,6 +20,9 @@ dotnet test --filter-method "*TestName*" --ignore-exit-code 8
 # Run only integration tests
 dotnet test --filter-trait "Category=Integration" --ignore-exit-code 8
 
+# Run the UI's JavaScript tests (Node's built-in runner, no packages)
+node --test DigitalPreservation.UI.Tests/js/*.test.mjs
+
 # Add a Preservation API migration
 dotnet ef migrations add "<migration-name>" -p Preservation.API -o Data/Migrations
 

@@ -683,7 +683,8 @@ public class DepositModel(
                 ReadRightsChoice(form),
                 string.IsNullOrEmpty(form.AccessStatement) ? null : form.AccessStatement,
                 form.RecordIdentifiers,
-                fileLinks);
+                fileLinks,
+                form.StatementInForm);
             var result = await WorkspaceManager.SetModsInformation(form.ModsContext, changes);
             ReportOutcome(result, "Metadata updated.", TempDataKeys.AccessConditionsUpdated);
         }
@@ -911,6 +912,12 @@ public class SetRightsAndAccessFormModel
     /// (issue #433).
     /// </summary>
     public bool RightsInForm { get; set; }
+    /// <summary>
+    /// True when the form carried the statement dropdown (issue #433). A form rendered without the
+    /// statement profile - its fetch failed - does not, and the node's statement is then left as it
+    /// is rather than cleared.
+    /// </summary>
+    public bool StatementInForm { get; set; }
     public RecordIdentifier[] RecordIdentifiers { get; set; } = [];
     public string? FileLinksJson { get; set; }
 }

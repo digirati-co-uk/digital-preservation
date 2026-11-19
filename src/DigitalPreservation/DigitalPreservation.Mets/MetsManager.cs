@@ -82,8 +82,7 @@ public class MetsManager(
         catch (AccessConditionProfileUnavailableException e)
         {
             logger?.LogError(e, "Refusing to write {MetsUri}: the access condition profile is unavailable, so its derived access conditions cannot be recomputed", fullMets.Uri);
-            return Result.Fail(ErrorCodes.UpstreamUnavailable,
-                "The access condition profile could not be fetched, so the METS file was not written: " + e.Message);
+            return Result.Fail(ErrorCodes.UpstreamUnavailable, ProfileUnavailableMessage(e));
         }
 
         if (NormaliseOnWrite)
@@ -1080,9 +1079,26 @@ public class MetsManager(
             ? Task.FromResult(new List<string>())
             : new DerivedAccessConditionWriter(derivedAccessConditionResolver, logger).ApplyAsync(fullMets);
 
-    /// <summary>The <c>@type</c> of the installation's chosen statement axis, or null without one.</summary>
-    public Task<string?> GetAccessStatementTypeAsync() =>
-        derivedAccessConditionResolver?.GetStatementTypeAsync() ?? Task.FromResult<string?>(null);
+    /// <summary>
+    /// The <c>@type</c> of the installation's chosen statement axis, or null without one. Fails, as
+    /// <see cref="WriteMets"/> does, when the profile cannot be fetched.
+    /// </summary>
+    public async Task<Result<string?>> GetAccessStatementTypeAsync()
+    {
+        if (derivedAccessConditionResolver == null) return Result.Ok<string>(null);
+        try
+        {
+            return Result.Ok(await derivedAccessConditionResolver.GetStatementTypeAsync());
+        }
+        catch (AccessConditionProfileUnavailableException e)
+        {
+            logger?.LogError(e, "The access condition profile is unavailable, so the statement type is unknown");
+            return Result.Fail<string>(ErrorCodes.UpstreamUnavailable, ProfileUnavailableMessage(e));
+        }
+    }
+
+    private static string ProfileUnavailableMessage(AccessConditionProfileUnavailableException e) =>
+        "The access condition profile could not be fetched, so the METS file was not written: " + e.Message;
 
     // ---- The chosen statement (issue #433): on an installation with a statement profile, chosen
     // ---- instead of a rights statement, written under the profile's type, inherited like the

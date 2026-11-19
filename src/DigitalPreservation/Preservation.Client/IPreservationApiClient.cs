@@ -112,8 +112,9 @@ public interface IPreservationApiClient
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// The installation's access-condition profile (issue #433): restriction vocabulary, rights
-    /// grouping and derived conditions. Cached briefly; a missing body is an empty profile.
+    /// The installation's access-condition profile (issue #433): the restriction vocabulary and,
+    /// with a statement profile, the statements and derived conditions. Cached briefly; a missing
+    /// body is an empty profile.
     /// </summary>
     Task<Result<AccessConditionProfile>> GetAccessConditions(CancellationToken cancellationToken = default);
     Task<Result<List<string>>> GetRangeTypes(CancellationToken cancellationToken = default);
