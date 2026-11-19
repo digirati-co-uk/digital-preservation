@@ -337,9 +337,7 @@ tr.where-both td {
     }
 }
 
-/* The metadata dialogue's METS preview (issue #433): one element per line, scrolled rather than
-   wrapped, so an element is never broken across lines. */
-/* One METS element per line; a line too long for the dialogue wraps with a hanging indent, so the
+/* The metadata dialogue's METS preview (issue #433): one METS element per line; a line too long for the dialogue wraps with a hanging indent, so the
    value is never off to the right. Notes (XML comments) are muted. */
 .access-preview-mets > div {
     padding-left: 2ch;
