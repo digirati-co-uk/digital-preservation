@@ -293,31 +293,32 @@ function shortLabelOf(values, value) {
 }
 
 function buildMetadataSummaryText(range) {
-    const parts = [];
+    const parts = accessSummaryParts(range);
+    const ids = range.recordInfo?.recordIdentifiers ?? [];
+    if (ids.length === 1) parts.push(`${ids[0].value} (${ids[0].source})`);
+    else if (ids.length > 1) parts.push(`${ids.length} IDs`);
+    return parts.length ? parts.join(' · ') : null;
+}
+
+// The range's own access values, by their short labels.
+function accessSummaryParts(range) {
     const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
     const statements = profile?.statements;
-    const statement = statements ? range.otherAccessConditions?.[statements.type] : undefined;
+    const other = range.otherAccessConditions ?? {};
+    const statement = statements ? other[statements.type] : undefined;
+    const parts = [];
     if (range.accessRestrictions?.length > 0)
         parts.push(range.accessRestrictions.map(v => shortLabelOf(profile?.restrictionAxis?.values, v)).join(', '));
     // With a statement of its own (issue #433) the range's rights are written from it: not repeated.
-    if (range.rightsStatement && statement === undefined) {
-        const label = getRightsShortLabel(range.rightsStatement);
-        if (label) parts.push(label);
-    }
+    const rights = statement === undefined ? getRightsShortLabel(range.rightsStatement) : null;
+    if (rights) parts.push(rights);
     // The chosen statement and the derived conditions (issue #433), the latter as last saved; the
     // server recomputes them when the structMap is saved.
-    if (statement !== undefined)
-        parts.push(shortLabelOf(statements.values, statement));
+    if (statement !== undefined) parts.push(shortLabelOf(statements.values, statement));
     for (const derived of statements?.derived ?? []) {
-        const value = range.otherAccessConditions?.[derived.type];
-        if (value !== undefined)
-            parts.push(shortLabelOf(derived.values, value));
+        if (other[derived.type] !== undefined) parts.push(shortLabelOf(derived.values, other[derived.type]));
     }
-    if (range.recordInfo?.recordIdentifiers?.length > 0) {
-        const ri = range.recordInfo.recordIdentifiers;
-        parts.push(ri.length === 1 ? `${ri[0].value} (${ri[0].source})` : `${ri.length} IDs`);
-    }
-    return parts.length ? parts.join(' · ') : null;
+    return parts;
 }
 
 // ----------------------------------------------------------------
@@ -632,29 +633,32 @@ function openModsModalForRange(structmapId, rangeId) {
     modsContextEl.value = rangeId;
     if (modsContextIsFileEl) modsContextIsFileEl.value = 'false';
 
-    // Build a fake launcher element with the range's metadata as data attributes
-    const root = logicalStructMapState[structmapId];
-    const range = root ? findRange(root, rangeId) : null;
-    const launcher = document.createElement('span');
-    launcher.dataset.access = (range?.accessRestrictions ?? []).join(',');
-    launcher.dataset.effAccess = (range?.effectiveAccessRestrictions ?? []).join(',');
-    launcher.dataset.rights = getRightsShortLabel(range?.rightsStatement) ?? '';
-    launcher.dataset.effRights = getRightsShortLabel(range?.effectiveRightsStatement) ?? '';
-    launcher.dataset.other = JSON.stringify(range?.otherAccessConditions ?? {});
-    launcher.dataset.effOther = JSON.stringify(range?.effectiveOtherAccessConditions ?? {});
-    // What the range would have without its own values: from the server, or for a range added in
-    // the browser since, its parent range's.
-    const parent = root ? findParentAndIndex(root, rangeId)?.parent : null;
-    launcher.dataset.inhAccess = (range?.inheritedAccessRestrictions ?? parent?.effectiveAccessRestrictions ?? []).join(',');
-    launcher.dataset.inhOther = JSON.stringify(range?.inheritedOtherAccessConditions ?? parent?.effectiveOtherAccessConditions ?? {});
-    launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
-    launcher.dataset.toolOutput = '';
-
+    const launcher = rangeLauncher(logicalStructMapState[structmapId], rangeId);
     if (typeof populateModsModalFromAttributes === 'function') {
         populateModsModalFromAttributes(launcher);
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modsModal')).show();
+}
+
+// A stand-in for the tree's launcher element: the range's metadata as data attributes.
+function rangeLauncher(root, rangeId) {
+    const range = (root ? findRange(root, rangeId) : null) ?? {};
+    // What the range would have without its own values: from the server, or for a range added in
+    // the browser since, its parent range's.
+    const parent = (root ? findParentAndIndex(root, rangeId)?.parent : null) ?? {};
+    const launcher = document.createElement('span');
+    launcher.dataset.access = (range.accessRestrictions ?? []).join(',');
+    launcher.dataset.effAccess = (range.effectiveAccessRestrictions ?? []).join(',');
+    launcher.dataset.rights = getRightsShortLabel(range.rightsStatement) ?? '';
+    launcher.dataset.effRights = getRightsShortLabel(range.effectiveRightsStatement) ?? '';
+    launcher.dataset.other = JSON.stringify(range.otherAccessConditions ?? {});
+    launcher.dataset.effOther = JSON.stringify(range.effectiveOtherAccessConditions ?? {});
+    launcher.dataset.inhAccess = (range.inheritedAccessRestrictions ?? parent.effectiveAccessRestrictions ?? []).join(',');
+    launcher.dataset.inhOther = JSON.stringify(range.inheritedOtherAccessConditions ?? parent.effectiveOtherAccessConditions ?? {});
+    launcher.dataset.recordinfo = toRecordInfoCompact(range.recordInfo) ?? '';
+    launcher.dataset.toolOutput = '';
+    return launcher;
 }
 
 // ----------------------------------------------------------------
