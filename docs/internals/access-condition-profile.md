@@ -213,10 +213,10 @@ The detail is on the documentation site and in
   on a logical div does not survive a logical-structure edit in the UI (open on #433).
 - Only the derived types and the rights statement are rewritten. Other typed `accessCondition`
   elements are left as found.
-- The dialogue has a **Preview METS and IIIF** button: the `mods:accessCondition` elements the node
-  will carry after saving, and the `rights` and `requiredStatement` a IIIF manifest built from this
-  profile would carry. Nothing in the preview is saved; the IIIF `requiredStatement` text is never
-  written to METS.
+- The dialogue has two collapsed previews: **Preview IIIF rights** (the `rights` and
+  `requiredStatement` a IIIF manifest built from this profile would carry) and **Preview METS access
+  conditions** (the `mods:accessCondition` elements the node will carry after saving). Nothing in
+  either is saved; the IIIF `requiredStatement` text is never written to METS.
   The tier and both previews always show real values: when a node's own value is cleared, they use
   what it inherits (the parser's `InheritedAccessRestrictions` and `InheritedOtherAccessConditions`).
 - The tree shows the restriction, statement and tier beside each node by their short labels;
