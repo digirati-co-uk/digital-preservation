@@ -1,0 +1,1177 @@
+{
+  "about": "The expected judgement of every document in this folder, asserted by BOTH test suites (tests.py and EditabilityJudgeTests.cs), so that the two judges are tested to agree rather than assumed to. Each finding is its code, followed by ' xN' when it occurred N times; order matters. Messages are not pinned here. Each fixture's first comment says what it pins; change an entry only together with the rule it pins, and with CONTRACT.md.",
+  "judgements": [
+    {
+      "document": "area-blank-begin.xml",
+      "pins": "a logical time segment with BEGIN=\"\" - the parser's time-code reader throws on a blank",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "TIME_VALUE_BLANK"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-empty-label.xml",
+      "pins": "LABEL=\"\" on a Directory div - the parser throws",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "DIRECTORY_NO_LABEL"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-foreign-storage-location.xml",
+      "pins": "another system's storage on a Directory is never read as its location, whatever it holds",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "FOREIGN_STORAGE_LOCATION"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "directory-lowercase-no-label.xml",
+      "pins": "a div typed \"directory\" (any case) with no LABEL - the parser throws whatever the tier",
+      "verdict": "not-editable",
+      "fileCount": 2,
+      "reasons": [
+        "DIRECTORY_NO_LABEL"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "directory-originalname-dotdot.xml",
+      "pins": "a Directory's premis:originalName climbing out of the deposit - the parser throws",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "DIRECTORY_PATH_INVALID"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-originalname-url.xml",
+      "pins": "a Directory's premis:originalName that is a URL, not a deposit path",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "DIRECTORY_PATH_INVALID"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-storage-location-relative.xml",
+      "pins": "a Directory's own (platform) storage location that is not an absolute URI - the parser's new Uri() throws",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "DIRECTORY_LOCATION_NOT_URI"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-two-originalnames.xml",
+      "pins": "two premis:originalName in a Directory's section",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "PREMIS_REPEATED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "dmdid-same-token-twice.xml",
+      "pins": "one div naming the same dmdSec twice is not sharing it",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "doctype-external-entity.xml",
+      "pins": "a DTD with an external entity - Python failed to parse it, .NET expanded it to nothing; both now refuse it",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "DOCTYPE_DECLARED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "doctype-internal-entity.xml",
+      "pins": "any DTD is refused - here one with an internal entity",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "DOCTYPE_DECLARED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "duplicate-dmdsec-ids.xml",
+      "pins": "two dmdSecs with one ID - .NET threw, Python reported DUPLICATE_ID",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "DUPLICATE_ID"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "duplicate-path.xml",
+      "pins": "two distinct files claiming one path",
+      "verdict": "not-editable",
+      "fileCount": 2,
+      "reasons": [
+        "DUPLICATE_PATH"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "duration-blank.xml",
+      "pins": "a blank premis Duration in a file's section - the parser's time-code reader throws on a blank",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "TIME_VALUE_BLANK"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "eprints-case-variant-types.xml",
+      "pins": "TYPE is compared case-insensitively: a labelled \"directory\" root and \"item\" file divs reach the tier, and the save retypes them",
+      "verdict": "editable-with-normalisation",
+      "fileCount": 2,
+      "reasons": [],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL",
+        "CASE_INSENSITIVE_DIV_TYPE x3",
+        "IMPLIED_OBJECTS_DIV"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": [
+        "set TYPE=\"PHYSICAL\" on the structMap",
+        "set TYPE=\"Directory\" on the root div",
+        "set TYPE=\"Item\" on 2 file div(s)",
+        "materialise the objects Directory div (amdSec/techMD with premis:originalName) and re-parent 2 file div(s) under it",
+        "consolidate 2 fileGrp(s) into one USE=\"OBJECTS\" group",
+        "wrap the payload of 2 mdWrap(s) in the mets:xmlData element the schema requires",
+        "append the platform agent to metsHdr"
+      ]
+    },
+    {
+      "document": "eprints-file-div-two-fptrs.xml",
+      "pins": "E_ITEM_ONE_FPTR: a file div with two fptrs",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-foreign-dmdsec-shared.xml",
+      "pins": "the EPrints root dmdSec (claims MODS, holds none) is foreign: noted, and sharing it is fine",
+      "verdict": "editable-with-normalisation",
+      "fileCount": 2,
+      "reasons": [],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL",
+        "UNTYPED_DIV_ASSUMED_ITEM x2",
+        "IMPLIED_OBJECTS_DIV"
+      ],
+      "notes": [
+        "METS_NAMESPACE_RECORD_INFO",
+        "FOREIGN_DMDSEC",
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": [
+        "set TYPE=\"PHYSICAL\" on the structMap",
+        "set TYPE=\"Directory\" on the root div",
+        "set LABEL=\"__ROOT\" on the root div",
+        "set TYPE=\"Item\" on 2 file div(s)",
+        "materialise the objects Directory div (amdSec/techMD with premis:originalName) and re-parent 2 file div(s) under it",
+        "consolidate 2 fileGrp(s) into one USE=\"OBJECTS\" group",
+        "wrap the payload of 2 mdWrap(s) in the mets:xmlData element the schema requires",
+        "append the platform agent to metsHdr"
+      ]
+    },
+    {
+      "document": "eprints-href-subdirectory.xml",
+      "pins": "a file in objects/sub/ needs directory divs the save does not create",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_HREF_UNDER_OBJECTS"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-invalid-ids.xml",
+      "pins": "an EPrints-shaped document whose IDs are not legal NCNames needs the #188 normalisation first",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "INVALID_IDS",
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "LEGACY_IDS",
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-minimal.xml",
+      "pins": "the smallest EPrints-shaped document reaches the EPrints tier, with the save's mutations listed",
+      "verdict": "editable-with-normalisation",
+      "fileCount": 2,
+      "reasons": [],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL",
+        "UNTYPED_DIV_ASSUMED_ITEM x2",
+        "IMPLIED_OBJECTS_DIV"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": [
+        "set TYPE=\"PHYSICAL\" on the structMap",
+        "set TYPE=\"Directory\" on the root div",
+        "set LABEL=\"__ROOT\" on the root div",
+        "set TYPE=\"Item\" on 2 file div(s)",
+        "materialise the objects Directory div (amdSec/techMD with premis:originalName) and re-parent 2 file div(s) under it",
+        "consolidate 2 fileGrp(s) into one USE=\"OBJECTS\" group",
+        "wrap the payload of 2 mdWrap(s) in the mets:xmlData element the schema requires",
+        "append the platform agent to metsHdr"
+      ]
+    },
+    {
+      "document": "eprints-mixed-use.xml",
+      "pins": "E_MIXED_FILEGRP_USE: groups that disagree on USE",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_MIXED_FILEGRP_USE"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-nested-divs.xml",
+      "pins": "E_NOT_FLAT: a div nested two levels below the root",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_NOT_FLAT",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-nested-filegrp.xml",
+      "pins": "a file in a nested fileGrp is still held to the tier's file rules, and nesting fails it",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_FLAT_FILEGRPS",
+        "E_HREF_UNDER_OBJECTS"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-no-files.xml",
+      "pins": "an EPrints-shaped document with no files fails the EPrints tier (E_HAS_FILES) - there is nothing to restructure",
+      "verdict": "navigable-read-only",
+      "fileCount": 0,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_HAS_FILES"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2",
+        "NO_FILES"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-no-sha256.xml",
+      "pins": "E_SHA256: MD5 fixity only",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "P_SHA256",
+        "E_SHA256"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-root-fptr.xml",
+      "pins": "the root div pointing at a file itself (E_ROOT_NO_FPTR)",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_ROOT_NO_FPTR"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-sample-after-save.xml",
+      "pins": "EPrints.10315.METS.xml with the judge's eight save mutations applied by hand is editable - the mutation list yields the platform shape",
+      "verdict": "editable",
+      "fileCount": 4,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "METS_NAMESPACE_RECORD_INFO",
+        "FOREIGN_DMDSEC"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-typed-page-divs.xml",
+      "pins": "divs typed in EPrints' own vocabulary would need retyping the save does not do",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "P_SINGLE_OBJECTS_GROUP",
+        "P_DIV_TYPED",
+        "E_ROOT_TYPE",
+        "E_FILE_DIV_TYPE"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "eprints-unreferenced-objects-group.xml",
+      "pins": "an unreferenced second group is consolidated too - the save counts every group",
+      "verdict": "editable-with-normalisation",
+      "fileCount": 2,
+      "reasons": [],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL",
+        "UNTYPED_DIV_ASSUMED_ITEM x2",
+        "IMPLIED_OBJECTS_DIV"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": [
+        "set TYPE=\"PHYSICAL\" on the structMap",
+        "set TYPE=\"Directory\" on the root div",
+        "set LABEL=\"__ROOT\" on the root div",
+        "set TYPE=\"Item\" on 2 file div(s)",
+        "materialise the objects Directory div (amdSec/techMD with premis:originalName) and re-parent 2 file div(s) under it",
+        "consolidate 2 fileGrp(s) into one USE=\"OBJECTS\" group",
+        "wrap the payload of 2 mdWrap(s) in the mets:xmlData element the schema requires",
+        "append the platform agent to metsHdr"
+      ]
+    },
+    {
+      "document": "eprints-with-storage.xml",
+      "pins": "EPrints' file:// storage assertions are noted as foreign, and the tier holds",
+      "verdict": "editable-with-normalisation",
+      "fileCount": 2,
+      "reasons": [],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL",
+        "UNTYPED_DIV_ASSUMED_ITEM x2",
+        "IMPLIED_OBJECTS_DIV"
+      ],
+      "notes": [
+        "FOREIGN_STORAGE_LOCATION",
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": [
+        "set TYPE=\"PHYSICAL\" on the structMap",
+        "set TYPE=\"Directory\" on the root div",
+        "set LABEL=\"__ROOT\" on the root div",
+        "set TYPE=\"Item\" on 2 file div(s)",
+        "materialise the objects Directory div (amdSec/techMD with premis:originalName) and re-parent 2 file div(s) under it",
+        "consolidate 2 fileGrp(s) into one USE=\"OBJECTS\" group",
+        "wrap the payload of 2 mdWrap(s) in the mets:xmlData element the schema requires",
+        "append the platform agent to metsHdr"
+      ]
+    },
+    {
+      "document": "file-directly-under-filesec.xml",
+      "pins": "a mets:file directly in fileSec (no fileGrp) is not a file the judge resolves - .NET used to",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "FILEID_UNRESOLVED"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "file-no-href.xml",
+      "pins": "a referenced file whose FLocat has no href",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "FILE_NO_HREF"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "file-referenced-twice.xml",
+      "pins": "one file referenced from two physical divs - the parser lists it twice and throws",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "FILE_REFERENCED_TWICE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "file-two-flocats.xml",
+      "pins": "a referenced file with two FLocats - the parser reads exactly one",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "FILE_SEVERAL_FLOCATS"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "filegrp-admid.xml",
+      "pins": "an ADMID on a fileGrp is outside the platform's survival index: noted",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "ADMID_OUTSIDE_SURVIVAL_INDEX"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "filegrp-empty-admid.xml",
+      "pins": "ADMID=\"\" on a fileGrp is no ADMID",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "fileid-unresolved-three-times.xml",
+      "pins": "three unresolved FILEIDs, two with a newline in them, report one finding with count 3",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "FILEID_UNRESOLVED x3"
+      ],
+      "assumptions": [
+        "UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL"
+      ],
+      "notes": [
+        "NO_XMLDATA_WRAPPER x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "fptr-without-fileid.xml",
+      "pins": "an area-only fptr in the physical map - the parser requires FILEID on every physical fptr",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "FPTR_NO_FILEID"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "href-absolute-url.xml",
+      "pins": "the standing deposit-relative guard: an https href",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "HREF_NOT_DEPOSIT_RELATIVE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "href-backslash.xml",
+      "pins": "a backslash in an href - the parser refuses it",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "HREF_NOT_DEPOSIT_RELATIVE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "href-empty-segment.xml",
+      "pins": "an empty segment - the path cache does not normalise, so the entry is unreachable",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "HREF_NOT_NORMALISED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "href-encoded-dot.xml",
+      "pins": "a percent-encoded . segment - a dot segment to the parser",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "HREF_NOT_NORMALISED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "href-encoded-dotdot.xml",
+      "pins": "a percent-encoded .. segment - the parser refuses it",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "HREF_NOT_DEPOSIT_RELATIVE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "href-encoded-slash.xml",
+      "pins": "a percent-encoded separator inside a segment - the parser refuses it",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "HREF_NOT_DEPOSIT_RELATIVE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "logical-area-dangling.xml",
+      "pins": "C_AREA_FILEID_RESOLVES: a logical area pointing at nothing",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_AREA_FILEID_RESOLVES",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "logical-fptr-dangling.xml",
+      "pins": "C_FILEID_RESOLVES: a logical fptr pointing at nothing",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_FILEID_RESOLVES",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "logical-only.xml",
+      "pins": "no structMap is physical or untyped",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "NO_PHYSICAL_STRUCTMAP"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "logical-root-empty-id.xml",
+      "pins": "a logical map (TYPE=\"Logical\") whose root div has ID=\"\" cannot be addressed",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_LOGICAL_ROOT_HAS_ID",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [
+        "LEGACY_IDS"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "malformed.xml",
+      "pins": "a document that is not well-formed is PARSE_FAILED, never a crash",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "PARSE_FAILED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "nested-mets-in-xmldata.xml",
+      "pins": "a METS document embedded in an xmlData payload - the parser would read its parts as this document's",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "SEVERAL_METS_ELEMENTS"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "no-mets-element.xml",
+      "pins": "a well-formed document with no mets:mets is PARSE_FAILED",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "PARSE_FAILED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "no-root-div.xml",
+      "pins": "the judged structMap has no div",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "NO_ROOT_DIV"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "other-typed-then-untyped.xml",
+      "pins": "the parser walks the first non-logical map (TYPE=\"OTHER\"), so the judge must not walk the later untyped one",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "NO_PHYSICAL_STRUCTMAP"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-agent-name-empty.xml",
+      "pins": "an agent with an empty name is not an agent (P_AGENT)",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_AGENT",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-digest-not-hex.xml",
+      "pins": "a SHA256 'digest' that is not 64 hex digits (P_SHA256)",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_SHA256",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR",
+        "E_SHA256"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-directory-admid-dangling.xml",
+      "pins": "a Directory ADMID that names nothing anchors no path (P_DIRECTORY_ADMID)",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_DIRECTORY_ADMID",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-directory-no-originalname.xml",
+      "pins": "a Directory ADMID naming an amdSec with no premis:originalName",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_DIRECTORY_ADMID",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-div-untyped.xml",
+      "pins": "P_DIV_TYPED: an untyped div in the platform shape",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_DIV_TYPED",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-empty-skeleton.xml",
+      "pins": "the platform's own freshly-created skeleton (no files yet) is editable, with a NO_FILES note",
+      "verdict": "editable",
+      "fileCount": 0,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "NO_FILES"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "platform-item-two-fptrs.xml",
+      "pins": "P_ITEM_ONE_FPTR: an Item with two fptrs",
+      "verdict": "navigable-read-only",
+      "fileCount": 2,
+      "reasons": [
+        "P_ITEM_ONE_FPTR",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-legacy-ids.xml",
+      "pins": "a pre-#214 document with raw path IDs is editable, with the count of illegal IDs noted",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "LEGACY_IDS x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "platform-minimal.xml",
+      "pins": "the smallest document in the platform's own shape is editable",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-nested-filegrp.xml",
+      "pins": "P_SINGLE_OBJECTS_GROUP: a fileGrp nested inside the OBJECTS group",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_SINGLE_OBJECTS_GROUP",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR",
+        "E_FLAT_FILEGRPS"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-sha512-only.xml",
+      "pins": "a file whose only fixity is SHA-512 has no SHA256 (P_SHA256)",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_SHA256",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR",
+        "E_SHA256"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "platform-subdirectory-no-admid.xml",
+      "pins": "a Directory below the root without ADMID: noted, and not the platform shape",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_DIRECTORY_ADMID",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [
+        "DIRECTORY_DIV_NO_ADMID"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "platform-two-filegrps.xml",
+      "pins": "P_SINGLE_OBJECTS_GROUP: a second, unreferenced fileGrp",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_SINGLE_OBJECTS_GROUP",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR",
+        "E_MIXED_FILEGRP_USE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "record-identifier-no-source.xml",
+      "pins": "a mods:recordIdentifier without @source in a referenced dmdSec - the parser dereferences it",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "RECORD_IDENTIFIER_NO_SOURCE"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "shared-mods-dmdsec.xml",
+      "pins": "SHARED_DMDSEC: one MODS dmdSec referenced from two divs",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "SHARED_DMDSEC",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "smlink-dangling-to.xml",
+      "pins": "C_SMLINK_TO_RESOLVES: an smLink whose xlink:to names nothing",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_SMLINK_TO_RESOLVES",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "smlink-missing-from.xml",
+      "pins": "C_SMLINK_FROM_RESOLVES: an smLink with no xlink:from",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_SMLINK_FROM_RESOLVES",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "storage-medium-comment.xml",
+      "pins": "a comment inside storageMedium does not split the text (string value, as XElement.Value)",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "structmap-lowercase-with-exact-sibling.xml",
+      "pins": "the first case-insensitively physical map is judged; a conformant TYPE=\"PHYSICAL\" sibling cannot carry the tier",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "P_PHYSICAL_STRUCTMAP",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [
+        "CASE_INSENSITIVE_STRUCTMAP_TYPE"
+      ],
+      "notes": [
+        "MULTIPLE_PHYSICAL_CANDIDATES x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "structmap-type-dotless-i.xml",
+      "pins": "parity: TYPE=\"physıcal\" (dotless i) is not physical - only ASCII case is folded, as the parser does",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "NO_PHYSICAL_STRUCTMAP"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "structmap-type-empty.xml",
+      "pins": "TYPE=\"\" is neither physical nor untyped - the parser would walk it",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "NO_PHYSICAL_STRUCTMAP"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "too-deep.xml",
+      "pins": "nesting deeper than 256 elements is refused before any rule runs",
+      "verdict": "not-editable",
+      "fileCount": 0,
+      "reasons": [
+        "TOO_DEEP"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "two-fixities.xml",
+      "pins": "two premis:fixity in a file's section - the parser reads exactly one",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "PREMIS_REPEATED"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "two-physical-structmaps.xml",
+      "pins": "with two physical maps the first is judged and the second, noted, cannot demote it",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "MULTIPLE_PHYSICAL_CANDIDATES x2"
+      ],
+      "mutations": []
+    },
+    {
+      "document": "two-root-divs.xml",
+      "pins": "the judged structMap has two root divs; METS allows one and the editing model keeps one",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_ONE_ROOT_DIV"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "unreferenced-file-two-flocats.xml",
+      "pins": "C_ONE_FLOCAT: a file nothing in the physical map references, with two FLocats",
+      "verdict": "navigable-read-only",
+      "fileCount": 1,
+      "reasons": [
+        "C_ONE_FLOCAT",
+        "E_NOT_FLAT",
+        "E_FILE_DIV_TYPE",
+        "E_ITEM_ONE_FPTR"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "wrapper-root.xml",
+      "pins": "a mets:mets inside a wrapper element is judged like the bare document (the schematron runs on a detached copy)",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    }
+  ]
+}

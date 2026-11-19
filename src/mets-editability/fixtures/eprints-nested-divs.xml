@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pins: E_NOT_FLAT: a div nested two levels below the root -->
+<mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:mods="http://www.loc.gov/mods/v3">
+  <mets:metsHdr>
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>EPrints 3.3.15</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:amdSec ID="AMD_eprint_1">
+    <mets:techMD ID="AMD_1">
+      <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+        <premis:object>
+          <premis:objectCharacteristics>
+            <premis:fixity>
+              <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+              <premis:messageDigest>509b0d4641a7c3ba088ffa28559d1f57207ea980447bc1773b1d406d788386ee</premis:messageDigest>
+            </premis:fixity>
+            <premis:size>3</premis:size>
+          </premis:objectCharacteristics>
+        </premis:object>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:techMD ID="AMD_2">
+      <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+        <premis:object>
+          <premis:objectCharacteristics>
+            <premis:fixity>
+              <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+              <premis:messageDigest>7a11ab94584454526cb0479a2e3b96aa5e1c9659290fd7d4cb5dbd28dce7d318</premis:messageDigest>
+            </premis:fixity>
+            <premis:size>3</premis:size>
+          </premis:objectCharacteristics>
+        </premis:object>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="reference">
+      <mets:file ID="eprint_1_1" ADMID="AMD_1">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/a.jpg"/>
+      </mets:file>
+    </mets:fileGrp>
+    <mets:fileGrp USE="reference">
+      <mets:file ID="eprint_1_2" ADMID="AMD_2">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/b.jpg"/>
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap>
+    <mets:div>
+      <mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_1_1"/>
+        </mets:div>
+      </mets:div>
+      <mets:div>
+        <mets:fptr FILEID="eprint_1_2"/>
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+</mets:mets>

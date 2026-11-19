@@ -82,6 +82,7 @@ The data flow for a typical preservation operation:
 | `DigitalPreservation.CommonApiClient` | Base HTTP client infrastructure, `TokenScope` |
 | `DigitalPreservation.Workspace` | `WorkspaceManager` — the key class that merges the S3 file tree with the METS structure into a `CombinedDirectory` used by both Preservation API (for diff) and Pipeline API (for characterization) |
 | `DigitalPreservation.Mets` | METS parsing/writing (`MetsParser`, `MetsManager`, `PremisManager`), METS IDs and normalisation (`MetsIds`, `MetsIdNormaliser`), `MetsCache` |
+| `DigitalPreservation.Mets.Conformance` | The .NET half of the METS editability judge (`EditabilityJudge`, issue #223); see `src/mets-editability/` below. Not yet consumed by any service |
 | `Storage.Repository.Common` | S3 access (`IStorage`), the S3-backed METS loader and storage (`Mets/StorageImpl`), OCFL helpers, shared by Storage and Pipeline |
 | `Storage.Client` / `Preservation.Client` | HTTP clients for consuming Storage and Preservation APIs (follow ADR-0000 pattern below) |
 | `LeedsDlipServices` | Leeds Identity Service client (mints PIDs/manifest URIs), MVP Catalogue API client |
@@ -102,6 +103,10 @@ Tracks processed activities in its own PostgreSQL DB. Configured via `.env` file
 ### Python Tool (`src/mets-id-migration/`)
 
 A one-off, operator-run migration of preserved METS documents to legal `xs:ID` values (issue #188 step 3). Drives the Preservation API and never writes to S3, Fedora or OCFL directly; the rewriting itself lives in `MetsManager.NormaliseIds`, so there is no second METS writer. `survey` and `list` change nothing and size the job; `migrate` creates a METS-only deposit per Archival Group, normalises, refuses any diff that is not a single METS patch, and preserves with the Activity Stream event suppressed. See `src/mets-id-migration/README.md` and `docs/issues/188/issue-188-step3-migration.md`.
+
+### Python and .NET: the METS editability judge (`src/mets-editability/`)
+
+Given a METS document, says whether the platform may edit it: `editable` (the platform's own shape), `editable-with-normalisation` (the EPrints shape; lists what the first save would change), `navigable-read-only` or `not-editable` (anything the platform's parser cannot load, among others). Two implementations of one contract, `src/mets-editability/CONTRACT.md`: the Python package here and `DigitalPreservation.Mets.Conformance`, written function for function. The XML-visible rules are Schematron (`schematron/*.sch`), compiled by `tools/compile_schematron.py` into the committed `schematron/compiled/*.xsl`, which both run; after editing a `.sch`, recompile. Parity is tested: `fixtures/judgements.json` is asserted by both test suites (`python -m unittest tests` here, `DigitalPreservation.Mets.Conformance.Tests` in the solution). Read-only and not yet wired into the platform (that is #223's Phase 4).
 
 ## Key Domain Concepts
 
@@ -146,7 +151,7 @@ A one-off, operator-run migration of preserved METS documents to legal `xs:ID` v
 
 ## CI/CD
 
-GitHub Actions builds and tests the .NET solution, then pushes six Docker images to AWS ECR: `dlip-pres-storage-api`, `dlip-pres-storage-api-importer`, `dlip-pres-preservation-api`, `dlip-pres-preservation-ui`, `dlip-pres-pipeline-api`, `dlip-pres-deposit-archiver`. The iiif-builder (`dlip-pres-iiif-builder`) has a separate workflow. Deployment retags images with the environment name and restarts ECS services. Pipeline API uses an EC2 cluster (`EC2_CLUSTER_NAME`); all others use Fargate (`CLUSTER_NAME`). PRs with the `deploy` label are deployed to `development`; pushes to `main` deploy to `development` automatically.
+GitHub Actions builds and tests the .NET solution (and, in `test-mets-editability`, the Python editability judge, checking its compiled Schematron is current), then pushes six Docker images to AWS ECR: `dlip-pres-storage-api`, `dlip-pres-storage-api-importer`, `dlip-pres-preservation-api`, `dlip-pres-preservation-ui`, `dlip-pres-pipeline-api`, `dlip-pres-deposit-archiver`. The iiif-builder (`dlip-pres-iiif-builder`) has a separate workflow. Deployment retags images with the environment name and restarts ECS services. Pipeline API uses an EC2 cluster (`EC2_CLUSTER_NAME`); all others use Fargate (`CLUSTER_NAME`). PRs with the `deploy` label are deployed to `development`; pushes to `main` deploy to `development` automatically.
 
 ## Documentation
 

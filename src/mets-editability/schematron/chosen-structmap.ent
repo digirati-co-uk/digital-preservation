@@ -1,0 +1,17 @@
+<!--
+The ONE structMap the judge walks, spelt out in XPath 1.0 so that rules scoped to it cannot
+accidentally judge an unchosen sibling map (which is preserved as parsed and never edited).
+The native code makes the same choice the platform's parser makes (CONTRACT.md, "Physical
+structMap selection") and refuses a document whose choice would fall on a map typed neither
+physical nor at all - so by the time these rules run, the chosen map is one of these two:
+
+  chosenExplicit - the first structMap whose TYPE is "physical" in any ASCII case;
+  chosenUntyped  - otherwise, the first structMap with no TYPE.
+
+Shared by common.sch, platform-tier.sch and eprints-tier.sch, which pull it in as an external
+parameter entity. Only tools/compile_schematron.py reads the .sch sources; the compiled XSLT
+has these expansions written out.
+-->
+<!ENTITY physicalType "translate(@TYPE, 'PHYSICAL', 'physical') = 'physical'">
+<!ENTITY chosenExplicit "mets:structMap[&physicalType;][not(preceding-sibling::mets:structMap[&physicalType;])]">
+<!ENTITY chosenUntyped "mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[&physicalType;])]">
