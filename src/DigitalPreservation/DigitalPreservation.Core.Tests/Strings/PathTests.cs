@@ -74,6 +74,30 @@ public class PathTests
         path.GetPathBelow(parent).Should().BeNull();
     }
 
+    // IsStrictlyBelow (issue #388 item 2.7) is GetPathBelow's yes/no form, used by both APIs'
+    // "resource lies within its Archival Group" check in place of hand-rolled TrimEnd('/') + "/"
+    // and StartsWith. Same cases as the two theories above, through the bool-returning form.
+    [Theory]
+    [InlineData("aa/bb/cc", "aa")]
+    [InlineData("aa/bb/cc", "aa/bb")]
+    [InlineData("/aa/bb/cc", "/aa/bb")]
+    [InlineData("/aa/bb", "/")]              // "/" is a real root
+    public void IsStrictlyBelow_IsTrue_WhenPathIsAChildOfParent(string path, string parent)
+    {
+        path.IsStrictlyBelow(parent).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("aa/bb", "aa/bb")]          // equal, not below
+    [InlineData("aa/bbb", "aa/bb")]         // longer sibling, not a child
+    [InlineData("aa/bb", "aa/bb/cc")]       // above, not below
+    [InlineData("xx/bb/cc", "aa")]          // elsewhere entirely
+    [InlineData("aa/bb", "")]               // no parent means nothing is "below" it
+    public void IsStrictlyBelow_IsFalse_WhenPathIsNotAStrictChildOfParent(string path, string parent)
+    {
+        path.IsStrictlyBelow(parent).Should().BeFalse();
+    }
+
     [Fact]
     public void Can_Walk_Up()
     {

@@ -1,11 +1,10 @@
 ﻿using System.Security.Cryptography;
-using System.Text;
 
 namespace DigitalPreservation.Utils;
 
 public static class Checksum
 {
-    public static string? HashFromStream(Stream openedStream, HashAlgorithm hashAlgorithm)
+    public static string? HashFromStream(Stream openedStream, Func<Stream, byte[]> hash)
     {
         try
         {
@@ -14,7 +13,7 @@ public static class Checksum
                 openedStream.Position = 0;
             }
             // Compute the hash of the fileStream.
-            byte[] hashValue = hashAlgorithm.ComputeHash(openedStream);
+            byte[] hashValue = hash(openedStream);
             // Write the name and hash value of the file to the console.
             return FromByteArray(hashValue);
         }
@@ -31,40 +30,22 @@ public static class Checksum
 
     public static string? Sha256FromFile(FileInfo fileInfo)
     {
-        using SHA256 sha256 = SHA256.Create();
         // Read-only and shared: the parameterless Open(FileMode.Open) defaults to
         // FileAccess.ReadWrite + FileShare.None, which fails on read-only files and
         // throws if anything else has the file open (e.g. concurrent parses of the same METS).
         using FileStream fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
-        return HashFromStream(fileStream, sha256);
+        return HashFromStream(fileStream, SHA256.HashData);
     }
 
     public static string? Sha512FromFile(FileInfo fileInfo)
     {
-        using SHA512 sha512 = SHA512.Create();
         using FileStream fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
-        return HashFromStream(fileStream, sha512);
+        return HashFromStream(fileStream, SHA512.HashData);
     }
 
 
-    public static string? Sha256FromStream(Stream stream)
-    {
-        using SHA256 sha256 = SHA256.Create();
-        return HashFromStream(stream, sha256);
-    }
-    public static string? Sha512FromStream(Stream stream)
-    {
-        using SHA512 sha512 = SHA512.Create();
-        return HashFromStream(stream, sha512);
-    }
+    public static string? Sha256FromStream(Stream stream) => HashFromStream(stream, SHA256.HashData);
+    public static string? Sha512FromStream(Stream stream) => HashFromStream(stream, SHA512.HashData);
 
-    public static string FromByteArray(byte[] hashValue)
-    {
-        var sb = new StringBuilder();
-        for (int i = 0; i < hashValue.Length; i++)
-        {
-            sb.Append(hashValue[i].ToString("x2"));
-        }
-        return sb.ToString();
-    }
+    public static string FromByteArray(byte[] hashValue) => Convert.ToHexStringLower(hashValue);
 }

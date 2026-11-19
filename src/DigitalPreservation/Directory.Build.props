@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    Pins transitive dependencies that NuGet would otherwise resolve to a version with a known
+    vulnerability advisory (NU1902/NU1903), pulled in via Microsoft.Identity.Web /
+    System.IdentityModel.Tokens.Jwt. Every project in this solution targets net10.0, so one
+    shared override here covers all of them without repeating it per .csproj.
+  -->
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <!--
+      System.Security.Cryptography.Xml is in net10.0's PrunePackageReference list, so this
+      override's own assets are always excluded in favour of the shared framework's copy
+      (NU1510) - harmless, since the framework's bundled copy is a newer servicing release than
+      the vulnerable 10.0.0 to 10.0.12 NuGet package range. The override is still needed so the
+      resolved dependency graph itself (what the NuGet vulnerability audit scans) reports a
+      patched version instead of the vulnerable transitive one.
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.14" NoWarn="NU1510" />
+  </ItemGroup>
+
+</Project>

@@ -18,25 +18,12 @@ public class GetImportJobsOrderedCollectionHandler(
     {
         var totalItems = await dbContext.PublishedArchivalGroupEvents()
             .CountAsync(cancellationToken: cancellationToken);
-        int totalPages = totalItems / OrderedCollectionPage.DefaultPageSize;
-        if (totalItems % OrderedCollectionPage.DefaultPageSize > 0)
-        {
-            totalPages++;
-        }
-        var collection = new OrderedCollection
-        {
-            Id = resourceMutator.GetActivityStreamUri("archivalgroups/collection"),
-            First = new OrderedCollectionPage
-            {
-                Id = resourceMutator.GetActivityStreamUri("archivalgroups/pages/1")
-            },
-            Last =  new OrderedCollectionPage
-            {
-                Id = resourceMutator.GetActivityStreamUri($"archivalgroups/pages/{totalPages}")
-            },
-            TotalItems = totalItems
-        };
-        collection.WithContext();
+
+        var collection = OrderedCollection.For(
+            resourceMutator.GetActivityStreamUri("archivalgroups/collection"),
+            p => resourceMutator.GetActivityStreamUri($"archivalgroups/pages/{p}"),
+            totalItems);
+
         return Result.OkNotNull(collection);
     }
 }

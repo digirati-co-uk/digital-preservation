@@ -13,7 +13,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalPreservation.Core.Auth;
+using Npgsql;
 using Preservation.API.Data.Entities;
+using Preservation.API.Features.Deposits.PipelineDelivery;
 using Storage.Repository.Common;
 
 namespace Preservation.API.Features.Deposits.Requests;
@@ -31,8 +33,15 @@ public class RunPipelineHandler(
     IAmazonSimpleNotificationService snsClient,
     IOptions<PipelineOptions> pipelineOptions,
     IOptions<AwsStorageOptions> storageOptions,
-    IIdentityMinter identityMinter) : IRequestHandler<RunPipeline, Result>
+    IOptions<PipelineDeliveryFlags> pipelineDeliveryFlags,
+    IIdentityMinter identityMinter,
+    IClientDirectory clientDirectory,
+    IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null) : IRequestHandler<RunPipeline, Result>
 {
+    // Must match PreservationContext.OnModelCreating's HasDatabaseName for the partial unique
+    // index backing the "one active job per deposit" check (issue #353).
+    private const string OneActiveJobPerDepositIndexName = "ix_pipeline_run_jobs_deposit_one_active";
+
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
     {
         var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.DepositId, cancellationToken);
@@ -42,16 +51,12 @@ public class RunPipelineHandler(
                 "Could not run pipeline because could not find no deposit for ID " + request.DepositId);
         }
 
-        // Ahead of the lock: a 400 here must never leave a lock behind.
-        // Pipeline.API reaches deposit files through a filesystem mount of the default working
-        // bucket only, so a deposit routed to a per-caller bucket (RFC-0001 §8) can't be
-        // characterised - decline it here, the only place pipeline jobs are queued from.
-        if (!IsInDefaultWorkingBucket(entity.Files))
+        // Ahead of the lock: a 400 here must never leave a lock behind. This is the only place
+        // pipeline jobs are queued from, so it is where the policy is enforced.
+        var notPermitted = CheckPipelinePermitted(entity.Files, request.DepositId);
+        if (notPermitted != null)
         {
-            return Result.Fail(ErrorCodes.BadRequest,
-                $"Could not run pipeline: deposit {request.DepositId} is not in the default " +
-                $"working bucket '{storageOptions.Value.DefaultWorkingBucket}', which is the only " +
-                "storage the pipeline can reach.");
+            return notPermitted;
         }
 
         // Also ahead of the lock, for the same reason: a 409 here must never leave a lock behind
@@ -62,13 +67,19 @@ public class RunPipelineHandler(
         // #309). A job stuck in "processing" because its worker died blocks new runs until it's
         // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
         // right behaviour, not a bug to work around here.
-        var activeJob = await dbContext.PipelineRunJobs
-            .Where(j => j.Deposit == request.DepositId
-                        && (j.Status == PipelineJobStates.Waiting
-                            || j.Status == PipelineJobStates.Running
-                            || j.Status == PipelineJobStates.MetadataCreated))
-            .OrderByDescending(j => j.DateSubmitted)
-            .FirstOrDefaultAsync(cancellationToken);
+        //
+        // Blocks on ANY active job for the deposit, not only the latest one (issue #357 review):
+        // #353's partial unique index on (deposit, status IN active) enforces exactly this - at most
+        // one active job per deposit, ever - so a "latest job only" read check here would let the
+        // read pass and then hit that index on insert, turning a clean 409 into an unhandled
+        // constraint violation. It also matches the UI, which shows whichever job is still running
+        // regardless of whether it's the deposit's most recent. A non-latest active job - left behind
+        // by data predating #353/#357, since the index now prevents new ones - is closed immediately
+        // by the sweep (PipelineJobCleanupProcessor), not left to block runs indefinitely.
+        //
+        // GetActiveJob (below) is the same query the 23505 backstop re-runs to decide whether to
+        // release the lock - kept as one method so the two call sites can't drift apart.
+        var activeJob = await GetActiveJob(request.DepositId, cancellationToken);
         if (activeJob != null)
         {
             return Result.Fail(ErrorCodes.Conflict,
@@ -99,42 +110,91 @@ public class RunPipelineHandler(
             RunUser = callerIdentity
         };
 
+        var insertFailure = await TryInsertJob(newJob, request.DepositId, acquiredByThisCall, callerIdentity, cancellationToken);
+        if (insertFailure != null)
+        {
+            return insertFailure;
+        }
+
+        return await PublishOrMarkFailed(newJob, request.DepositId, jobId, callerIdentity, topicArn, acquiredByThisCall, cancellationToken);
+    }
+
+    /// <summary>
+    /// Inserts the new job row, or - on the partial unique index's backstop - fails with a Conflict
+    /// after deciding whether this call's own lock acquisition still needs undoing (issue #353's
+    /// adversarial review: acquiredByThisCall alone doesn't answer that, see
+    /// <see cref="ReleaseLockUnlessSurvivorIsCaller"/>).
+    /// </summary>
+    private async Task<Result?> TryInsertJob(
+        PipelineRunJob newJob, string depositId, bool acquiredByThisCall, string callerIdentity, CancellationToken cancellationToken)
+    {
         try
         {
             dbContext.PipelineRunJobs.Add(newJob);
             await dbContext.SaveChangesAsync(cancellationToken);
+            return null;
+        }
+        catch (DbUpdateException e) when (IsOneActiveJobPerDepositViolation(e))
+        {
+            // The read check above raced with another insert for the same deposit - the common
+            // case being the lock holder's own double-submit (#353). The index is the backstop.
+            logger.LogWarning(e,
+                "Pipeline job insert for deposit {DepositId} lost a race to another active job",
+                depositId);
+            var survivingJob = await ReleaseLockUnlessSurvivorIsCaller(depositId, acquiredByThisCall, callerIdentity, cancellationToken);
+            var jobDetail = survivingJob != null ? $" (job {survivingJob.Id}, {survivingJob.Status})" : "";
+            return Result.Fail(ErrorCodes.Conflict,
+                $"A pipeline run is already in progress for deposit {depositId}{jobDetail}. " +
+                "Force complete it first if it is stuck.");
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", request.DepositId);
-            if (acquiredByThisCall)
-            {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
-            }
+            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", depositId);
+            await ReleaseLockUnlessSurvivorIsCaller(depositId, acquiredByThisCall, callerIdentity, cancellationToken);
             return Result.Fail(ErrorCodes.UnknownError, "Could not create pipeline job: " + e.Message);
         }
+    }
 
+    /// <summary>
+    /// Which of the two calls set LockedBy and which call's insert wins the index race aren't the
+    /// same question - acquiredByThisCall alone isn't enough to decide whether to release: if the
+    /// surviving job's RunUser is this caller's, that job now owns the lock (issue #299's transfer),
+    /// even though this call may be the one that physically wrote LockedBy, and releasing here would
+    /// strip it out from under a run that's still going.
+    /// </summary>
+    private async Task<PipelineRunJob?> ReleaseLockUnlessSurvivorIsCaller(
+        string depositId, bool acquiredByThisCall, string callerIdentity, CancellationToken cancellationToken)
+    {
+        var survivingJob = await GetActiveJob(depositId, cancellationToken);
+        if (acquiredByThisCall && survivingJob?.RunUser != callerIdentity)
+        {
+            await ReleaseLockIfHeldBy(depositId, callerIdentity, cancellationToken);
+        }
+        return survivingJob;
+    }
+
+    private async Task<Result> PublishOrMarkFailed(
+        PipelineRunJob newJob, string depositId, string jobId, string callerIdentity, string topicArn,
+        bool acquiredByThisCall, CancellationToken cancellationToken)
+    {
         try
         {
-            // publish the Pipeline job message for Pipeline.API to pick up
-            var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage
+            var pipelineJobMessage = new PipelineJobMessage
             {
-                DepositName = request.DepositId,
+                DepositName = depositId,
                 JobIdentifier = jobId,
                 RunUser = callerIdentity
-            });
-            var pubRequest = new PublishRequest(topicArn, pipelineJobMessage);
-            var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+            };
 
-            logger.LogDebug(
-                "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
-                response.HttpStatusCode, request.DepositId, response.MessageId);
+            await DeliverPipelineJobMessage(pipelineJobMessage, topicArn, depositId, cancellationToken);
+            return Result.Ok();
         }
         catch (Exception e)
         {
             // The job row exists but Pipeline.API was never told about it, so it will sit as
-            // "waiting" forever unless we close it out ourselves here.
-            logger.LogError(e, "Could not publish pipeline job {JobId} for deposit {DepositId} to SNS", jobId, request.DepositId);
+            // "waiting" forever unless we close it out ourselves here. Identical handling whether
+            // delivery was SNS or the local HTTP path above.
+            logger.LogError(e, "Could not deliver pipeline job {JobId} for deposit {DepositId}", jobId, depositId);
             newJob.Status = PipelineJobStates.CompletedWithErrors;
             newJob.DateFinished = DateTime.UtcNow;
             newJob.Errors = "Could not queue pipeline job: " + e.Message;
@@ -142,18 +202,105 @@ public class RunPipelineHandler(
 
             if (acquiredByThisCall)
             {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+                await ReleaseLockIfHeldBy(depositId, callerIdentity, cancellationToken);
             }
             return Result.Fail(ErrorCodes.UnknownError, "Could not queue pipeline job: " + e.Message);
         }
-
-        return Result.Ok();
     }
 
-    private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>
-        depositFiles != null
-        && AmazonS3Uri.TryParseAmazonS3Uri(depositFiles, out var s3Uri)
-        && s3Uri.Bucket == storageOptions.Value.DefaultWorkingBucket;
+    private static bool IsOneActiveJobPerDepositViolation(DbUpdateException e) =>
+        e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
+        && pg.ConstraintName == OneActiveJobPerDepositIndexName;
+
+    // Status compared directly (Waiting/Running/MetadataCreated), not
+    // PipelineJobStates.IsNotComplete(j.Status): EF Core cannot translate an arbitrary static
+    // method call into SQL (see the same note in PipelineJobCleanupProcessor).
+    private async Task<PipelineRunJob?> GetActiveJob(string depositId, CancellationToken cancellationToken) =>
+        await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == depositId
+                        && (j.Status == PipelineJobStates.Waiting
+                            || j.Status == PipelineJobStates.Running
+                            || j.Status == PipelineJobStates.MetadataCreated))
+            .OrderByDescending(j => j.DateSubmitted)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Extracted out of Handle (Sonar: Cognitive Complexity) - also the natural seam, since this is
+    /// the one piece of Handle with a real decision in it: where the job goes. Throws on a local
+    /// delivery failure rather than returning a Result, so Handle's existing catch block (which
+    /// already marks the job completedWithErrors and releases the lock) handles it identically to a
+    /// failed SNS publish, without Handle needing to know which path was taken.
+    /// </summary>
+    private async Task DeliverPipelineJobMessage(
+        PipelineJobMessage pipelineJobMessage, string topicArn, string depositId, CancellationToken cancellationToken)
+    {
+        if (pipelineDeliveryFlags.Value.UseLocalPipelineDelivery)
+        {
+            // Local development/testing only (issue #352): deliver directly to the Pipeline API's
+            // internal enqueue endpoint over HTTP instead of publishing to SNS, mirroring how
+            // imports already work locally. IPipelineJobDeliveryClient is registered only when this
+            // flag is on (see Program.cs), so this should never be null here - but if config drifts
+            // (the flag on, the client registration somehow missing) a clear exception is far more
+            // debuggable than the "Object reference not set..." a bare null-forgiving operator would
+            // have produced in the job's recorded error (issue #352 review).
+            if (pipelineJobDeliveryClient is null)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(PipelineDeliveryFlags.UseLocalPipelineDelivery)} is on, but no {nameof(IPipelineJobDeliveryClient)} is registered.");
+            }
+            var deliveryResult = await pipelineJobDeliveryClient.EnqueuePipelineJob(pipelineJobMessage, cancellationToken);
+            if (deliveryResult.Failure)
+            {
+                throw new InvalidOperationException(
+                    deliveryResult.ErrorMessage ?? "The Pipeline API refused the local delivery enqueue call");
+            }
+
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(
+                    "Delivered pipeline job {JobId} for {Identifier} to the Pipeline API directly (local delivery)",
+                    pipelineJobMessage.JobIdentifier, depositId);
+            }
+        }
+        else
+        {
+            // publish the Pipeline job message for Pipeline.API to pick up
+            var pubRequest = new PublishRequest(topicArn, JsonSerializer.Serialize(pipelineJobMessage));
+            var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(
+                    "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
+                    response.HttpStatusCode, depositId, response.MessageId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether this deposit may run the pipeline (issue #410), by <see cref="PipelinePolicy"/>; null
+    /// when it may.
+    /// </summary>
+    private Result? CheckPipelinePermitted(Uri? depositFiles, string depositId)
+    {
+        if (depositFiles == null || !AmazonS3Uri.TryParseAmazonS3Uri(depositFiles, out var s3Uri))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposit {depositId} has no S3 location for its files.");
+        }
+        var defaultBucket = storageOptions.Value.DefaultWorkingBucket;
+        return PipelinePolicy.ForBucket(s3Uri.Bucket, defaultBucket,
+                pipelineDeliveryFlags.Value.AllowPipelineForCallerBuckets, clientDirectory) switch
+        {
+            PipelineAccess.NotReachable => Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposit {depositId} is not in the default " +
+                $"working bucket '{defaultBucket}', which is the only " +
+                "storage the pipeline can reach."),
+            PipelineAccess.NotPermitted => Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposits in bucket '{s3Uri.Bucket}' are not permitted to run the pipeline."),
+            _ => null
+        };
+    }
 
     /// <summary>
     /// Takes the deposit's lock for the caller, atomically. Null failure means the caller may
@@ -208,7 +355,8 @@ public class RunPipelineHandler(
 
 //TODO: put job id into the pipeline into the class
 // NB this is the same class as Pipeline.API.Features.Pipeline.PipelineJobMessage
-internal class PipelineJobMessage
+// Public (not internal): IPipelineJobDeliveryClient.EnqueuePipelineJob takes one (issue #352).
+public class PipelineJobMessage
 {
     [JsonPropertyName("depositname")]
     public required string DepositName { get; set; }

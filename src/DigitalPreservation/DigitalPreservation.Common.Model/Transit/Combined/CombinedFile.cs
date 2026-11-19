@@ -66,7 +66,8 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
 
             var bestContentType = ContentTypes.GetBestContentType(FileInDeposit);
-            if (bestContentType != FileInMets.ContentType)
+            // METS written before a synonym was added may still hold the other name for the same format
+            if (bestContentType != ContentTypes.Normalise(FileInMets.ContentType))
             {
                 var allCTs = string.Join(", ", ContentTypes.GetAllContentTypes(FileInDeposit));
                 var depositContentTypes = $"Best: {bestContentType}; wf: {FileInDeposit.ContentType}; all: {allCTs}";
@@ -87,6 +88,12 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             {
                 misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "HasVirus",
                     DepositVirusScanMetadata.HasVirus.ToString(), MetsVirusScanMetadata.HasVirus.ToString()));
+            }
+
+            if (DepositVirusScanMetadata.NotScanned != MetsVirusScanMetadata.NotScanned)
+            {
+                misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "NotScanned",
+                    DepositVirusScanMetadata.NotScanned.ToString(), MetsVirusScanMetadata.NotScanned.ToString()));
             }
 
             if (DepositVirusScanMetadata.VirusFound != MetsVirusScanMetadata.VirusFound)
@@ -382,7 +389,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         List<string?> allContentTypes =
         [
-            FileInMets?.ContentType,
+            ContentTypes.Normalise(FileInMets?.ContentType),
             ContentTypes.GetBestContentType(FileInDeposit)
         ];
         var distinctContentTypes = allContentTypes

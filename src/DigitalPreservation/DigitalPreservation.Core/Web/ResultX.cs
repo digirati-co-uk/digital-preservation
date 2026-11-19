@@ -17,6 +17,12 @@ public static class ResultX
             case ErrorCodes.Unauthorized:
                 pd.Status = 401;
                 break;
+            case ErrorCodes.UpstreamUnauthorized:
+                // 502, not 401 (review feedback on #394): this is OUR OWN credentials being
+                // refused by something we called, not the caller's - a 401 here would falsely tell
+                // the caller their own token is the problem.
+                pd.Status = 502;
+                break;
             case ErrorCodes.BadRequest:
                 pd.Status = 400;
                 break;

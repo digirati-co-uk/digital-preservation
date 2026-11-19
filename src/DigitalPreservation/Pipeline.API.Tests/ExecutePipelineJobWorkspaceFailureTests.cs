@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
+using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Features.Pipeline.Requests;
 using Preservation.Client;
 using Xunit;
@@ -34,10 +35,10 @@ public class ExecutePipelineJobWorkspaceFailureTests
     private ProcessPipelineJobHandler CreateHandler(
         IMediator? workspaceMediator = null, PipelineToolOptions? pipelineToolOptions = null) =>
         new(NullLogger<ProcessPipelineJobHandler>.Instance,
-            Options.Create(new StorageOptions()),
             Options.Create(pipelineToolOptions ?? new PipelineToolOptions()),
             new WorkspaceManagerFactory(workspaceMediator ?? A.Fake<IMediator>(), A.Fake<IMetsParser>()),
-            preservationApiClient);
+            preservationApiClient,
+            A.Fake<IDepositFileSource>());
 
     private void StatusUpdatesSucceed() =>
         A.CallTo(() => preservationApiClient.LogPipelineRunStatus(A<PipelineDeposit>._, A<CancellationToken>._))

@@ -171,6 +171,28 @@ public class ResultHelpersTests
         Assert.Contains(exception.StatusCode.ToString(), message);
     }
 
+    /// <summary>
+    /// Issue #355: AmazonS3Client throws rather than returning a 412 response, so a lost ETag
+    /// race on a conditional write reaches a caller of FailNotNullFromS3Exception (DeleteItems,
+    /// which relies on this for its own AmazonS3Exception catch) as this exception, not an
+    /// HttpStatusCode to switch on elsewhere.
+    /// </summary>
+    [Fact]
+    public void FailNotNullFromS3Exception_Should_Map_PreconditionFailed_Status()
+    {
+        var uri = new Uri("s3://bucket/key");
+        var exception = CreateS3Exception(HttpStatusCode.PreconditionFailed, "precondition failed");
+        var result = ResultHelpers.FailNotNullFromS3Exception<string>(exception, "Write failed", uri);
+
+        var errorCode = ExtractErrorCode(result);
+        var message = ExtractMessage(result);
+
+        Assert.Equal(ErrorCodes.PreconditionFailed, errorCode);
+        Assert.Contains("Supplied ETag did not match", message);
+        Assert.Contains(uri.ToString(), message);
+        Assert.Contains(exception.Message, message);
+    }
+
     #endregion
 
 
@@ -319,6 +341,70 @@ public class ResultHelpersTests
     }
 
 #endregion
+
+    #region Diverged status codes now routed through ErrorCodes.GetErrorCode (issue #388)
+
+    // Before the fix, each of these four helpers hand-rolled its own switch covering only
+    // NotFound/Conflict/Unauthorized/BadRequest (plus PreconditionFailed in one), so a 403, 410,
+    // 412 or 422 response fell through to UnknownError here even though ErrorCodes.GetErrorCode
+    // already classified them correctly everywhere else in the codebase. 403 maps to
+    // UpstreamUnauthorized, not Unauthorized (review feedback on #394): it is S3 refusing OUR OWN
+    // credentials, not the caller's.
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
+    [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
+    [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]
+    public void FailFromS3Exception_Maps_Previously_Diverged_Status(HttpStatusCode statusCode, string expectedErrorCode)
+    {
+        var uri = new Uri("s3://bucket/key");
+        var exception = CreateS3Exception(statusCode, "diverged status");
+        var result = ResultHelpers.FailFromS3Exception<string>(exception, "Fetch failed", uri);
+
+        Assert.Equal(expectedErrorCode, ExtractErrorCode(result));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
+    [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
+    public void FailNotNullFromS3Exception_Maps_Previously_Diverged_Status(HttpStatusCode statusCode, string expectedErrorCode)
+    {
+        var uri = new Uri("s3://bucket/key");
+        var exception = CreateS3Exception(statusCode, "diverged status");
+        var result = ResultHelpers.FailNotNullFromS3Exception<string>(exception, "Write failed", uri);
+
+        Assert.Equal(expectedErrorCode, ExtractErrorCode(result));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
+    [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
+    [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]
+    public void FailFromAwsStatusCode_Maps_Previously_Diverged_Status(HttpStatusCode statusCode, string expectedErrorCode)
+    {
+        var uri = new Uri("s3://bucket/key");
+        var result = ResultHelpers.FailFromAwsStatusCode<string>(statusCode, "Upload failed", uri);
+
+        Assert.Equal(expectedErrorCode, ExtractErrorCode(result));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
+    [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
+    [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]
+    public void FailNotNullFromAwsStatusCode_Maps_Previously_Diverged_Status(HttpStatusCode statusCode, string expectedErrorCode)
+    {
+        var uri = new Uri("s3://bucket/key");
+        var result = ResultHelpers.FailNotNullFromAwsStatusCode<string>(statusCode, "Upload failed", uri);
+
+        Assert.Equal(expectedErrorCode, ExtractErrorCode(result));
+    }
+
+    #endregion
 
 
     private static AmazonS3Exception CreateS3Exception(HttpStatusCode statusCode, string message) =>

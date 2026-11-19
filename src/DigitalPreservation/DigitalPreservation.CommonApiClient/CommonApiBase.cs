@@ -18,6 +18,106 @@ namespace DigitalPreservation.CommonApiClient;
 /// <param name="logger"></param>
 public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 {
+    /// <summary>
+    /// Sends a request and parses a JSON body that must be present on success - the shape most of
+    /// StorageApiClient and PreservationApiClient wrote out by hand, about 19 times between them
+    /// (issue #388 item 2.2): send, check <see cref="HttpResponseMessage.IsSuccessStatusCode"/>,
+    /// parse, treat an unexpectedly empty body as its own failure, convert a non-success response
+    /// via <see cref="ProblemDetailsX.ToFailNotNullResult{T}(HttpResponseMessage, string)"/>, and
+    /// catch/log/report anything thrown as <see cref="ErrorCodes.UnknownError"/>. <paramref name="send"/>
+    /// is a delegate rather than a built request so callers keep using whichever HttpClient
+    /// convenience method already shapes their call (GetAsync, PostAsJsonAsync, PatchAsJsonAsync...).
+    /// </summary>
+    protected async Task<Result<T>> SendForJsonNotNull<T>(
+        Func<Task<HttpResponseMessage>> send,
+        string failureMessage,
+        string emptyBodyErrorCode,
+        string emptyBodyMessage,
+        string? logMessage = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await send();
+            if (response.IsSuccessStatusCode)
+            {
+                var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+                if (value is not null)
+                {
+                    return Result.OkNotNull(value);
+                }
+                return Result.FailNotNull<T>(emptyBodyErrorCode, emptyBodyMessage);
+            }
+            return await response.ToFailNotNullResult<T>(failureMessage);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, logMessage ?? e.Message);
+            return Result.FailNotNull<T>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    /// <summary>
+    /// The null-tolerant twin of <see cref="SendForJsonNotNull{T}"/>, for the call sites that return
+    /// <c>Result&lt;T?&gt;</c> (<see cref="Result.Ok{T}"/>/<see cref="Result.Fail{T}"/>) rather than
+    /// the never-null <c>Result&lt;T&gt;</c> shape. Otherwise identical.
+    /// </summary>
+    protected async Task<Result<T?>> SendForJson<T>(
+        Func<Task<HttpResponseMessage>> send,
+        string failureMessage,
+        string emptyBodyErrorCode,
+        string emptyBodyMessage,
+        string? logMessage = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await send();
+            if (response.IsSuccessStatusCode)
+            {
+                var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+                if (value is not null)
+                {
+                    return Result.Ok<T>(value);
+                }
+                return Result.Fail<T>(emptyBodyErrorCode, emptyBodyMessage);
+            }
+            return await response.ToFailResult<T>(failureMessage);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, logMessage ?? e.Message);
+            return Result.Fail<T>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Sends a request where only success or failure matters, no response body - the no-content
+    /// twin of <see cref="SendForJsonNotNull{T}"/>. PreservationApiClient's LockDeposit and its
+    /// siblings wrote this out with no try/catch at all (issue #388 item 2.2's "catches nothing"
+    /// divergence); this closes that gap as a side effect of removing the duplication, since an
+    /// uncaught exception here is a bug regardless of how many copies of the code it appears in.
+    /// </summary>
+    protected async Task<Result> SendForResult(
+        Func<Task<HttpResponseMessage>> send,
+        string failureMessage,
+        string? logMessage = null)
+    {
+        try
+        {
+            var response = await send();
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.Ok();
+            }
+            return await response.ToFailResult(failureMessage);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, logMessage ?? e.Message);
+            return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+    }
 
     public async Task<Result<PreservedResource?>> GetResource(string path)
     {
@@ -169,48 +269,22 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
     {
         // Make this work the same way that Fedora does; surface the tombstone through the two APIs
         // https://wiki.lyrasis.org/display/FEDORA6x/Delete+vs+Purge
-        try
-        {
-            var uri = new Uri($"{path}?purge={purge}", UriKind.Relative);
-            var response = await httpClient.DeleteAsync(uri, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return Result.Ok();
-            }
-            return await response.ToFailResult("Unable to delete Container");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.Fail(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"{path}?purge={purge}", UriKind.Relative);
+        return await SendForResult(
+            () => httpClient.DeleteAsync(uri, cancellationToken),
+            "Unable to delete Container");
     }
-    
+
     public async Task<Result<ArchivalGroup?>> TestArchivalGroupPathInternal(string reqPath)
     {
         var uri = new Uri(reqPath, UriKind.Relative);
-        try
-        {
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await httpClient.SendAsync(req);
-            if (response.IsSuccessStatusCode)
-            {
-                var ag = await response.Content.ReadFromJsonAsync<ArchivalGroup>();
-                if(ag != null)
-                {
-                    return Result.Ok(ag);
-                }
-                return Result.Fail<ArchivalGroup>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailResult<ArchivalGroup>("Unable to test archival group path");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.Fail<ArchivalGroup>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJson<ArchivalGroup>(
+            () => httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri)),
+            "Unable to test archival group path",
+            ErrorCodes.UnknownError,
+            "Resource could not be parsed.");
     }
-    
+
     public async Task<Result<StorageMap>> GetStorageMap(string archivalGroupPathUnderRoot, string? version = null)
     {
         var reqPath = $"ocfl/storagemap/{archivalGroupPathUnderRoot}";
@@ -218,24 +292,20 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
         {
             reqPath = $"{reqPath}?version={version}";
         }
-        try
+        // issue #388 item 2.2: this used to skip the IsSuccessStatusCode check entirely, so a
+        // failure response (e.g. 404) was parsed as a StorageMap, failed, and was reported as a
+        // generic "Resource could not be parsed"/UnknownError regardless of the real cause.
+        // SendForJsonNotNull's status check fixes that - a failure now carries the real error code.
+        var result = await SendForJsonNotNull<StorageMap>(
+            () => httpClient.GetAsync(reqPath),
+            "Unable to get storage map",
+            ErrorCodes.UnknownError,
+            "Resource could not be parsed.");
+        if (result.Success)
         {
-            var uri = new Uri(reqPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await httpClient.SendAsync(req);
-            var storageMap = await response.Content.ReadFromJsonAsync<StorageMap>();
-            if(storageMap != null)
-            {
-                logger.LogInformation("Received storageMap for ArchivalGroup {ArchivalGroupPathUnderRoot}, version {Version}",
-                    archivalGroupPathUnderRoot, version);
-                return Result.OkNotNull(storageMap);
-            }
-            return Result.FailNotNull<StorageMap>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            logger.LogInformation("Received storageMap for ArchivalGroup {ArchivalGroupPathUnderRoot}, version {Version}",
+                archivalGroupPathUnderRoot, version);
         }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<StorageMap>(ErrorCodes.UnknownError, e.Message);
-        }
+        return result;
     }
 }

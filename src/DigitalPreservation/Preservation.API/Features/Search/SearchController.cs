@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Core.Web;
 using MediatR;
@@ -28,13 +29,7 @@ public class SearchController(IMediator mediator) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            var problem = new ProblemDetails
-            {
-                Status = (int)HttpStatusCode.BadRequest,
-                Title = "Missing search text",
-                Detail = "A search text parameter is required."
-            };
-            return BadRequest(problem);
+            return this.ProblemFor(ErrorCodes.BadRequest, "A search text parameter is required.", "Missing search text");
         }
 
         if (pageNumber < 0 || pageSize <= 0 || pageSize > 500)

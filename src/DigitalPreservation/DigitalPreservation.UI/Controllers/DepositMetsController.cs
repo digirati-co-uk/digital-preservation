@@ -17,9 +17,9 @@ public class DepositMetsController(
     [HttpGet]
     [Produces("application/xml")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> Get([FromRoute] string id)
+    public async Task<IActionResult> Get([FromRoute] string id, CancellationToken cancellationToken)
     {
-        var metsResult = await preservationApiClient.GetMetsWithETag(id, CancellationToken.None);
+        var metsResult = await preservationApiClient.GetMetsWithETag(id, cancellationToken);
         if (metsResult.Success)
         {
             Response.Headers.ETag = metsResult.Value.Item2;
@@ -37,9 +37,9 @@ public class DepositMetsController(
     [HttpGet]
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetParsed([FromRoute] string id)
+    public async Task<IActionResult> GetParsed([FromRoute] string id, CancellationToken cancellationToken)
     {
-        var parsedJsonResult = await preservationApiClient.GetParsedDepositMets(id, CancellationToken.None);
+        var parsedJsonResult = await preservationApiClient.GetParsedDepositMets(id, cancellationToken);
         if (parsedJsonResult.Success)
         {
             return Content(parsedJsonResult.Value!, "application/json");
@@ -57,9 +57,9 @@ public class DepositMetsController(
     [HttpGet]
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetIIIF([FromRoute] string id)
+    public async Task<IActionResult> GetIIIF([FromRoute] string id, CancellationToken cancellationToken)
     {
-        var parsedJsonResult = await preservationApiClient.GetIIIF(id, CancellationToken.None);
+        var parsedJsonResult = await preservationApiClient.GetIIIF(id, cancellationToken);
         if (parsedJsonResult.Success)
         {
             return Content(parsedJsonResult.Value!, "application/json");

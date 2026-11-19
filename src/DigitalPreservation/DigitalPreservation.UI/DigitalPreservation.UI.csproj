@@ -34,7 +34,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <AdditionalFiles Include="Views\Shared\Components\PagerTwo\Default.cshtml" />
       <AdditionalFiles Include="Views\Shared\Components\Pager\Default.cshtml" />
     </ItemGroup>
 

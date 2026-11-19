@@ -1,4 +1,5 @@
 ﻿@page "{*pathUnderRoot}"
+@using DigitalPreservation.UI.Infrastructure
 @using DigitalPreservation.Utils
 @model DigitalPreservation.UI.Pages.Ocfl
 
@@ -6,12 +7,10 @@
     ViewData["section"] = "browse";
 }
 
-@if (TempData["Error"] != null || Model.Version == null || Model.StorageMap == null)
+@if (TempData[TempDataKeys.Error] != null || Model.Version == null || Model.StorageMap == null)
 {
     <h1 class="h2">Unable to show storage history</h1>
-    <div class="alert alert-danger" role="alert">
-        <p>@Html.Raw(TempData["Error"])</p>
-    </div>
+    <status-message key="@TempDataKeys.Error" variant="danger" dismissible="false" />
 }
 else
 {

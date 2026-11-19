@@ -11,6 +11,38 @@ public static class ContentTypes
     /// </summary>
     public const string NotIdentified = "dlip/not-identified";
 
+    /// <summary>
+    /// Different names for the same format, mapped to the one we prefer. Browsers and S3 often give
+    /// the unregistered x- form (e.g., audio/x-m4a for an .m4a upload) where Siegfried gives the
+    /// registered one (audio/mp4); without this they look like a disagreement nobody can resolve.
+    /// </summary>
+    private static readonly Dictionary<string, string> Synonyms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["audio/x-m4a"] = "audio/mp4",
+        ["audio/m4a"] = "audio/mp4",
+        ["audio/x-wav"] = "audio/wav",
+        ["audio/wave"] = "audio/wav",
+        ["audio/vnd.wave"] = "audio/wav",
+        ["audio/mp3"] = "audio/mpeg",
+        ["audio/x-mp3"] = "audio/mpeg",
+        ["audio/x-mpeg"] = "audio/mpeg",
+        ["image/jpg"] = "image/jpeg",
+        ["image/pjpeg"] = "image/jpeg",
+        ["application/x-pdf"] = "application/pdf"
+    };
+
+    /// <summary>
+    /// The preferred name for this content type; anything not known to have a synonym comes back unchanged.
+    /// </summary>
+    public static string? Normalise(string? contentType)
+    {
+        if (contentType is null)
+        {
+            return null;
+        }
+        return Synonyms.GetValueOrDefault(contentType, contentType);
+    }
+
     public static List<string> GetAllContentTypes(WorkingFile? fileInDeposit)
     {
         return fileInDeposit is null ? [] : GetDistinctTypes(fileInDeposit);
@@ -96,7 +128,7 @@ public static class ContentTypes
             .Metadata
             .OfType<FileFormatMetadata>()
             .Where(m => m.ContentType.HasText())
-            .Select(m => m.ContentType!)
+            .Select(m => Normalise(m.ContentType)!)
             .Distinct()
             .ToList();
 
@@ -104,7 +136,7 @@ public static class ContentTypes
         if (fileInDeposit.ContentType.HasText())
         {
             distinctTypes = contentTypesFromFileFormatMetadata
-                .Union([fileInDeposit.ContentType])
+                .Union([Normalise(fileInDeposit.ContentType)!])
                 .Distinct()
                 .ToList();
         }

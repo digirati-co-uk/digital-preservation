@@ -44,6 +44,11 @@ public interface IFedoraClient
     Task<Result<ArchivalGroup?>> GetValidatedArchivalGroupForImportJob(string pathUnderFedoraRoot, Transaction? transaction = null);
    Task<Result<PreservedResource>> Delete(PreservedResource resource, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
    Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, bool purge, CancellationToken cancellationToken);
+   /// <summary>
+   /// Replaces a Container's or Binary's display name (dc:title) with its Name - issue #347. Never
+   /// changes the id, slug or path. For a Binary the title is on its fcr:metadata.
+   /// </summary>
+   Task<Result<PreservedResource>> Rename(PreservedResource resource, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
    Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
    Task<Result<SearchCollectiveFedora?>> GetBasicSearchResults(string text, int page, int pageSize, CancellationToken cancellationToken = default);
 

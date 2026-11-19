@@ -1,6 +1,6 @@
 # RFC-0001 Phase 0 — Entra admin instructions
 
-**For:** an administrator with rights to edit app registrations in the **dev** Entra tenant
+**For:** an administrator with rights to edit the **dev** app registrations in the Leeds Entra tenant
 (Application Administrator / Cloud Application Administrator, or owner of the registration).
 **From:** the Digital Preservation dev team.
 **Companion doc:** [`rfc-0001-api-caller-identity.md`](./rfc-0001-api-caller-identity.md) — full background. You
@@ -161,10 +161,9 @@ So you can see where this is heading and why ordering matters. We will come back
   *Now live for Goobi:* [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md).
 - **Phase 2 — repoint callers.** Dev-side config change. **Strict ordering:** a caller must already hold
   its `Preservation.Call` assignment (Phase 1) **before** we repoint it, because `Assignment required =
-  Yes` is already live on `84c62880` — otherwise Entra rejects the token with `AADSTS501051`. (If the
-  dev team takes the interim route of running the platform's *internal* service-to-service calls as
-  `84c62880` itself, we will also ask you to assign `Preservation.Call` to `84c62880`'s **own** service
-  principal at this point.)
+  Yes` is already live on `84c62880` — otherwise Entra rejects the token with `AADSTS501051`. (An
+  earlier draft mentioned running the platform's own service-to-service calls as `84c62880` itself.
+  That isn't needed: since PR #284 the platform's calls can request this API's audience directly.)
 - **Phase 3 — repoint the UI.** Two admin actions **before** the dev-side change: (a) grant the Web-UI
   registration (`a616cf42…`) the `access_as_user` delegated permission on `84c62880` and **admin-consent**
   it; (b) **assign all UI users** (ideally a group, plus the Playwright browser-login account) on

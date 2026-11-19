@@ -9,10 +9,10 @@ namespace DigitalPreservation.UI.Controllers;
 public class DeleteContainerController(IMediator mediator) : Controller
 {
     [HttpPost]
-    public async Task<ActionResult> DeleteContainer([FromForm] string pathUnderRoot, [FromForm] bool? purge = null)
+    public async Task<ActionResult> DeleteContainer([FromForm] string pathUnderRoot, [FromForm] bool? purge, CancellationToken cancellationToken)
     {
         bool purgeCheck = purge ?? false;
-        var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck));
+        var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck), cancellationToken);
         if (result.Success)
         {
             TempData["ContainerSuccess"] = $"Container {pathUnderRoot} deleted successfully";

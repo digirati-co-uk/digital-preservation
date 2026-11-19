@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,11 +18,11 @@ namespace Storage.API.Tests.Integration;
 /// Characterises the API authorization stack used by Storage.API and Preservation.API, to settle
 /// whether the <c>X-Client-Identity</c> header is an authentication bypass.
 ///
-/// It reproduces the global filter registration from <c>Storage.API/Program.cs</c> (identical block
-/// in <c>Preservation.API/Program.cs</c>):
+/// It calls the same <c>AddPlatformAuthorizationFilters()</c> that Storage.API and Preservation.API
+/// Program.cs call, which adds, in order:
 /// <code>
-///     config.Filters.Add(new AuthorizeFilter());      // == [Authorize]: requires an authenticated caller
-///     config.Filters.Add(new AuthFilterIdentifier()); // attribution: reads X-Client-Identity AFTER auth
+///     options.Filters.Add(new AuthorizeFilter());      // == [Authorize]: requires an authenticated caller
+///     options.Filters.Add(new AuthFilterIdentifier()); // attribution: reads X-Client-Identity AFTER auth
 /// </code>
 ///
 /// The real API hosts can't exercise this directly because <c>appsettings.Testing.json</c> sets
@@ -73,8 +72,7 @@ public class ApiAuthorizationStackTests
                         .AddControllers(config =>
                         {
                             // Exactly as registered in Storage.API / Preservation.API Program.cs.
-                            config.Filters.Add(new AuthorizeFilter());
-                            config.Filters.Add(new AuthFilterIdentifier());
+                            config.AddPlatformAuthorizationFilters();
                         })
                         .AddApplicationPart(typeof(ApiAuthorizationStackTests).Assembly);
                 })

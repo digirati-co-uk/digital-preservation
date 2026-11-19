@@ -1,7 +1,5 @@
-﻿using Amazon.S3;
-using Amazon.SimpleNotificationService;
+﻿using Amazon.SimpleNotificationService;
 using Amazon.SQS;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.OpenApi;
@@ -10,12 +8,10 @@ using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Middleware;
 using Serilog;
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Workspace;
 using Preservation.Client;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
@@ -30,31 +26,30 @@ try
     builder.Host.UseSerilog((hostContext, loggerConfiguration)
         => loggerConfiguration
             .ReadFrom.Configuration(hostContext.Configuration)
-            .Enrich.FromLogContext());
+            .Enrich.FromLogContext()
+            .Enrich.WithCorrelationId());
 
     builder.Services.Configure<ApiKeyOptions>(
         builder.Configuration.GetSection("ApiKeyOptions"));
 
     builder.Services.Configure<StorageOptions>(
         builder.Configuration.GetSection("StorageOptions"));
+    builder.Services.Configure<PipelineFeatureFlags>(
+        builder.Configuration.GetSection("FeatureFlags"));
 
     builder.Services.Configure<PipelineToolOptions>(
         builder.Configuration.GetSection("PipelineToolOptions"));
 
     builder.Services.Configure<PipelineOptions>(
-        builder.Configuration.GetSection("PipelineOptions"));
-
-    //Add TokenScope
-    builder.Services.AddSingleton<ITokenScope>(x =>
-        new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
+        builder.Configuration.GetSection(PipelineOptions.PipelineOptionsName));
 
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
+        .AddCorrelationIdHeaderPropagation()
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
-            cfg.RegisterServicesFromAssemblyContaining<IAmazonSimpleNotificationService>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
@@ -109,16 +104,19 @@ try
     // FeatureFlags:UseLocalHostedServiceForPipeline was read by no code before issue #231 - the two
     // unconditional registrations below meant the last one (Sqs) always won, so this flag never did
     // anything. Mirrors Storage.API/Program.cs's UseLocalHostedServiceForImport switch.
-    var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
+    //
+    // InProcessPipelineQueue is registered as a concrete singleton unconditionally, not just when the
+    // flag is on: PipelineController.QueuePipelineJob (issue #352) needs to inject it directly to
+    // write into it, and it has to resolve whether or not this instance is actually using it as the
+    // IPipelineQueue - the endpoint itself 404s via [RequireFeatureFlag] when the flag is off, so an
+    // idle, never-written-to channel sitting in memory the rest of the time is the only cost.
+    builder.Services.AddSingleton<InProcessPipelineQueue>();
+    builder.Services.AddFeatureFlagOptions(builder.Configuration);
+
+    var useLocalHostedServiceForPipeline = builder.Configuration.GetFeatureFlags().UseLocalHostedServiceForPipeline;
     if (useLocalHostedServiceForPipeline)
     {
-        // Nothing can feed the in-process queue yet: the Preservation API is the only producer of
-        // pipeline jobs and it publishes to SNS. Local delivery over HTTP is issue #352; until then,
-        // this flag means jobs are never picked up.
-        Log.Warning("FeatureFlags:UseLocalHostedServiceForPipeline is true, but nothing can feed the " +
-                    "in-process pipeline queue until local delivery exists (issue #352): pipeline jobs " +
-                    "published to SNS will NOT be picked up by this instance.");
-        builder.Services.AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
+        builder.Services.AddSingleton<IPipelineQueue>(sp => sp.GetRequiredService<InProcessPipelineQueue>());
     }
     else
     {
@@ -126,22 +124,15 @@ try
     }
 
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
-    builder.Services.AddAWSService<IAmazonS3>();
 
     builder.Services.AddStorageAwsAccess(builder.Configuration);
-    builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
-    builder.Services.AddSingleton<IMetsParser, MetsParser>();
-    builder.Services.Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"));
-    builder.Services.AddSingleton<IMetsManager, MetsManager>();
-    builder.Services.AddSingleton<MetadataManager>();
-    builder.Services.AddSingleton<PremisManager>();
-    builder.Services.AddSingleton<PremisManagerExif>();
-    builder.Services.AddSingleton<PremisEventManagerVirus>();
-    builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
-    builder.Services.AddSingleton<WorkspaceManagerFactory>();
+    // The mount for the default working bucket, a scratch copy for a caller's own bucket (issue #410).
+    builder.Services.AddSingleton<IDepositFileSource, DepositFileSource>();
+    builder.Services.AddDepositWorkspace(builder.Configuration);
 
     var app = builder.Build();
     app
+        .UseMiddleware<CorrelationIdMiddleware>()
         .UseMiddleware<ApiKeyMiddleware>()
         .UseSerilogRequestLogging()
         .UseRouting()

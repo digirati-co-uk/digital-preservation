@@ -51,6 +51,45 @@ public class FedoraTransactionMonitorTests
         act.Should().NotThrow();
     }
 
+    /// <summary>
+    /// Issue #350: a lost transaction was previously only visible in the logs. Recording it on the
+    /// transaction itself is what lets ExecuteImportJobHandler's loop notice and stop feeding it,
+    /// rather than reaching a commit whose outcome would then be undefined.
+    /// </summary>
+    [Fact]
+    public async Task MaintainTransactionState_Marks_The_Transaction_Lost_When_KeepTransactionAlive_Returns_NonSuccess()
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = false;
+        A.CallTo(() => fedoraClient.KeepTransactionAlive(tx))
+            .Invokes(() => tx.StatusCode = HttpStatusCode.NotFound)
+            .Returns(Task.CompletedTask);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await WaitUntilAsync(() => tx.TransactionLost, TimeSpan.FromSeconds(2));
+
+        tx.TransactionLost.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MaintainTransactionState_Does_Not_Mark_The_Transaction_Lost_When_KeepTransactionAlive_Succeeds()
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = false;
+        A.CallTo(() => fedoraClient.KeepTransactionAlive(tx))
+            .Invokes(() => tx.StatusCode = HttpStatusCode.NoContent)
+            .Returns(Task.CompletedTask);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        tx.TransactionLost.Should().BeFalse();
+    }
+
     [Fact]
     public void MaintainTransactionState_Does_Not_Throw_When_The_Timer_State_Is_Not_The_Transaction()
     {
@@ -85,13 +124,119 @@ public class FedoraTransactionMonitorTests
             "the cancel request is recorded before the disposed monitor is asked to cancel its token");
     }
 
+    /// <summary>
+    /// Issue #383's first review, point 1: the previous version treated any non-2xx status as
+    /// grounds to cancel, which included 409 - cancelling commits that were simply still running.
+    /// A GET never actually answers 409 in practice (issue #383's third review, reading fcrepo's own
+    /// source: a GET answers 204 until the transaction's 3-minute expiry, then blocks until the
+    /// commit finishes and answers 404/410 - 409 comes from the keep-alive POST's refresh()
+    /// instead), but this is kept as a defensive case: only a definitive 404/410 answer
+    /// (<see cref="FedoraTransactionMonitor.IsTransactionFinished"/>) may cancel, so 409 - however it
+    /// arrived - must not.
+    /// </summary>
     [Fact]
-    public async Task A_Non_2xx_Status_Cancels_The_Token_CommitTransaction_Observes_Without_Disposal()
+    public async Task A_409_Status_While_Committing_Does_Not_Cancel()
     {
         var fedoraClient = A.Fake<IFedoraClient>();
         var tx = MakeTransaction();
         tx.CommitStarted = true;
-        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(HttpStatusCode.Conflict);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        tx.CancelRequested.Should().BeFalse();
+        tx.Cancelled.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Issue #383's third review, point 2: the previous version cancelled on any non-2xx, non-409
+    /// status while committing - which included a transient 502/503/504 from the same ALB/NAT path
+    /// the commit PUT itself uses (a 503 is what the ALB returns when it judges the target
+    /// unhealthy, plausible while Fedora is busy with a large commit). Only a definitive 404/410
+    /// answer means Fedora is actually done with the transaction; anything else is "no information",
+    /// not grounds to cancel a commit that may simply still be running.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task A_Transient_Gateway_Status_While_Committing_Does_Not_Cancel(HttpStatusCode transientStatus)
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = true;
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(transientStatus);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        tx.CancelRequested.Should().BeFalse();
+        tx.Cancelled.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Issue #383 review point 1: a keep-alive POSTed against a transaction that is mid-commit is
+    /// itself what Fedora answers with 409 - which is what was cancelling commits that were simply
+    /// still running. The commit-started branch must only GET the status, never POST a keep-alive.
+    /// </summary>
+    [Fact]
+    public async Task No_Keep_Alive_Is_Posted_While_Committing()
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = true;
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(HttpStatusCode.OK);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        A.CallTo(() => fedoraClient.KeepTransactionAlive(tx)).MustNotHaveHappened();
+        tx.CancelRequested.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Issue #383 review point 6: the issue scoped a lost transaction to 404/410. The previous
+    /// version flagged it on any non-2xx, so a transient 502/503/504 from the ALB on a single
+    /// pre-commit keep-alive would have ended a multi-hour import over one blip.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task A_Transient_Error_Before_Commit_Does_Not_Mark_The_Transaction_Lost(HttpStatusCode transientStatus)
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = false;
+        A.CallTo(() => fedoraClient.KeepTransactionAlive(tx))
+            .Invokes(() => tx.StatusCode = transientStatus)
+            .Returns(Task.CompletedTask);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        tx.TransactionLost.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Both statuses <see cref="FedoraTransactionMonitor.IsTransactionFinished"/> treats as
+    /// definitive (issue #383's third review) must cancel.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Gone)]
+    public async Task A_Definitive_Finished_Status_Cancels_The_Token_CommitTransaction_Observes_Without_Disposal(
+        HttpStatusCode finishedStatus)
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = true;
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(finishedStatus);
 
         // Stands in for the real HTTP call: stays pending until the token it was given is
         // cancelled, same as the real fedoraClient.CommitTransaction observing cancellation.

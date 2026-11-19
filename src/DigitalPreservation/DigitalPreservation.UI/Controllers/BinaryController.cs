@@ -9,11 +9,11 @@ namespace DigitalPreservation.UI.Controllers;
 public class BinaryController(
     IPreservationApiClient preservationApiClient) : Controller
 {
-    public async Task<IActionResult> Get([FromRoute] string path)
+    public async Task<IActionResult> Get([FromRoute] string path, CancellationToken cancellationToken)
     {
         var repositoryPath = StringUtils.BuildPath(
             true, PreservedResource.BasePathElement, path);
-        var streamWithContentType = await preservationApiClient.GetContentStream(repositoryPath, CancellationToken.None);
+        var streamWithContentType = await preservationApiClient.GetContentStream(repositoryPath, cancellationToken);
         if (streamWithContentType is { Item1: not null, Item2: not null })
         {
             return new FileStreamResult(streamWithContentType.Item1, streamWithContentType.Item2);

@@ -66,6 +66,17 @@ public class PreservationContext : DbContext
                 .HasDefaultValueSql("now()");
         });
 
+        // Backstop for issue #353: the read-then-insert in RunPipelineHandler can't serialise the
+        // lock holder racing themselves (a double-click, a retrying script, two tabs), since both
+        // calls can read "no active job" before either inserts. This index makes a second active
+        // row for the same deposit impossible at the database level; RunPipelineHandler maps the
+        // resulting unique-violation to the same 409 its own read check returns on the common path.
+        modelBuilder.Entity<PipelineRunJob>()
+            .HasIndex(j => j.Deposit)
+            .IsUnique()
+            .HasDatabaseName("ix_pipeline_run_jobs_deposit_one_active")
+            .HasFilter("status IN ('waiting','processing','metadataCreated')");
+
         // A row in this table provides GetLatestArchivalGroupEvent's "last checked" watermark for
         // the Storage-stream reader on an otherwise-empty table. Suppressed so it never appears in
         // the published stream itself (issue #269) - PublishedArchivalGroupEvents excludes it, but

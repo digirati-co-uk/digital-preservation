@@ -253,14 +253,28 @@ public class GetDepositsHandler(
     /// The createdBy/lastModifiedBy/preservedBy/exportedBy filters compare exactly against the
     /// bare caller name stored on the deposit, but GET /agents returns full Agent URIs
     /// (ResourceMutator.GetAgentUri) - the obvious thing to do with that list. If the filter
-    /// value parses as an absolute URI, resolve it to its last path segment, unescaped the same
-    /// way GetImportJobResult stores PreservedBy; otherwise use the value as given (issue #263).
-    /// Matching stays exact - this does not turn the filter into a prefix search.
+    /// value parses as an absolute http(s) URI with a non-empty last segment, resolve it to that
+    /// segment, unescaped the same way GetImportJobResult stores PreservedBy; otherwise use the
+    /// value as given (issue #263). Matching stays exact - this does not turn the filter into a
+    /// prefix search.
     /// </summary>
+    /// <remarks>
+    /// Narrowed to http/https with a non-empty slug by issue #359: Uri.TryCreate also succeeds
+    /// for a bare name containing ':' (e.g. "svc:archiver" parses with scheme "svc"), which would
+    /// otherwise resolve to a slug that matches nothing instead of the exact name as given; and
+    /// GetSlug returns null for a host-only URI ("https://host/"), which made the "!" below throw
+    /// on UnEscapeFromUri(null) - a 500 for caller input, the same class of defect #266 and #303
+    /// fixed. A host-only URI now falls through to matching nothing (an empty page) instead.
+    /// </remarks>
     private static string ResolveAgentFilterValue(string value)
     {
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            ? uri.GetSlug()!.UnEscapeFromUri()
-            : value;
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && uri.GetSlug().HasText())
+        {
+            return uri.GetSlug()!.UnEscapeFromUri();
+        }
+
+        return value;
     }
 }

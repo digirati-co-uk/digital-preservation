@@ -95,8 +95,7 @@ public class ImportJobsController(
                           + "on this API. It exists for maintenance that changes how an object is "
                           + "recorded rather than what it holds; ordinary changes must be announced.";
             logger.LogWarning("{Message} (deposit {DepositId})", message, depositId);
-            return this.StatusResponseFromResult(
-                Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+            return this.ProblemFor(ErrorCodes.BadRequest, message);
         }
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
@@ -129,17 +128,10 @@ public class ImportJobsController(
             }
         }
 
-        if (RenameRefusal(importJob) is { } renameRefusal)
-        {
-            // Checked before SuppressedButNotMetsOnly, so a suppressed job that also asks for a
-            // rename gets this message rather than the generic suppression one.
-            return renameRefusal;
-        }
-
         if (InvalidSlugRefusal(importJob) is { } invalidSlugRefusal)
         {
-            // Next to the rename refusal (#260): both judge the job that would actually run, so
-            // both come after the diff-reference expansion and before SuppressedButNotMetsOnly.
+            // Judges the job that would actually run, so it comes after the diff-reference
+            // expansion and before SuppressedButNotMetsOnly.
             return invalidSlugRefusal;
         }
 
@@ -228,22 +220,6 @@ public class ImportJobsController(
     }
     
     /// <summary>
-    /// The refusal to return when a job asks for a rename, which the platform does not perform yet
-    /// (issue #260); null when the job asks for none. Runs after the diff-reference expansion, so a
-    /// diff reference is judged on the job that would actually run.
-    /// </summary>
-    private ActionResult? RenameRefusal(ImportJob importJob)
-    {
-        if (importJob.RenameRefusalMessage() is not { } message)
-        {
-            return null;
-        }
-        logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
-    }
-
-    /// <summary>
     /// The refusal to return when a job's ContainersToAdd or BinariesToAdd contains an invalid
     /// slug (issue #298); null when the job is fine. Previously this was only checked client-side,
     /// by the diff page, which hides Execute for it - a caller posting a job directly was sent to
@@ -258,8 +234,7 @@ public class ImportJobsController(
             return null;
         }
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     /// <summary>
@@ -323,8 +298,7 @@ public class ImportJobsController(
                       + $"metadata folders - but {problem}. "
                       + "Content changes must be announced in the Activity Stream.";
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     /// <summary>
@@ -369,35 +343,25 @@ public class ImportJobsController(
             StringComparison.Ordinal);
 
     /// <summary>
-    /// The refusal to return when the posted job's content is not the deposit's own - it names a
-    /// different Deposit, no Deposit at all, a different Archival Group, or binaries from outside
-    /// the deposit's file area; null when everything belongs.
-    /// </summary>
-    private static IEnumerable<Uri?> ResourceIds(ImportJob importJob) =>
-        importJob.BinariesToAdd.Select(b => b.Id)
-            .Concat(importJob.BinariesToPatch.Select(b => b.Id))
-            .Concat(importJob.BinariesToDelete.Select(b => b.Id))
-            .Concat(importJob.BinariesToRename.Select(b => b.Id))
-            .Concat(importJob.ContainersToAdd.Select(c => c.Id))
-            .Concat(importJob.ContainersToDelete.Select(c => c.Id))
-            .Concat(importJob.ContainersToRename.Select(c => c.Id));
-
-    /// <summary>
     /// Whether a resource id lies strictly below the Archival Group - compared by repository path, as
     /// <see cref="SameArchivalGroup"/> does, so the host does not matter. Strictly below: a job may not
     /// name the group itself as a binary or container, which is what a file uploaded under the name
     /// ".." would otherwise produce.
     /// </summary>
-    private static bool IsWithinArchivalGroup(Uri resourceId, Uri archivalGroup)
-    {
-        var groupPath = archivalGroup.GetPathUnderRoot()?.TrimEnd('/') + "/";
-        return resourceId.GetPathUnderRoot()?.StartsWith(groupPath, StringComparison.Ordinal) == true;
-    }
+    private static bool IsWithinArchivalGroup(Uri resourceId, Uri archivalGroup) =>
+        resourceId.GetPathUnderRoot() is { } resourcePath
+        && archivalGroup.GetPathUnderRoot() is { } groupPath
+        && resourcePath.IsStrictlyBelow(groupPath);
 
+    /// <summary>
+    /// The refusal to return when the posted job's content is not the deposit's own - it names a
+    /// different Deposit, no Deposit at all, a different Archival Group, or binaries from outside
+    /// the deposit's file area; null when everything belongs.
+    /// </summary>
     private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
         string? message = null;
-        var resourceIds = ResourceIds(importJob).ToList();
+        var resourceIds = importJob.AllResourceIds().ToList();
         // The IsAbsoluteUri guards below are load-bearing, not tidiness: a bare string in the JSON
         // ("invalid-id") deserialises as a RELATIVE Uri, and AbsolutePath / GetPathUnderRoot /
         // IsBaseOf all throw on a relative Uri — turning a job that must be refused with 400 into
@@ -438,8 +402,7 @@ public class ImportJobsController(
             return null;
         }
         logger.LogWarning("{Message}", message);
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     private static bool IsPostedDiffReference(ImportJob importJob, PathString path)

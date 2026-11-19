@@ -133,6 +133,13 @@ public static class UriX
         return s.Replace("%23", HashReplacement);
     }
 
+    /// <summary>
+    /// The display name for an Agent URI (its slug, unescaped), or null if there is no agent.
+    /// The one place this is computed, so every page shows an Agent's name the same way
+    /// (issue #388 item 4.5).
+    /// </summary>
+    public static string? GetAgentDisplayName(this Uri? agentUri) => agentUri?.GetSlug()?.UnEscapeFromUri();
+
     public static bool UnescapedEquals(this Uri? u1, Uri? u2)
     {
         var compare = Uri.Compare(u1, u2, 

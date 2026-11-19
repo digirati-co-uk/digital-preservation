@@ -26,7 +26,7 @@ public class SuppressedActivityTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Suppressed_Event_Is_Not_Published_But_Still_Moves_The_Watermark()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var published = await SeedEvent(context, suppressed: false);
         var suppressed = await SeedEvent(context, suppressed: true, secondsLater: 1);
 
@@ -47,7 +47,7 @@ public class SuppressedActivityTests(DatabaseFixture fixture)
     {
         // The row PreservationContext.OnModelCreating seeds so GetLatestArchivalGroupEvent has a
         // watermark on an otherwise-empty table - it must never itself be published (issue #269).
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
 
         var seed = await context.ArchivalGroupEvents.SingleAsync(e => e.Id == -1, cancellationToken: TestContext.Current.CancellationToken);
 
@@ -57,7 +57,7 @@ public class SuppressedActivityTests(DatabaseFixture fixture)
     [Fact]
     public async Task The_Seed_Watermark_Row_Never_Appears_In_The_Published_Stream()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
 
         context.PublishedArchivalGroupEvents().Should().NotContain(e => e.Id == -1);
 
@@ -72,7 +72,7 @@ public class SuppressedActivityTests(DatabaseFixture fixture)
         // The collection's total and the page handler's total between them decide where the pages
         // end. If only one of them filtered, the last page would offer a "next" that is empty - or
         // the collection would claim a last page that does not exist.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var before = await TotalItems(context);
 
         await SeedEvent(context, suppressed: true);

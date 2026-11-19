@@ -322,13 +322,24 @@ public class GetDiffImportJobHandler(
         bool BinaryHasDifferentName(Binary sourceBinary)
         {
             var existing = allExistingBinaries.SingleOrDefault(b => b.Id.UnescapedEquals(sourceBinary.Id));
-            return existing != null && existing.Name != sourceBinary.Name;
+            return existing != null && IsRename(existing.Name, sourceBinary.Name);
         }
         
         bool ContainerHasDifferentName(Container sourceContainer)
         {
             var existing = allExistingContainers.SingleOrDefault(c => c.Id.UnescapedEquals(sourceContainer.Id));
-            return existing != null && existing.Name != sourceContainer.Name;
+            return existing != null && IsRename(existing.Name, sourceContainer.Name);
         }
     }
+
+    /// <summary>
+    /// Whether an existing resource's name should be replaced by the import source's (issue #347).
+    /// A source with no name is never a rename: the METS parser gives a file div with LABEL=""
+    /// an empty name, and emitting that would make the Storage API refuse the whole job (a rename
+    /// to an empty name would leave the resource with no title) when the user only left a LABEL
+    /// blank. Keeping the existing name is the same outcome a folder div already gets, whose METS
+    /// name is only applied when it has text.
+    /// </summary>
+    internal static bool IsRename(string? existingName, string? sourceName) =>
+        sourceName.HasText() && existingName != sourceName;
 }

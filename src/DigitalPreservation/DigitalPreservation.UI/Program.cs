@@ -1,5 +1,4 @@
 ﻿using DigitalPreservation.Mets;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
@@ -15,7 +14,6 @@ using Microsoft.Identity.Web.UI;
 using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 
@@ -73,11 +71,6 @@ try
     builder.Services.AddTransient<SessionTimeoutAsyncPageFilter>();
     builder.Services.AddSession();
 
-    //Add TokenScope
-    builder.Services.AddSingleton<ITokenScope>(x =>
-        new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
-
-
     // Add services to the container.
     builder.Services
         .AddHttpContextAccessor()
@@ -92,16 +85,8 @@ try
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
-        .AddSingleton<IMetsLoader, S3MetsLoader>()
-        .AddSingleton<IMetsParser, MetsParser>()
-        .Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"))
-        .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<MetadataManager>()
-        .AddSingleton<PremisManager>()
-        .AddSingleton<PremisManagerExif>()
-        .AddSingleton<PremisEventManagerVirus>()
-        .AddSingleton<IMetsStorage, S3MetsStorage>()
-        .AddSingleton<WorkspaceManagerFactory>()
+        .AddDepositWorkspace(builder.Configuration)
+        .AddFeatureFlagOptions(builder.Configuration)
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();
 

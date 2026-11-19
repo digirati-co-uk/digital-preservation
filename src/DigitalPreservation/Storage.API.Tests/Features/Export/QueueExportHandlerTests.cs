@@ -5,10 +5,9 @@ using DigitalPreservation.Core.Auth;
 using FakeItEasy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Storage.API.Fedora;
-using Storage.API.Fedora.Model;
 using Storage.API.Features.Export;
 using Storage.API.Features.Export.Requests;
+using Storage.API.Tests.TestingInfrastructure;
 using Storage.Repository.Common;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
@@ -145,19 +144,8 @@ public class QueueExportHandlerTests
         A.CallTo(() => clientDirectory.DepositBuckets).Returns([ProfileBucket]);
         var storageOptions = Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket });
         var handler = new QueueExportHandler(
-            NullLogger<QueueExportHandler>.Instance, identityMinter, store, MakeConverters(), queue,
+            NullLogger<QueueExportHandler>.Instance, identityMinter, store, TestConverters.Make(), queue,
             clientDirectory, storageOptions);
         return (handler, store, queue);
     }
-
-    private static Converters MakeConverters() => new(
-        Options.Create(new FedoraOptions
-        {
-            Root = new Uri("https://fedora.test/fcrepo/rest/"),
-            AdminUser = "admin",
-            AdminPassword = "admin",
-            Bucket = "fedora-bucket",
-            OcflS3Prefix = ""
-        }),
-        Options.Create(new ConverterOptions { StorageRoot = new Uri("https://storage.test/") }));
 }

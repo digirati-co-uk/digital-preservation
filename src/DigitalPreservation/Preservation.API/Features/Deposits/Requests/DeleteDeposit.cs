@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
 using MediatR;
@@ -28,9 +29,10 @@ public class DeleteDepositHandler(
             var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.Id, cancellationToken);
             if (entity != null)
             {
-                if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
+                var otherLockOwner = Deposit.GetOtherLockOwner(entity.LockedBy, callerIdentity);
+                if (otherLockOwner is not null)
                 {
-                    return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
+                    return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by another user: " + otherLockOwner);
                 }
                 var storageLocation = entity.Files;
                 dbContext.Deposits.Remove(entity);

@@ -138,7 +138,6 @@ public class ImportJob : Resource
     
     
     
-    // TODO: (not for demo) - change name (dc:title) of containers and binaries
     /// <summary>
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title
     /// </summary>
@@ -156,7 +155,7 @@ public class ImportJob : Resource
     // (metadata to change?) more general. NOT for Oct demo.
 
     /// <summary>
-    /// Checks only the Add lists (plus Rename, which is refused outright regardless - issue #260).
+    /// Checks only the Add and Rename lists.
     /// Patch and Delete name resources that already exist in Fedora: if the slug alphabet tightens,
     /// an existing resource with a now-invalid slug must still be patchable or deletable through the
     /// UI, so those lists are deliberately not checked here (issue #298).
@@ -207,25 +206,17 @@ public class ImportJob : Resource
     }
 
     /// <summary>
-    /// The message to refuse this job with, or null when it asks for no renames. Renaming (changing
-    /// only a Container or Binary's display name / dc:title, never its slug or path) is not
-    /// implemented yet (issue #260); both the Preservation and Storage APIs refuse a job that asks
-    /// for one, using this same wording.
+    /// Every resource id named anywhere in this job, across all seven lists (issue #388 item 2.7) -
+    /// the Preservation API's "every resource lies strictly below the Archival Group" check walks
+    /// this, and the Storage API makes the identical check itself as defence in depth, kept separate
+    /// there since it reports which specific list (Binary or Container) a stray id came from.
     /// </summary>
-    public string? RenameRefusalMessage()
-    {
-        var renamedItems = ContainersToRename.Concat<PreservedResource>(BinariesToRename).ToList();
-        if (renamedItems.Count == 0)
-        {
-            return null;
-        }
-
-        var ids = renamedItems.Select(item => item.Id?.ToString() ?? "(no id)").ToList();
-        var idsText = ids.Count <= 3 ? string.Join(", ", ids) : string.Join(", ", ids.Take(3)) + ", …";
-
-        return $"Renaming is not supported yet: this import job asks to rename {renamedItems.Count} item(s) " +
-               $"({idsText}). A rename changes only the display name (dc:title) of an existing Container or " +
-               "Binary. To proceed, make the name in the METS match the name the Archival Group already has, " +
-               "or remove the rename entries from the job.";
-    }
+    public IEnumerable<Uri?> AllResourceIds() =>
+        BinariesToAdd.Select(b => b.Id)
+            .Concat(BinariesToPatch.Select(b => b.Id))
+            .Concat(BinariesToDelete.Select(b => b.Id))
+            .Concat(BinariesToRename.Select(b => b.Id))
+            .Concat(ContainersToAdd.Select(c => c.Id))
+            .Concat(ContainersToDelete.Select(c => c.Id))
+            .Concat(ContainersToRename.Select(c => c.Id));
 }

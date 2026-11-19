@@ -38,7 +38,7 @@ public static class ServiceCollectionX
                 var authHeader = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(credentials));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);
             })
-            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)
+            .ConfigurePlatformTcpKeepAlive()
             .AddHttpMessageHandler<TimingHandler>();
 
         return serviceCollection;

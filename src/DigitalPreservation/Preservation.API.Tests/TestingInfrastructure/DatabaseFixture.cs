@@ -38,10 +38,10 @@ public class DatabaseFixture : IAsyncLifetime
         ConnectionString = postgresContainer.GetConnectionString();
 
         // Create new context using connection string for Postgres container
-        DbContext = CreateNewAuthServiceContext();
+        DbContext = CreateNewPreservationContext();
     }
     
-    public PreservationContext CreateNewAuthServiceContext()
+    public PreservationContext CreateNewPreservationContext()
         => new(
             new DbContextOptionsBuilder<PreservationContext>()
                 .UseNpgsql(ConnectionString)

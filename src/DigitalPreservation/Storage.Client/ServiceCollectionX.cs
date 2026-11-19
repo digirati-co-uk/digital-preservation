@@ -29,7 +29,7 @@ public static class ServiceCollectionX
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
                 client.Timeout = TimeSpan.FromMinutes(storageOptions.TimeoutMinutes);
             })
-            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)
+            .ConfigurePlatformTcpKeepAlive()
             .AddHttpMessageHandler<TimingHandler>();
 
         return serviceCollection;

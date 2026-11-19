@@ -59,7 +59,8 @@ public class RoundTripLiddle
         objects.Files.Should().HaveCount(4);
 
         objects.Files[0].LocalPath.Should().Be("objects/tape1side1.wav");
-        objects.Files[0].ContentType.Should().Be("audio/x-wav");
+        // MetsManager writes the preferred name for a content type (ContentTypes.Normalise)
+        objects.Files[0].ContentType.Should().Be("audio/wav");
         objects.Files[0].Digest.Should().Be("abcd1234");
         objects.Files[0].Size.Should().Be(500000);
         objects.Files[0].Metadata.OfType<FileFormatMetadata>().Single().PronomKey.Should().Be("fmt/1");

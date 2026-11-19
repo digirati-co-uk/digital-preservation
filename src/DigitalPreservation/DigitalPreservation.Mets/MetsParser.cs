@@ -47,6 +47,25 @@ public class MetsParser(
     }
 
     /// <summary>
+    /// Resolves the one premis:storage element that is ours - the one whose storageMedium is
+    /// our own agent name, mirroring how PremisManager.Read already does it, and how
+    /// PremisManager.Create marks the one it writes. A techMD may legitimately carry others:
+    /// migrated-from provenance with no storageMedium (every recent EPrints migration), or
+    /// (once the platform edits and exports such an item) that provenance sitting alongside our
+    /// own marked one. Those are preserved as metadata elsewhere, but must never be read as *the*
+    /// storage location, and must never make this throw just because there is more than one
+    /// (issue #236).
+    /// </summary>
+    private static Uri? ResolveOurStorageLocation(XElement amdOrTechMd)
+    {
+        var ourStorage = amdOrTechMd.Descendants(XNames.PremisStorage)
+            .FirstOrDefault(storage => storage.Descendants(XNames.PremisStorageMedium)
+                .Any(medium => medium.Value == Constants.MetsCreatorAgent));
+        var contentLocationValue = ourStorage?.Descendants(XNames.PremisContentLocationValue).FirstOrDefault()?.Value;
+        return contentLocationValue.HasText() ? new Uri(contentLocationValue) : null;
+    }
+
+    /// <summary>
     /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
     /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
     /// </summary>
@@ -437,12 +456,7 @@ public class MetsParser(
                     if (amd != null)
                     {
                         var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                        Uri? storageLocation = null;
-                        var storageUri = amd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                        if (storageUri != null)
-                        {
-                            storageLocation = new Uri(storageUri);
-                        }
+                        var storageLocation = ResolveOurStorageLocation(amd);
 
                         if (originalName != null)
                         {
@@ -490,6 +504,24 @@ public class MetsParser(
                     if (recordInfo != null)
                         mets.PhysicalStructure!.RecordInfo ??= recordInfo;
                 }
+            }
+            else if (type == null && !div.Elements(XNames.MetsFptr).Any())
+            {
+                // Not typed as a Directory, and not a File div either (no mets:fptr of its own -
+                // those are on CHILD divs instead, handled individually as this method recurses).
+                // Real EPrints METS carries DMDID and ADMID directly on the structMap's root div
+                // with no TYPE attribute at all, wrapping the whole item rather than naming a
+                // folder (issue #237 review: the namespace fix in GetDmdForDiv alone wasn't
+                // enough, because nothing applied what it found - this div is neither branch
+                // above, so its recordInfo/access/rights were silently discarded). Same root-level
+                // inheritance anchor as the untyped-structural-div case just above, for the same
+                // reason: nothing more specific is ever going to claim this div's own DMD.
+                if (accessRestrictions != null)
+                    mets.PhysicalStructure!.AccessRestrictions ??= accessRestrictions;
+                if (rightsStatement != null)
+                    mets.PhysicalStructure!.RightsStatement ??= rightsStatement;
+                if (recordInfo != null)
+                    mets.PhysicalStructure!.RecordInfo ??= recordInfo;
             }
 
             // type may be Directory, we need to match them up to file paths
@@ -574,17 +606,13 @@ public class MetsParser(
                         }
 
                         originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                        var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                        if (storageUri != null)
+                        try
                         {
-                            try
-                            {
-                                storageLocation = new Uri(storageUri);
-                            }
-                            catch (Exception e)
-                            {
-                                logger.LogError(e, "Unable to parse storage location {StorageUri}", storageUri);
-                            }
+                            storageLocation = ResolveOurStorageLocation(techMd);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.LogError(e, "Unable to parse storage location for techMD {TechMdId}", techMd.Attribute("ID")?.Value);
                         }
 
                         haveUsedAdmIdAlready = true;
@@ -696,6 +724,8 @@ public class MetsParser(
                     {
                         Source = "ClamAV",
                         HasVirus = eventOutcome?.Value.ToLower() == "fail",
+                        NotScanned = string.Equals(eventOutcome?.Value, Constants.VirusCheckNotScannedOutcome,
+                            StringComparison.OrdinalIgnoreCase),
                         VirusFound = eventOutcomeDetailNote != null ? eventOutcomeDetailNote.Value : string.Empty,
                         Timestamp = Convert.ToDateTime(
                             eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow),
@@ -890,6 +920,32 @@ public class MetsParser(
                 Source = recordIdentifierEl.Attribute("source")!.Value,
                 Value = recordIdentifierEl.Value
             });
+        }
+
+        // EPrints writes its own record identifiers - including the id.library.leeds.ac.uk PID -
+        // as mets:recordIdentifier rather than mods:recordIdentifier, even though mdWrap/@MDTYPE
+        // claims the content is MODS (issue #237). Read them too, but only when that MODS claim is
+        // actually made - this is tolerance for one third party's mistake, not a general scavenge
+        // of METS-namespace elements - and only for sources the mods: form above didn't already
+        // supply: once #223 makes a document editable, a write adds genuine mods:recordIdentifier
+        // elements alongside the untouched EPrints originals, and the mods: form must win so the
+        // document is not reported as carrying the same identifier twice.
+        if (dmd.Element(XNames.MetsMdWrap)?.Attribute("MDTYPE")?.Value == Constants.ModsMdWrapType)
+        {
+            foreach (var recordIdentifierEl in dmd.Descendants(XNames.MetsRecordIdentifier))
+            {
+                var source = recordIdentifierEl.Attribute("source")?.Value;
+                if (!source.HasText() || recordInfo?.RecordIdentifiers.Any(ri => ri.Source == source) == true)
+                {
+                    continue;
+                }
+                recordInfo ??= new RecordInfo();
+                recordInfo.RecordIdentifiers.Add(new RecordIdentifier()
+                {
+                    Source = source,
+                    Value = recordIdentifierEl.Value
+                });
+            }
         }
 
         return (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet);

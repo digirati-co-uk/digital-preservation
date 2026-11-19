@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
@@ -32,9 +33,10 @@ public class ExecuteImportJobHandler(
     {
         var callerIdentity = request.Principal.GetCallerIdentity();
         var depositEntity = dbContext.Deposits.SingleOrDefault(d => d.MintedId == request.ImportJob.Deposit!.GetSlug());
-        if (depositEntity?.LockedBy != null && depositEntity.LockedBy != callerIdentity)
+        var otherLockOwner = Deposit.GetOtherLockOwner(depositEntity?.LockedBy, callerIdentity);
+        if (otherLockOwner is not null)
         {
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + callerIdentity);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + otherLockOwner);
         }
         logger.LogInformation("ExecuteImportJobHandler handling import job {ImportJobSummary}", request.ImportJob.LogSummary());
         if (request.ImportJob.SuppressActivityStreamEvent)
@@ -58,7 +60,13 @@ public class ExecuteImportJobHandler(
         var storageApiImportJob = Duplicate(request.ImportJob);
         logger.LogInformation("Mutating Preservation Import Job");
         resourceMutator.MutatePreservationImportJob(storageApiImportJob);
-        var storageImportJobResultResult = await storageApi.ExecuteImportJob(storageApiImportJob, cancellationToken);
+
+        // The point of no return (issue #428). A caller who has gone before this still cancels
+        // cleanly, but once the job is sent the Storage API may accept and start it whether or not
+        // we are still listening. From here on the call and the record of it run to completion, so
+        // a client disconnect cannot leave a running job with no Preservation API record.
+        cancellationToken.ThrowIfCancellationRequested();
+        var storageImportJobResultResult = await storageApi.ExecuteImportJob(storageApiImportJob, CancellationToken.None);
         if (storageImportJobResultResult is { Success: true, Value: not null })
         {
             logger.LogInformation("Storage API accepted import job");
@@ -85,7 +93,7 @@ public class ExecuteImportJobHandler(
             };
             dbContext.ImportJobs.Add(entity);
             logger.LogInformation("Saving Import Job entity {EntityId} to DB", entity.Id);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(CancellationToken.None);
             
             return Result.OkNotNull(preservationImportJobResult);
         }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using DigitalPreservation.Utils;
 using Storage.API.Fedora;
 using Storage.API.Fedora.Model;
@@ -65,46 +66,56 @@ public sealed class FedoraTransactionMonitor(
             {
                 logger.LogInformation("(TX) (M) Transaction {TransactionId} is currently being committed", transactionId);
                 bool cancel = tx.CancelRequested;
-                // While Fedora is in its emit events stage, this WILL NOT RETURN until Fedora has finished
-                // So we get a massive pileup of these calls because the timer is still ticking every minute,
-                // re-entering this method.
-
-                // Try it again with stopping the timer completely once commit called
-                // Try it again without the following line, instead just fedoraClient.KeepTransactionAlive(tx) - does that return immediately?
+                // This branch is a documented safety net, not the fix for a real Fedora hang
+                // (issue #350): a commit silent for a very long time is almost always the NAT
+                // gateway's 350s idle timeout on the connection between us and Fedora, which TCP
+                // keepalive now handles - a 38.7 GB, 2,797-binary commit that was silent for 22
+                // minutes still returned 204 once keepalive was in place. This poll only matters
+                // for the gap keepalive doesn't cover: the ALB's own ~4,000s idle-timeout ceiling,
+                // which keepalive probes don't reset, and any future network path change. The timer
+                // is stretched to 30 minutes once the commit starts specifically so this poll is rare
+                // - though per fcrepo's own source (issue #383's third review), once the transaction
+                // has passed its 3-minute expiry this GET itself blocks (Fedora synchronizes it
+                // against the commit) until the commit finishes, so in practice it's a second long
+                // request rather than a quick check, and is exposed to the same ALB/NAT path as the
+                // commit PUT itself.
+                //
+                // Only a status GET runs here - no keep-alive POST (issue #383 review point 1): a
+                // keep-alive POSTed against a transaction that is mid-commit is itself what Fedora
+                // answers with 409, so POSTing one here was cancelling commits that were simply
+                // still running, not actually lost.
                 var currentStatus = await fedoraClient.GetTransactionHttpStatus(tx);
-                var currentStatusCode = (int)currentStatus;
-                logger.LogInformation("(TX) (M) Transaction {TransactionId} has HTTP Status {StatusCode}.", transactionId, currentStatusCode);
-                if (currentStatusCode < 200 || currentStatusCode > 299)
+                if (logger.IsEnabled(LogLevel.Information))
                 {
-                    // don't even try to PUT a keep-alive
-                    logger.LogInformation("(TX) (M) Transaction {TransactionId} has non-2xx status ({StatusCode}), will cancel the commit if not already requested to cancel.",
-                        transactionId, currentStatusCode);
+                    logger.LogInformation("(TX) (M) Transaction {TransactionId} has HTTP Status {StatusCode}.", transactionId, (int)currentStatus);
+                }
+                if (IsTransactionFinished(currentStatus))
+                {
+                    // 404/410 is Fedora's own, definitive answer that it no longer has this
+                    // transaction - the commit is over, successfully or not (issue #383's third
+                    // review: a GET never actually answers 409 - that comes from the keep-alive
+                    // POST's refresh() instead; a GET answers 204 until expiry, then blocks and
+                    // answers 404/410 once the commit Fedora was synchronizing it against finishes).
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation(
+                            "(TX) (M) Transaction {TransactionId} status {StatusCode} means Fedora is done with it; will cancel the commit if not already requested to cancel.",
+                            transactionId, (int)currentStatus);
+                    }
                     cancel = true;
                 }
-
-                if (!cancel)
+                else
                 {
-                    logger.LogInformation("(TX) (M) Keeping commit of transaction {TransactionId} alive after {ElapsedMilliseconds} ms",
-                        transactionId, stopwatch.ElapsedMilliseconds);
-                    try
+                    // Anything else - 204 before expiry, a defensive 409 in case a GET ever does
+                    // answer one, or a transient 502/503/504 from the same ALB/NAT path the commit
+                    // PUT itself uses - isn't a real answer that the transaction is over, so it's not
+                    // grounds to cancel (issue #383's third review: treat these as "no information",
+                    // not as "gone").
+                    if (logger.IsEnabled(LogLevel.Information))
                     {
-                        await fedoraClient.KeepTransactionAlive(tx);
-                        currentStatusCode = (int)tx.StatusCode;
-                        if (currentStatusCode < 200 || currentStatusCode > 299)
-                        {
-                            logger.LogWarning("(TX) (M) KeepTransactionAlive for transaction {TransactionId} returned {StatusCode}, will cancel the commit.",
-                                transactionId, currentStatusCode);
-                            cancel = true;
-                        }
-                        else
-                        {
-                            logger.LogInformation("(TX) (M) After keep-alive, transaction {TransactionId} has status {StatusCode}", transactionId, currentStatusCode);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "(TX) (M) Keeping transaction {TransactionId} alive failed: {StatusCode}, will cancel the commit.", transactionId, (int)tx.StatusCode);
-                        cancel = true;
+                        logger.LogInformation(
+                            "(TX) (M) Transaction {TransactionId} status {StatusCode} isn't a definitive answer that it's gone; not cancelling.",
+                            transactionId, (int)currentStatus);
                     }
                 }
 
@@ -143,6 +154,22 @@ public sealed class FedoraTransactionMonitor(
                 logger.LogInformation("(TX) (M) (commit not started) Keeping transaction {TransactionId} alive after {ElapsedMilliseconds} ms",
                     transactionId, stopwatch.ElapsedMilliseconds);
                 await fedoraClient.KeepTransactionAlive(tx);
+                var statusCode = tx.StatusCode;
+                if (statusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+                {
+                    // Fedora has expired or otherwise lost this transaction (issue #350) - most
+                    // likely during a stall long enough to pass its 3-minute session timeout. Record
+                    // it so the import loop can stop feeding a transaction that is already gone,
+                    // rather than reaching a commit whose outcome would then be undefined. Scoped to
+                    // 404/410 specifically (issue #383 review point 6), as the issue originally
+                    // asked: a transient 502/503/504 from the ALB on a single keep-alive is not
+                    // evidence the transaction itself is gone, and must not end a multi-hour import
+                    // over one blip.
+                    logger.LogWarning(
+                        "(TX) (M) KeepTransactionAlive for transaction {TransactionId} returned {StatusCode}; the transaction appears to be lost.",
+                        transactionId, (int)statusCode);
+                    tx.TransactionLost = true;
+                }
             }
         }
         catch (Exception ex)
@@ -156,4 +183,17 @@ public sealed class FedoraTransactionMonitor(
         disposed = true;
         cancellationTokenSource.Dispose();
     }
+
+    /// <summary>
+    /// Whether a GET on the transaction means Fedora no longer has it - the only statuses that are
+    /// a real answer, not just a failure of the GET itself or a status that still means "this
+    /// transaction is live" (issue #383's third review, reading fcrepo's own source at 6.5.1: a GET
+    /// answers 204 while the transaction hasn't passed its 3-minute expiry, then blocks - Fedora
+    /// synchronizes the expiry check against the commit - until the commit finishes, and only then
+    /// answers 404 or 410). Shared between this class's commit-started poll and
+    /// ExecuteImportJobHandler's WaitForTransactionToFinish, so the two can't drift apart on what
+    /// counts as "finished".
+    /// </summary>
+    public static bool IsTransactionFinished(HttpStatusCode status) =>
+        status is HttpStatusCode.NotFound or HttpStatusCode.Gone;
 }

@@ -153,13 +153,25 @@ public class RunPipelineStatusHandler(
         // 404 for the same input (#356).
         var job = await dbContext.PipelineRunJobs
             .Where(j => j.Deposit == depositId && j.Id == jobId)
-            .Select(j => new { j.RunUser })
+            .Select(j => new { j.RunUser, j.DateSubmitted })
             .SingleOrDefaultAsync(cancellationToken);
         if (job == null)
         {
             return Result.Fail(ErrorCodes.NotFound, $"No pipeline job {jobId} for deposit {depositId}");
         }
         var runUser = job.RunUser;
+
+        // Whether this is the deposit's own latest job, same definition and the same null-handling
+        // as PipelineJobCleanupProcessor's isLatestForDeposit (issue #357 review): force-completing a
+        // non-latest job - e.g. via the UI, on a stuck job a newer run has already superseded - must
+        // not release the lock, which by now belongs to that newer run, not to this one. The sweep's
+        // own CloseWithoutReleasing already gets this right by never going through CompleteJob for a
+        // non-latest job at all; this is the same rule applied here too, since force-complete (and
+        // any other terminal report) reaches this method directly rather than through the sweep.
+        var jobDateSubmitted = job.DateSubmitted ?? DateTime.MinValue;
+        var isLatestForDeposit = !await dbContext.PipelineRunJobs
+            .AnyAsync(j => j.Deposit == depositId && (j.DateSubmitted ?? DateTime.MinValue) > jobDateSubmitted,
+                cancellationToken);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -178,10 +190,12 @@ public class RunPipelineStatusHandler(
                 .SetProperty(j => j.Status, newStatus)
                 .SetProperty(j => j.DateFinished, now), cancellationToken);
 
-        if (moved > 0)
+        if (moved > 0 && isLatestForDeposit)
         {
-            // Only if the move above actually happened, and only if the deposit is still locked by
-            // this job's own RunUser - someone else may have force-taken the lock mid-run
+            // Only if the move above actually happened, only if this is the deposit's own latest job
+            // (see the comment above - a non-latest job's lock belongs to whatever newer run
+            // superseded it, not to this one), and only if the deposit is still locked by this job's
+            // own RunUser - someone else may have force-taken the lock mid-run
             // (POST /lock?force=true), and releasing theirs would be wrong.
             await dbContext.Deposits
                 .Where(d => d.MintedId == depositId && d.LockedBy == runUser)

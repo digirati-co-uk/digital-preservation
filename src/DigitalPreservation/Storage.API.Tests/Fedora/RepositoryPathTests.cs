@@ -1,6 +1,5 @@
-using Microsoft.Extensions.Options;
-using Storage.API.Fedora;
 using Storage.API.Fedora.Model;
+using Storage.API.Tests.TestingInfrastructure;
 
 namespace Storage.API.Tests.Fedora;
 
@@ -54,9 +53,8 @@ public class RepositoryPathTests
 
     private static readonly Uri Root = new("http://fedora:8080/fcrepo/rest/");
 
-    private static Converters MakeConverters() => new(
-        Options.Create(new FedoraOptions { Root = Root, AdminUser = "fedoraAdmin", AdminPassword = "not-a-real-password", Bucket = "ocfl", OcflS3Prefix = "fcrepo/" }),
-        Options.Create(new ConverterOptions { StorageRoot = new Uri("https://storage.test/") }));
+    private static Converters MakeConverters() => TestConverters.Make(
+        fedoraRoot: Root, adminUser: "fedoraAdmin", adminPassword: "not-a-real-password", bucket: "ocfl", ocflS3Prefix: "fcrepo/");
 
     [Theory]
     [InlineData("cc/thing", "http://fedora:8080/fcrepo/rest/cc/thing")]

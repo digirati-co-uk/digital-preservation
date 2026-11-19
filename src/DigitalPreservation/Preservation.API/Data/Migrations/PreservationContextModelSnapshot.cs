@@ -17,7 +17,7 @@ namespace Preservation.API.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -353,6 +353,11 @@ namespace Preservation.API.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_pipeline_run_jobs");
+
+                    b.HasIndex("Deposit")
+                        .IsUnique()
+                        .HasDatabaseName("ix_pipeline_run_jobs_deposit_one_active")
+                        .HasFilter("status IN ('waiting','processing','metadataCreated')");
 
                     b.ToTable("pipeline_run_jobs", (string)null);
                 });

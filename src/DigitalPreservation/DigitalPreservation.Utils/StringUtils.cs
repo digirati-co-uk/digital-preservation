@@ -151,6 +151,14 @@ public static class StringUtils
     }
 
     /// <summary>
+    /// True when <paramref name="path"/> lies strictly below <paramref name="parent"/> - a child of
+    /// it, not equal to it and not a sibling (issue #388 item 2.7). Built on GetPathBelow, which
+    /// already defines what "strictly below" means; this names the common case where only the
+    /// yes/no answer is wanted, not the resource's own path relative to the parent.
+    /// </summary>
+    public static bool IsStrictlyBelow(this string path, string parent) => path.GetPathBelow(parent) != null;
+
+    /// <summary>
     /// Create a nice display format for file size given a raw byte value
     /// 
     /// 42 => "42 B"

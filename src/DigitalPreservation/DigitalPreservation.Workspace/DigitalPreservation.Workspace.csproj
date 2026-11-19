@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
+      <ProjectReference Include="..\DigitalPreservation.Mets\DigitalPreservation.Mets.csproj" />
       <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
     </ItemGroup>
 

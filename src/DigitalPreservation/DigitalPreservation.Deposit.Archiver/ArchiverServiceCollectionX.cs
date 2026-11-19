@@ -1,14 +1,10 @@
-using Amazon.S3;
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Preservation.Client;
-using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.Deposit.Archiver;
@@ -26,8 +22,6 @@ public static class ArchiverServiceCollectionX
         this IServiceCollection services, IConfiguration configuration, ArchiverStartupSettings settings)
     {
         services.AddSingleton<IConfiguration>(configuration);
-
-        services.AddSingleton<ITokenScope>(_ => new TokenScope(settings.ScopeUri));
 
         services.ConfigureForwardedHeaders()
             .AddHttpContextAccessor()
@@ -47,20 +41,9 @@ public static class ArchiverServiceCollectionX
         };
         services.AddAccessTokenProvider(accessTokenProviderOptions);
 
-        services.AddAWSService<IAmazonS3>();
-
         services.AddStorageAwsAccess(configuration);
         services.AddSingleton<IIdentityMinter, IdentityMinter>();
-        services.AddSingleton<IMetsLoader, S3MetsLoader>();
-        services.AddSingleton<IMetsParser, MetsParser>();
-        services.Configure<MetsManagerOptions>(configuration.GetSection("FeatureFlags"));
-        services.AddSingleton<IMetsManager, MetsManager>();
-        services.AddSingleton<MetadataManager>();
-        services.AddSingleton<PremisManager>();
-        services.AddSingleton<PremisManagerExif>();
-        services.AddSingleton<PremisEventManagerVirus>();
-        services.AddSingleton<IMetsStorage, S3MetsStorage>();
-        services.AddSingleton<WorkspaceManagerFactory>();
+        services.AddDepositWorkspace(configuration);
 
         return services;
     }

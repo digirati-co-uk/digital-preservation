@@ -25,13 +25,18 @@ runs:
     - id: checkout
       uses: actions/checkout@v4
 
+    # Runs triggered by Dependabot (re-runs included) get no repository secrets, so the IAM role is
+    # empty and the AWS login fails before anything is built. For them, build the image without
+    # logging in or pushing: the PR still proves the Dockerfile builds on the bumped base image.
     - id: configure-aws-credentials
+      if: github.actor != 'dependabot[bot]'
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ inputs.iam-role }}
         aws-region: eu-west-1
 
     - id: login-ecr
+      if: github.actor != 'dependabot[bot]'
       uses: aws-actions/amazon-ecr-login@v2
   
     - id: docker-setup-buildx
@@ -40,7 +45,9 @@ runs:
     - id: docker-meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ inputs.ecr-prefix }}/dlip-pres-${{ inputs.image-name }}
+        # 'local' only when the prefix is missing (a Dependabot run, if repository variables do not
+        # reach it); such a run never pushes, so the name only has to be a valid tag.
+        images: ${{ inputs.ecr-prefix || 'local' }}/dlip-pres-${{ inputs.image-name }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -58,3 +65,10 @@ runs:
         tags: ${{ steps.docker-meta.outputs.tags }}
         labels: ${{ steps.docker-meta.outputs.labels }}
         push: ${{ github.actor != 'dependabot[bot]' }}
+        # No attestations: push a plain image manifest, not a manifest list with an attestation in
+        # it. Lambda rejects a list ("image manifest, config or layer media type ... is not
+        # supported"), and since the runners moved to ubuntu-26.04, whose Docker uses the containerd
+        # image store, ecr-retag's pull/tag/push carries the whole list over to the environment tag
+        # the Deposit Archiver Lambda deploys from. The older Docker pushed only the image itself.
+        provenance: false
+        sbom: false

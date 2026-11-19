@@ -25,7 +25,7 @@ public class StoredImportJobResultRepairTests(DatabaseFixture fixture)
     [Fact]
     public async Task GetImportJobResult_Repairs_A_Stale_Storage_Host_ImportJob_Uri_On_Read()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         const string importJobId = "repair-job-single";
         context.ImportJobs.Add(SeedCompletedImportJob(importJobId));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -43,7 +43,7 @@ public class StoredImportJobResultRepairTests(DatabaseFixture fixture)
     [Fact]
     public async Task GetImportJobResultsForDeposit_Repairs_Every_Stale_ImportJob_Uri_On_Read()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         const string importJobId = "repair-job-list";
         context.ImportJobs.Add(SeedCompletedImportJob(importJobId));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);

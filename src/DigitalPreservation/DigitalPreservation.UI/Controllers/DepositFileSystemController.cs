@@ -18,13 +18,13 @@ public class DepositFileSystemController(IMediator mediator) : Controller
     [HttpGet]
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> Get([FromRoute] string id, [FromQuery] bool readS3 = false)
+    public async Task<IActionResult> Get([FromRoute] string id, [FromQuery] bool readS3, CancellationToken cancellationToken)
     {
-        var getDepositResult = await mediator.Send(new GetDeposit(id));
+        var getDepositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (getDepositResult.Success)
         {
             var readS3Result = await mediator.Send(new GetWorkingDirectory(
-                getDepositResult.Value!.Files!, readS3, false));
+                getDepositResult.Value!.Files!, readS3, false), cancellationToken);
             if (readS3Result.Success)
             {
                 return Json(readS3Result.Value);

@@ -1,18 +1,7 @@
 using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.PreservationApi;
-using DigitalPreservation.Common.Model.Results;
 using FakeItEasy;
-using FakeItEasy.Configuration;
 using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Preservation.API.Features.Deposits.Requests;
-using Preservation.API.Features.ImportJobs;
-using Preservation.API.Features.ImportJobs.Requests;
-using Preservation.API.Mutation;
+using static Preservation.API.Tests.Features.ImportJobs.ImportJobsControllerHarness;
 
 namespace Preservation.API.Tests.Features.ImportJobs;
 
@@ -23,11 +12,6 @@ namespace Preservation.API.Tests.Features.ImportJobs;
 /// </summary>
 public class InvalidSlugRefusalTests
 {
-    private const string DepositId = "dep-1";
-    private static readonly Uri DepositUri = new("https://preservation.test/deposits/" + DepositId);
-    private static readonly Uri DepositFiles = new("s3://deposits/" + DepositId + "/");
-    private static readonly Uri ArchivalGroup = new("https://preservation.test/repository/cc/thing");
-
     [Fact]
     public async Task A_Job_Adding_A_Binary_With_An_Invalid_Slug_Is_Refused()
     {
@@ -99,67 +83,4 @@ public class InvalidSlugRefusalTests
     }
 
     private static ImportJob PlainJob() => new() { ArchivalGroup = ArchivalGroup, Deposit = DepositUri };
-
-    private static DigitalPreservation.Common.Model.Binary Binary(string relativePath) =>
-        new()
-        {
-            Id = new Uri($"{ArchivalGroup}/{relativePath}"),
-            Origin = new Uri(DepositFiles, relativePath)
-        };
-
-    private static DigitalPreservation.Common.Model.Container Container(string relativePath) =>
-        new() { Id = new Uri($"{ArchivalGroup}/{relativePath}") };
-
-    private static string? Refusal(IActionResult result)
-    {
-        var problem = result.Should().BeOfType<ObjectResult>()
-            .Which.Value.Should().BeOfType<ProblemDetails>().Subject;
-        problem.Status.Should().Be(400);
-        return problem.Detail;
-    }
-
-    private static IAssertConfiguration Executed(IMediator mediator) =>
-        A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._));
-
-    private static IMediator Mediator()
-    {
-        var mediator = A.Fake<IMediator>();
-        A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._))
-            .Returns(Result.OkNotNull<Deposit?>(new Deposit
-            {
-                Id = DepositUri,
-                ArchivalGroup = ArchivalGroup,
-                Files = DepositFiles
-            }));
-        A.CallTo(() => mediator.Send(A<GetImportJobResultsForDeposit>._, A<CancellationToken>._))
-            .Returns(Result.OkNotNull(new List<ImportJobResult>()));
-        A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._))
-            .Returns(Result.OkNotNull(new ImportJobResult
-            {
-                Id = new Uri(DepositUri + "/importjobs/results/job-1"),
-                ImportJob = new Uri(DepositUri + "/importjobs/diff"),
-                ArchivalGroup = ArchivalGroup,
-                Status = ImportJobStates.Waiting
-            }));
-        return mediator;
-    }
-
-    private static ImportJobsController Controller(IMediator mediator)
-    {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?>
-            {
-                ["FeatureFlags:EnableMetsIdNormalisation"] = "true"
-            }).Build();
-        var mutator = new ResourceMutator(Options.Create(new MutatorOptions
-        {
-            Storage = "https://storage.test",
-            Preservation = "https://preservation.test"
-        }));
-        return new ImportJobsController(
-            NullLogger<ImportJobsController>.Instance, mediator, mutator, configuration)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
-        };
-    }
 }

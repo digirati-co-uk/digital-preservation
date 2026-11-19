@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Search;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -27,13 +28,7 @@ public class FedoraSearchController(IMediator mediator) : ControllerBase
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            var problem = new ProblemDetails
-            {
-                Status = (int)HttpStatusCode.BadRequest,
-                Title = "Missing search text",
-                Detail = "A search text parameter is required."
-            };
-            return BadRequest(problem);
+            return this.ProblemFor(ErrorCodes.BadRequest, "A search text parameter is required.", "Missing search text");
         }
 
         // Defaults are applied here, before validation, so nothing downstream ever sees an absent

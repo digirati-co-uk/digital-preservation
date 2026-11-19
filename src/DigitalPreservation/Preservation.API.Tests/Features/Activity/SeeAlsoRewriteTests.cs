@@ -22,7 +22,7 @@ public class SeeAlsoRewriteTests(DatabaseFixture fixture)
     [Fact]
     public async Task An_Event_With_A_Recorded_Import_Job_Gets_A_Preservation_Api_SeeAlso()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var storageResultId = new Uri($"https://storage.test/importjobs/{Guid.NewGuid():N}");
         const string depositId = "seealso-dep";
         const string importJobId = "seealso-job";
@@ -43,7 +43,7 @@ public class SeeAlsoRewriteTests(DatabaseFixture fixture)
     [Fact]
     public async Task An_Event_Whose_Import_Job_Row_Is_Gone_Omits_SeeAlso()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var storageResultId = new Uri($"https://storage.test/importjobs/{Guid.NewGuid():N}");
         // Deliberately no matching row in ImportJobs.
         var archivalGroupEvent = SeedEvent(storageResultId);

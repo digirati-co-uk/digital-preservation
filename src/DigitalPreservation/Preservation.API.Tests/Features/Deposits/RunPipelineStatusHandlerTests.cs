@@ -27,7 +27,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Claiming_A_Waiting_Job_Succeeds_And_Starts_It()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Waiting);
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.Running);
@@ -45,7 +45,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [InlineData(PipelineJobStates.CompletedWithErrors)]
     public async Task Claiming_A_Job_That_Is_Not_Waiting_Is_Refused(string alreadyIn)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, alreadyIn);
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.Running);
@@ -62,13 +62,13 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Only_One_Of_Two_Concurrent_Claims_Wins()
     {
-        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        await using var seedContext = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(seedContext, PipelineJobStates.Waiting);
 
         // Separate contexts, so this is two consumers racing rather than one change tracker used
         // twice. Read-then-write would let both see "waiting" and both proceed.
-        await using var first = fixture.CreateNewAuthServiceContext();
-        await using var second = fixture.CreateNewAuthServiceContext();
+        await using var first = fixture.CreateNewPreservationContext();
+        await using var second = fixture.CreateNewPreservationContext();
 
         var results = await Task.WhenAll(
             Handle(first, depositId, jobId, PipelineJobStates.Running),
@@ -82,7 +82,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     public async Task Completing_A_Job_Still_Records_The_Finish_And_Any_Errors()
     {
         // The claim path returns early, so this guards the transitions either side of it.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running);
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "it broke");
@@ -101,7 +101,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     {
         // This is the one place every way a run ends releases the lock: success, failure, force
         // complete from the UI, and the UI's stale-job tidy-up all post a terminal status here.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
             depositLockedBy: "tester");
 
@@ -113,13 +113,46 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         deposit.LockDate.Should().BeNull();
     }
 
+    /// <summary>
+    /// Issue #357 review: force-completing a non-latest job (e.g. from the UI, on a job a newer run
+    /// has already superseded) went through this same CompleteJob path and released the lock, which
+    /// by then belongs to that newer run, not to the one being closed. PipelineJobCleanupProcessor's
+    /// own sweep already avoids this by never routing a non-latest job through CompleteJob at all
+    /// (CloseWithoutReleasing instead); this is the same rule enforced here too, since a terminal
+    /// report - force-complete included - reaches this handler directly, not only via the sweep.
+    /// </summary>
+    [Fact]
+    public async Task A_Terminal_Report_For_A_NonLatest_Job_Does_Not_Release_The_Lock()
+    {
+        await using var context = fixture.CreateNewPreservationContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
+            depositLockedBy: "tester");
+        // A newer job for the same deposit already exists - the job being completed below is no
+        // longer the deposit's latest, so its lock (if it still held one) belongs to this newer run.
+        // Terminal, not Running: issue #353's partial unique index now makes two simultaneously
+        // active jobs for the same deposit impossible to insert at all, so this can no longer be a
+        // second still-running job - only that a later job of any kind exists, which is all
+        // "isLatestForDeposit" (a plain DateSubmitted comparison) actually checks.
+        await AddAnotherJob(context, depositId, PipelineJobStates.Completed,
+            dateSubmitted: DateTime.UtcNow.AddMinutes(5), runUser: "tester");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "superseded");
+
+        result.Success.Should().BeTrue();
+        var job = await ReloadJob(jobId);
+        job.Status.Should().Be(PipelineJobStates.CompletedWithErrors, "the status move itself is unaffected");
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().Be("tester",
+            "the lock belongs to the newer, still-latest job now, not to the non-latest job just closed");
+    }
+
     [Fact]
     public async Task A_Repeated_Terminal_Report_Does_Not_Release_A_Lock_Someone_Else_Has_Since_Taken()
     {
         // A run can report a terminal status twice: force complete posts CompletedWithErrors, then
         // the running job reports again when it notices. Between those two reports the same user may
         // already have started a new run and holds the lock again - the second report must not strip it.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.CompletedWithErrors, runUser: "tester",
             depositLockedBy: "tester");
 
@@ -135,7 +168,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     {
         // Someone else may have force-taken the lock mid-run (POST /lock?force=true). Releasing
         // theirs on behalf of a run that is not theirs would be wrong.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
             depositLockedBy: "someone-else");
 
@@ -156,7 +189,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Late_Completed_Report_Does_Not_Overwrite_An_Already_CompletedWithErrors_Status()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.CompletedWithErrors,
             runUser: "tester", depositLockedBy: "tester");
 
@@ -178,11 +211,11 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Lock_Force_Taken_By_Someone_Else_Before_The_Release_Runs_Survives_It()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running,
             runUser: "tester", depositLockedBy: "tester");
 
-        await using (var forceContext = fixture.CreateNewAuthServiceContext())
+        await using (var forceContext = fixture.CreateNewPreservationContext())
         {
             var deposit = await forceContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "someone-else";
@@ -212,7 +245,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Stale_Second_Report_Does_Not_Release_A_Lock_The_Same_User_Has_Retaken_For_A_New_Run()
     {
-        await using var lateContext = fixture.CreateNewAuthServiceContext();
+        await using var lateContext = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(lateContext, PipelineJobStates.Running,
             runUser: "tester", depositLockedBy: "tester");
 
@@ -220,14 +253,14 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         // stale the moment the first report (below) moves it.
         await lateContext.PipelineRunJobs.SingleAsync(j => j.Id == jobId, cancellationToken: TestContext.Current.CancellationToken);
 
-        await using (var firstContext = fixture.CreateNewAuthServiceContext())
+        await using (var firstContext = fixture.CreateNewPreservationContext())
         {
             var firstResult = await Handle(firstContext, depositId, jobId, PipelineJobStates.CompletedWithErrors, "it broke");
             firstResult.Success.Should().BeTrue();
         }
 
         // The same user starts a new run and takes the lock again before the stale report arrives.
-        await using (var relockContext = fixture.CreateNewAuthServiceContext())
+        await using (var relockContext = fixture.CreateNewPreservationContext())
         {
             var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "tester";
@@ -249,7 +282,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Claiming_A_Job_As_Running_Does_Not_Touch_The_Lock()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Waiting, runUser: "tester",
             depositLockedBy: "tester");
 
@@ -263,7 +296,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Reporting_MetadataCreated_Does_Not_Touch_The_Lock()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
             depositLockedBy: "tester");
 
@@ -286,7 +319,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Late_MetadataCreated_Report_Does_Not_Reopen_A_Finished_Job()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.CompletedWithErrors,
             runUser: "tester", depositLockedBy: null);
 
@@ -298,7 +331,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
 
         // The same user starts a new run and takes the lock again, then the old run's own
         // Completed report arrives.
-        await using (var relockContext = fixture.CreateNewAuthServiceContext())
+        await using (var relockContext = fixture.CreateNewPreservationContext())
         {
             var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "tester";
@@ -306,7 +339,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
             await relockContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        await using var lateContext = fixture.CreateNewAuthServiceContext();
+        await using var lateContext = fixture.CreateNewPreservationContext();
         var lateCompleted = await Handle(lateContext, depositId, jobId, PipelineJobStates.Completed);
 
         lateCompleted.Success.Should().BeTrue();
@@ -326,7 +359,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [InlineData(PipelineJobStates.MetadataCreated)]
     public async Task A_Waiting_Report_Is_Refused_And_Cannot_Reopen_A_Running_Job_To_A_Second_Claim(string current)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, current);
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.Waiting);
@@ -343,7 +376,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Status_That_Is_Not_A_Pipeline_State_Is_Refused_And_Not_Written()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running);
 
         var result = await Handle(context, depositId, jobId, "bogus");
@@ -355,7 +388,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task MetadataCreated_On_A_Job_That_Was_Never_Claimed_Is_A_Conflict_And_It_Stays_Waiting()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Waiting);
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.MetadataCreated);
@@ -367,7 +400,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Repeated_MetadataCreated_Report_Is_Accepted()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.MetadataCreated);
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.MetadataCreated);
@@ -381,7 +414,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [InlineData(PipelineJobStates.CompletedWithErrors)]
     public async Task A_Terminal_Report_For_A_Job_That_Does_Not_Exist_Is_NotFound(string terminalStatus)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, _) = await SeedJob(context, PipelineJobStates.Running);
 
         var result = await Handle(context, depositId, $"job-{Guid.NewGuid()}", terminalStatus);
@@ -393,7 +426,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task An_Intermediate_Report_For_A_Job_That_Does_Not_Exist_Is_NotFound()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, _) = await SeedJob(context, PipelineJobStates.Running);
 
         var result = await Handle(context, depositId, $"job-{Guid.NewGuid()}", PipelineJobStates.MetadataCreated);
@@ -453,17 +486,39 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         return (depositId, jobId);
     }
 
+    /// <summary>
+    /// Adds a second job for a deposit SeedJob already created, with its own DateSubmitted - for
+    /// tests that need to control which of two jobs is the deposit's latest.
+    /// </summary>
+    private static async Task AddAnotherJob(
+        Preservation.API.Data.PreservationContext context, string depositId, string status,
+        DateTime dateSubmitted, string runUser = "tester")
+    {
+        context.PipelineRunJobs.Add(new PipelineRunJob
+        {
+            Id = $"job-{Guid.NewGuid()}",
+            Deposit = depositId,
+            ArchivalGroup = null,
+            Status = status,
+            DateSubmitted = dateSubmitted,
+            LastUpdated = DateTime.UtcNow,
+            PipelineJobJson = "{}",
+            RunUser = runUser
+        });
+        await context.SaveChangesAsync();
+    }
+
     private async Task<PipelineRunJob> ReloadJob(string jobId)
     {
         // A fresh context, because the claim is executed as a conditional UPDATE in the database and
         // is deliberately invisible to any change tracker that loaded the row beforehand.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         return await context.PipelineRunJobs.AsNoTracking().SingleAsync(job => job.Id == jobId);
     }
 
     private async Task<DepositEntity> ReloadDeposit(string depositId)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         return await context.Deposits.AsNoTracking().SingleAsync(d => d.MintedId == depositId);
     }
 }

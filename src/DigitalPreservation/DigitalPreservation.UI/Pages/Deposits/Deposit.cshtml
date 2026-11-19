@@ -5,6 +5,7 @@
 @using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Infrastructure
 @using DigitalPreservation.Utils
 @model DepositModel
 
@@ -160,39 +161,16 @@
 </div>
 
 <div>
-    @if (!jobRunningOrArchived && TempData["Error"] != null)
+    @if (!jobRunningOrArchived)
     {
-        <div class="alert alert-danger" role="alert">
-            <p>@Html.Raw(TempData["Error"])</p>
-        </div>
+        <status-message key="@TempDataKeys.Error" variant="danger" dismissible="false" />
+        <status-message key="@TempDataKeys.Deleted" variant="success" />
+        <status-message key="@TempDataKeys.Updated" variant="success" />
     }
-    @if (!jobRunningOrArchived && TempData["Deleted"] != null)
+    <status-message key="@TempDataKeys.Valid" variant="success" />
+    @if (!jobRunningOrArchived)
     {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Deleted"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
-    @if (!jobRunningOrArchived && TempData["Updated"] != null)
-    {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Updated"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
-    @if (TempData["Valid"] != null)
-    {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Valid"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
-    @if (!jobRunningOrArchived && TempData["AccessConditionsUpdated"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <p>@Html.Raw(TempData["AccessConditionsUpdated"])</p>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <status-message key="@TempDataKeys.AccessConditionsUpdated" variant="success" />
     }
 
     @if (Model.IsLockedByOtherUser())
@@ -247,7 +225,7 @@
     }
 
     
-    @if (jobRunningOrArchived && TempData["Valid"] == null && Model.Deposit?.Archived == null)
+    @if (jobRunningOrArchived && TempData[TempDataKeys.Valid] == null && Model.Deposit?.Archived == null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 
@@ -423,7 +401,7 @@
                                 {
                                     <tr>
                                         <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
-                                        <td>@result.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
+                                        <td>@result.CreatedBy.GetAgentDisplayName()</td>
                                         <td>@result.DateBegun.GetDateDisplay()</td>
                                         <td>@result.DateFinished.GetDateDisplay()</td>
                                         <td>@result.SourceVersion</td>
@@ -507,29 +485,29 @@
             <div class="collapse show col-2" id="sidebarInfoPanel">
                 <dl aria-label="Deposit history">
                     <dt>Status</dt>
-                    <dd aria-label="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
+                    <dd data-testid="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
                     <dt>Created</dt>
-                    <dd aria-label="created">@Model.Deposit.Created.GetDateDisplay()</dd>
+                    <dd data-testid="created">@Model.Deposit.Created.GetDateDisplay()</dd>
                     <dt>Created by</dt>
-                    <dd aria-label="created-by"><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
+                    <dd data-testid="created-by"><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
                     <dt>Last modified</dt>
-                    <dd aria-label="last-modified">@Model.Deposit.LastModified.GetDateDisplay()</dd>
+                    <dd data-testid="last-modified">@Model.Deposit.LastModified.GetDateDisplay()</dd>
                     <dt>Last modified by</dt>
-                    <dd aria-label="last-modified-by"><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
+                    <dd data-testid="last-modified-by"><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
                     <dt>Preserved</dt>
-                    <dd aria-label="preserved">@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
+                    <dd data-testid="preserved">@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
                     <dt>Preserved by</dt>
-                    <dd aria-label="preserved-by"><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
+                    <dd data-testid="preserved-by"><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
                     <dt>Version preserved</dt>
-                    <dd aria-label="version-preserved">@(Model.Deposit.VersionPreserved ?? "-")</dd>
+                    <dd data-testid="version-preserved">@(Model.Deposit.VersionPreserved ?? "-")</dd>
                     <dt>Exported</dt>
-                    <dd aria-label="exported">@Model.Deposit.Exported.GetDateDisplay("-")</dd>
+                    <dd data-testid="exported">@Model.Deposit.Exported.GetDateDisplay("-")</dd>
                     <dt>Exported by</dt>
-                    <dd aria-label="exported-by"><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
+                    <dd data-testid="exported-by"><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
                     <dt>Version exported</dt>
-                    <dd aria-label="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
+                    <dd data-testid="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
                     <dt>Archived</dt>
-                    <dd aria-label="archived">@(Model.Deposit.Archived.GetDateDisplay("-"))</dd>
+                    <dd data-testid="archived">@(Model.Deposit.Archived.GetDateDisplay("-"))</dd>
                 </dl>
             </div>
             
@@ -933,20 +911,20 @@
     <script src="~/js/deposit.js" asp-append-version="true"></script>
     <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
     <script src="~/js/file-links.js" asp-append-version="true"></script>
-    @if (TempData["ActiveTab"] != null)
+    @if (TempData[TempDataKeys.ActiveTab] != null)
     {
         <script>
-            const activeTabId = '@TempData["ActiveTab"]';
+            const activeTabId = '@TempData[TempDataKeys.ActiveTab]';
             const tabEl = document.getElementById('logicalTab_' + activeTabId + '-tab');
             if (tabEl) { bootstrap.Tab.getOrCreateInstance(tabEl).show(); }
         </script>
     }
 }
 
-@if (TempData["Context"] != null)
+@if (TempData[TempDataKeys.Context] != null)
 {
     <script>
-        const contextRow = document.querySelectorAll('[data-path="@TempData["Context"]"]');
+        const contextRow = document.querySelectorAll('[data-path="@TempData[TempDataKeys.Context]"]');
         contextRow[0].click();
     </script>
 }

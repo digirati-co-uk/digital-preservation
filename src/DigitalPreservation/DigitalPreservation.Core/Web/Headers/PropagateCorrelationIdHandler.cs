@@ -88,7 +88,7 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor,
 
         //Pass Machine Token Downstream
         var machineToken = contextAccessor.HttpContext.TryGetHeaderValue(AuthFilterIdentifier.MachineHeaderName);
-        if (!string.IsNullOrEmpty(machineToken))
+        if (!string.IsNullOrEmpty(machineToken) && !request.Headers.Contains(AuthFilterIdentifier.MachineHeaderName))
         {
             request.Headers.TryAddWithoutValidation(AuthFilterIdentifier.MachineHeaderName, machineToken);
         }
@@ -96,15 +96,33 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor,
         return await base.SendAsync(request, cancellationToken);
     }
 
+    // Guarded on both headers already being absent: this filter attaches to every HttpClient the
+    // factory builds (see AddCorrelationIdHeaderPropagation's own comment), including ones a
+    // dedicated per-client handler - e.g. Preservation.Client's MachineAuthTokenInjector, paired
+    // with AddMachinePreservationClient's own X-Client-Identity default header - already fully
+    // authenticates. Without the guard, a call with no ambient HttpContext (any background/queue-
+    // triggered work, which is how Pipeline.API reaches the Preservation API) left the wire with two
+    // X-Client-Identity values and two Authorization values instead of one.
     private async Task SetMachineToken(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        //Add Bearer token to request if not already present
+        if (request.Headers.Authorization != null && request.Headers.Contains(AuthFilterIdentifier.MachineHeaderName))
+        {
+            return;
+        }
+
         var token = tokenProvider is null ? null : await tokenProvider.GetAccessToken(cancellationToken);
 
         if (token is null) return;
 
-        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
-        request.Headers.TryAddWithoutValidation(AuthFilterIdentifier.MachineHeaderName, "api-call");
+        if (request.Headers.Authorization == null)
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
+        }
+
+        if (!request.Headers.Contains(AuthFilterIdentifier.MachineHeaderName))
+        {
+            request.Headers.TryAddWithoutValidation(AuthFilterIdentifier.MachineHeaderName, "api-call");
+        }
     }
 
     private static void AddCorrelationId(HttpRequestMessage request, string? correlationId) 

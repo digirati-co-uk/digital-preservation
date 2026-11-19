@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft / for discussion |
+| **Status** | Decided: the POC's corrected mechanics were adopted (#208, #284), keeping the RFC's topology |
 | **Author** | Tom Crane (with assistance from Fable 5) |
 | **Date** | 2026-08-24 |
 | **Compares** | [`rfc-0001-api-caller-identity.md`](./rfc-0001-api-caller-identity.md) (the "Option A" proposal) with the Digirati-Entra POC in [LPII-166](https://digirati.atlassian.net/browse/LPII-166), branch [`feat/LPII-165/entra-api`](https://github.com/digirati-co-uk/digital-preservation/tree/feat/LPII-165/entra-api) |

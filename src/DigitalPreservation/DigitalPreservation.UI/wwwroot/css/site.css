@@ -10,6 +10,23 @@
     --bs-focus-ring-color: #0a58ca;
 }
 
+/* The top navbar (header.sticky-top in _Layout.cshtml) stays pinned over the page as it
+   scrolls. Without this, a keyboard user tabbing to a control that's just above the viewport
+   can end up with the browser treating it as "already visible" and not scrolling further -
+   leaving the newly focused control rendered entirely behind the opaque header, with no focus
+   indicator visible at all (WCAG 2.4.11 Focus Not Obscured). scroll-padding-top tells the
+   browser's own focus-into-view behaviour to always leave this much room at the top, so a
+   focused element is never placed under the sticky header.
+
+   --dlip-header-height is kept equal to the header's real rendered height by site.js's
+   ResizeObserver - the header isn't a fixed 72px: it's 50px signed out, 72px signed in at
+   desktop widths, and grows to roughly 165px below Bootstrap's md breakpoint (a narrow window,
+   or a desktop browser zoomed to 200%+) where it wraps onto more than one line. 72px here is
+   only the fallback for the moment before that script runs (review on #384). */
+html {
+    scroll-padding-top: var(--dlip-header-height, 72px);
+}
+
 /*html {*/
 /*  font-size: 14px;*/
 /*}*/
@@ -69,6 +86,9 @@
 .bi {
     vertical-align: -.125em;
     fill: currentColor;
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
 }
 
 .nav-scroller {
@@ -116,12 +136,6 @@
 
 
 /* Custom styles for this template - originally dashboard.css */
-
-.bi {
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-}
 
 /*
  * Sidebar
@@ -187,18 +201,16 @@ table.plain-link-table a:focus-visible {
 
 #tableRowContext {
     font-size: small;
-    padding-right:1rem;
-    padding-top:0.8rem;
+    padding-right: 1rem;
+    padding-top: 0.8rem;
 }
 
-.deposit-table.table-hover {
-    > tbody > tr:hover > * {
-        border-bottom: 1px solid black;
-        color: darkblue;
-    }
+.deposit-table.table-hover > tbody > tr:hover > * {
+    border-bottom: 1px solid black;
+    color: darkblue;
 }
 
-.deposit-table td:nth-child(1)  {
+.deposit-table td:nth-child(1) {
     white-space: nowrap;
 }
 
@@ -220,7 +232,7 @@ dl.job-table dt, dl.job-table dd {
 }
 
 td.dep-actions, th.dep-actions {
-    width:0.1%;
+    width: 0.1%;
     white-space: nowrap;
 }
 
@@ -242,10 +254,10 @@ tr.where-mets td {
     color: #495057;
 }
 tr.where-deposit td {
-    color: var(bs-body-color);
+    color: var(--bs-body-color);
 }
 tr.where-both td {
-    color: var(bs-body-color);
+    color: var(--bs-body-color);
 }
 
 .form-search {
@@ -253,7 +265,7 @@ tr.where-both td {
 }
 
 .form-search-input {
-    min-width: 400px
+    min-width: 400px;
 }
 
 .container-search {

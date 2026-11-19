@@ -65,4 +65,34 @@ public class ImportController(
         return this.StatusResponseFromResult(currentJobStatusResult);
     }
 
+    /// <summary>
+    /// Operator path for issue #366: clears an import job that is stuck Active with no heartbeat at
+    /// all (dead-lettered, still queued, or mid-run on a pre-#354 importer) - the gap the automatic
+    /// heartbeat-based reap deliberately leaves alone. Replaces the operator SQL that was the only
+    /// remedy before this existed (issue #245). Protected by the same machine-auth requirement as
+    /// every other route on this controller.
+    /// </summary>
+    [HttpPost("{jobIdentifier}/cancel", Name = "CancelStuckImportJob")]
+    [Produces<ImportJobResult>]
+    [Produces("application/json")]
+    public async Task<IActionResult> CancelStuckImportJob(
+        [FromRoute] string jobIdentifier,
+        [FromBody] CancelImportJobBody body,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogWarning("Operator cancel requested for stuck import job {JobId}: {Reason}", jobIdentifier, body.Reason);
+        var cancelResult = await mediator.Send(new CancelStuckImportJob(jobIdentifier, body.Reason), cancellationToken);
+        return this.StatusResponseFromResult(cancelResult);
+    }
+
+}
+
+/// <summary>
+/// Body for <see cref="ImportController.CancelStuckImportJob"/>. A reason is required (not just a
+/// job id) so the record this leaves behind explains itself - the whole point of preferring this
+/// endpoint over a silent row update (issue #245).
+/// </summary>
+public class CancelImportJobBody
+{
+    public required string Reason { get; set; }
 }

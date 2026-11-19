@@ -145,9 +145,12 @@ The same sections as the Storage API, minus everything to do with serving HTTP: 
 
 > **Note**
 >
-> The Pipeline API's settings files carry `DisableAuth` and `UseLocalHostedServiceForPipeline`, and no
-> code in that service reads either. It authenticates with `X-API-KEY` unconditionally. Changing them
-> has no effect.
+> The Pipeline API's settings files carry `DisableAuth`, but no code in that service reads it - it
+> authenticates with `X-API-KEY` unconditionally, so changing `DisableAuth` has no effect.
+> `UseLocalHostedServiceForPipeline` is different (issue #352): it now gates the internal
+> `POST /pipeline/jobs` endpoint that lets Preservation API deliver pipeline jobs over plain HTTP in
+> local development instead of SNS - every deployed environment leaves it unset (false), so that
+> endpoint 404s there, but it is read.
 
 
 ## Databases and migrations
@@ -187,9 +190,20 @@ Two things trigger a reap: queuing a new job for the same Archival Group (`GetAc
 
 Startup fails fast if `HeartbeatIntervalSeconds` is configured at or above `HeartbeatWindowMinutes × 60`, since that would let a live job's own gaps between heartbeats be mistaken for abandonment.
 
-A row that is already stuck with **no** heartbeat at all - the dead-lettered SQS messages from #245, or any job that was mid-run on the old (pre-heartbeat) importer when this deployed - is never reaped by this mechanism, by design: nothing here can tell "genuinely still queued" apart from "will never run again" for a job that never started. #245's operator SQL remains the remedy for those; an automatic operator-facing path for dead-lettered jobs is tracked as a follow-up (#366).
+A row that is already stuck with **no** heartbeat at all - the dead-lettered SQS messages from #245, or any job that was mid-run on the old (pre-heartbeat) importer when this deployed - is never reaped by this mechanism, by design: nothing here can tell "genuinely still queued" apart from "will never run again" for a job that never started. For those, an operator calls `POST /import/{jobId}/cancel` on the Storage API with a JSON body `{"reason": "..."}` (#366) - machine-auth only, like every other route on `ImportController`. It refuses a job that has a heartbeat (that one belongs to the automatic reap above) or is already inactive, and records a `completedWithErrors` result with the given reason, same as an automatic reap - including for a row old enough to predate the "waiting" result Preservation API now writes at queue time, where it synthesises a minimal one from the originally submitted job instead. This replaces the raw `update import_jobs set active = false where id = …` SQL that was previously the only remedy.
 
 Export has the same shape of switch but only one working setting: `UseLocalHostedServiceForExport` must be `true`, because the separate export service has not been written and the Storage API throws on startup otherwise. Exports are queued on an in-memory channel bounded at ten, so a restart loses anything still waiting.
+
+### Reaching Fedora: two network timeouts, and what guards each
+
+The importer and both APIs reach Fedora, and the importer and the UI reach Storage API and Preservation API, through an internet-facing ALB, so that traffic leaves the VPC through a NAT gateway and comes back in. Fedora itself never calls back into either API. Two limits on that path matter for anything long-running, and they are easy to mistake for one another, or for Fedora itself being slow (issue #350 traces a real 2025 incident where they were):
+
+- **The NAT gateway's fixed 350s idle timeout.** A connection silent for longer than that loses its NAT mapping, and the next packet on it fails - a broken pipe on a slow GET, or what looks like a hung PUT, even though Fedora already wrote the response: the ALB just can't deliver it back through the expired mapping. **TCP keepalive** (`DigitalPreservation.Core/Web/HttpClientBuilderX.cs`, `ConfigureTcpKeepAlive`) guards this - a probe sent every `keepAliveInterval` once a connection has been idle for `keepAliveTime` keeps the NAT mapping alive for as long as the connection is genuinely still in use. Configured on every client that talks to Fedora, Storage API or Preservation API; currently 120s idle / 30s interval / 5 retries - a dead connection is noticed in about 270s, comfortably under the 350s NAT limit and far faster than a naive 120s/60s/60 would manage (issue #383 review point 7).
+- **The ALB's own idle-timeout ceiling** (around 4,000s). Nothing resets this one, and nothing normally needs to - but a single commit PUT on a very large import can run long enough to approach it. `FedoraTransactionMonitor`'s post-commit poll (see below) is the safety net for this gap, not the normal path for a commit that is simply still running. That poll is itself not a quick status check once the transaction has passed its 3-minute expiry (next bullet): per fcrepo's own source, a GET on it then blocks - Fedora synchronizes the expiry check against the commit - until the commit finishes, so in practice the "poll" is a second long request over the same ALB/NAT path as the commit PUT itself, and is exposed to the same failure modes.
+
+**Fedora's own transaction expiry** is a third, unrelated timer: an atomic transaction (`fcr:tx`) expires after 3 minutes of *Fedora-side* inactivity (its default `fcrepo.session.timeout`, not overridden here) - nothing to do with the network. `ExecuteImportJobHandler` keeps a transaction alive with a periodic `POST` to it for as long as the import loop is still adding, patching or deleting resources, and checks the result of each keep-alive: if Fedora no longer recognises the transaction - it expired during a stall long enough to pass that 3 minutes - the loop fails the job early rather than writing further into a transaction that is already gone, or reaching a commit whose outcome would then be undefined.
+
+**A returned commit still isn't automatically trustworthy.** `FedoraClient.CommitTransaction` records the commit PUT's HTTP status but does not throw for a non-2xx one, so the handler checks it explicitly: only a 2xx is a plain success. And if `FedoraTransactionMonitor`'s post-commit poll ever does have to cancel the commit PUT - because it found the transaction already gone on one of its (rare, 30-minute) checks - the PUT's own outcome is unknowable from a cancelled request alone: Fedora may have committed successfully before the NAT mapping expired, or the transaction may genuinely have been rolled back by Fedora's own expiry. The handler confirms which happened with a cheap version check against the Archival Group (`GetArchivalGroupVersion`) rather than assuming either outcome, and rather than a full read of the group - which, for a wide one, can itself take 10-30 minutes (#244).
 
 ## Running locally
 

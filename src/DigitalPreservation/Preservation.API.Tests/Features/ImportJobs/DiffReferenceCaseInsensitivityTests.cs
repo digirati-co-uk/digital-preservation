@@ -1,18 +1,10 @@
-using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using FakeItEasy;
 using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.ImportJobs;
 using Preservation.API.Features.ImportJobs.Requests;
-using Preservation.API.Mutation;
+using static Preservation.API.Tests.Features.ImportJobs.ImportJobsControllerHarness;
 
 namespace Preservation.API.Tests.Features.ImportJobs;
 
@@ -26,11 +18,6 @@ namespace Preservation.API.Tests.Features.ImportJobs;
 /// </summary>
 public class DiffReferenceCaseInsensitivityTests
 {
-    private const string DepositId = "dep-1";
-    private static readonly Uri DepositUri = new("https://preservation.test/deposits/" + DepositId);
-    private static readonly Uri DepositFiles = new("s3://deposits/" + DepositId + "/");
-    private static readonly Uri ArchivalGroup = new("https://preservation.test/repository/cc/thing");
-
     [Theory]
     [InlineData("/deposits/dep-1/ImportJobs", "https://preservation.test/deposits/dep-1/importjobs/diff")]
     [InlineData("/deposits/dep-1/importjobs", "https://preservation.test/deposits/dep-1/importjobs/diff")]
@@ -63,43 +50,17 @@ public class DiffReferenceCaseInsensitivityTests
     }
 
     /// <summary>
-    /// A mediator that knows one deposit, dep-1, for Archival Group cc/thing, with no import jobs
-    /// yet - enough for the controller to get past its deposit checks. GetDiffImportJob returns a
-    /// failure so the controller returns before calling GetDiffUri, which uses Url.RouteUrl - not
-    /// wired up in a bare ControllerContext.
+    /// The harness's default mediator, plus a failing GetDiffImportJob so the controller returns
+    /// before calling GetDiffUri, which uses Url.RouteUrl - not wired up in a bare ControllerContext.
     /// </summary>
     private static IMediator Mediator()
     {
-        var mediator = A.Fake<IMediator>();
-        A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._))
-            .Returns(Result.OkNotNull<Deposit?>(new Deposit
-            {
-                Id = DepositUri,
-                ArchivalGroup = ArchivalGroup,
-                Files = DepositFiles
-            }));
-        A.CallTo(() => mediator.Send(A<GetImportJobResultsForDeposit>._, A<CancellationToken>._))
-            .Returns(Result.OkNotNull(new List<ImportJobResult>()));
+        var mediator = ImportJobsControllerHarness.Mediator();
         A.CallTo(() => mediator.Send(A<GetDiffImportJob>._, A<CancellationToken>._))
-            .Returns(Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "not wired up for this test"));
+            .Returns(Result.FailNotNull<ImportJob>(DigitalPreservation.Common.Model.ErrorCodes.UnknownError, "not wired up for this test"));
         return mediator;
     }
 
-    private static ImportJobsController Controller(IMediator mediator, string requestPath)
-    {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?>()).Build();
-        var mutator = new ResourceMutator(Options.Create(new MutatorOptions
-        {
-            Storage = "https://storage.test",
-            Preservation = "https://preservation.test"
-        }));
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Path = new PathString(requestPath);
-        return new ImportJobsController(
-            NullLogger<ImportJobsController>.Instance, mediator, mutator, configuration)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext }
-        };
-    }
+    private static ImportJobsController Controller(IMediator mediator, string requestPath) =>
+        ImportJobsControllerHarness.Controller(mediator, requestPath: requestPath);
 }

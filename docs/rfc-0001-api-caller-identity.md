@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | Draft / for discussion |
+| **Status** | Being implemented: Phases 0 and 1 are live on dev. The [landing sequence](./rfc-0001-landing-sequence.md)'s ladder status table has the state of each environment |
 | **Author** | Tom Crane (with assistance from Opus 4.8) |
-| **Date** | 2026-06-26 (last substantive revision 2026-08-25) |
+| **Date** | 2026-06-26 (last substantive revision 2026-08-25; brought up to date with what has shipped 2026-11-10) |
 | **Affects** | `DigitalPreservation.UI`, `Preservation.API`, `Storage.API`, all direct API clients (iiif-builder, EPrints migration, Playwright tests, future Goobi) |
 | **Related** | [`api-caller-identity.md`](./api-caller-identity.md) (working notes), [`adr/0000-service-clients.md`](./adr/0000-service-clients.md), [ADR-005 Auth setup](https://github.com/digirati-co-uk/digital-preservation-docs/blob/main/adr/005-auth-setup.md), [`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md) (admin instructions for Phase 0), [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (comparison with the LPII-166 POC topology; glossary), [`rfc-0001-landing-sequence.md`](./rfc-0001-landing-sequence.md) (merge/deploy order for the open branches) |
 
@@ -197,15 +197,18 @@ The point here is only that the verified `azp` is the safe key such policy hangs
   storage-neutral for future filesystem/other-blob implementations). This carve-out is the **only**
   moment the choice matters: the deposit's own `Files` URI is stored on the entity and every
   subsequent storage operation derives its location (and bucket) from that URI.
-- **The pipeline only runs on default-bucket deposits.** Pipeline.API reaches deposit files
-  through a filesystem mount of the default working bucket, so `RunPipelineHandler` declines
-  (400) any deposit whose `Files` URI is outside it. Pipeline.API's own `POST /pipeline`
+- **The pipeline runs on a caller's own bucket only by policy.** Pipeline.API reads
+  default-bucket deposits through a filesystem mount of the default working bucket. Since
+  [#410](https://github.com/digirati-co-uk/digital-preservation/issues/410) (PR #458), a deposit in
+  a caller's own bucket is copied to scratch space (`StorageOptions:ScratchCopyPath`) and run from
+  there, but only when that caller's `KnownClients` profile has `allowPipeline` **and**
+  `FeatureFlags:AllowPipelineForCallerBuckets` is on in both the Pipeline API and the Preservation
+  API. Otherwise `RunPipelineHandler` declines it (400), as before. Pipeline.API's own `POST /pipeline`
   (`PipelineController`, guarded only by `X-API-KEY`) used to bypass this guard entirely —
   publishing the same message to the same topic with no bucket check or lock check. Resolved by
   [#231](https://github.com/digirati-co-uk/digital-preservation/issues/231): that entrypoint is
   now a thin proxy over `POST /deposits/{id}/pipeline`, so `RunPipelineHandler` is the only
-  producer of pipeline jobs and this guard applies to every caller. Revisit if a routed caller
-  ever needs characterisation.
+  producer of pipeline jobs and this guard applies to every caller.
 - Deployment prerequisite, not code: the task roles of every service that touches deposit
   files (Preservation API, Storage API + Importer for export, UI) need IAM read/write on each
   per-caller bucket, and the caller needs access to its own bucket.
@@ -274,7 +277,8 @@ The key enabler for a non-breaking migration is that the API can be configured t
 
 **Phase 1 — Create per-caller registrations.**
 - Create a registration per caller, each with its own credential, assigned `Preservation.Call` on the API (admin consent). Add each app ID to `KnownClients`. **Never give the shared UI registration `a616cf42…` a `KnownClients` profile with a `depositBucket`:** until Phase 2 completes, every legacy machine caller — iiif-builder, Playwright, and the platform's own service-to-service calls — presents `azp`/`appid` = `a616cf42…`, so a bucket on that profile would route all of their deposits there. (A name-only profile for it is harmless; humans are unaffected either way because `IsHumanCaller` is checked first.)
-- **Start with Goobi (§1.1).** Being new, it launches directly with its own registration + role and its `KnownClients` profile (including its bucket), delivering the bucket feature without waiting for the other callers to migrate. The admin instructions are [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md); the bucket and scoped IAM are preservation-ops PR #78, with a ready-to-uncomment `KnownClients` template in both API task definitions.
+- **Start with Goobi (§1.1).** Being new, it launches directly with its own registration + role and its `KnownClients` profile (including its bucket), delivering the bucket feature without waiting for the other callers to migrate. The admin instructions are [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md); the bucket and scoped IAM are preservation-ops PR #78, and its `KnownClients` entry is applied in both API task definitions on dev (2026-11-10,
+registration `Library-Preservation-Goobi-Dev`).
 
 **Phase 2 — Repoint callers one at a time.**
 - For each machine caller, switch its config to its own `client_id` + credential and scope `api://84c62880…/.default`. Because the API accepts both audiences, callers move independently with no coordinated cutover. Watch the logs: the `X-Client-Identity` fallback warning should stop firing for each caller as it migrates.
@@ -307,7 +311,7 @@ The key enabler for a non-breaking migration is that the API can be configured t
 - Switch `GetCallerIdentity` out of dual mode: unknown `azp` ⇒ rejected; `X-Client-Identity` no longer consulted for identity.
 - Remove or down-grade `X-Client-Identity` to a purely cosmetic, ignored-on-mismatch hint.
 
-Each phase is independently reversible until Phase 4 — and Phase 4's two behavioural steps (unknown-`azp` refusal; role-or-scope enforcement) are to be built as configuration flags, off by default ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293) — planned there, not yet in code; written any time after step 2 merges, needed only before the first environment enforces), so reversibility extends through them in practice and a tagged release is deployable to any environment at any rung. Only the final header-path deletion is one-way; per the [landing sequence](./rfc-0001-landing-sequence.md), it is a separate PR landed after the **last** environment (production) is enforcing.
+Each phase is independently reversible until Phase 4 — and Phase 4's two behavioural steps (unknown-`azp` refusal; role-or-scope enforcement) are to be built as configuration flags, off by default ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293), built in PR #438, not yet merged; needed only before the first environment enforces), so reversibility extends through them in practice and a tagged release is deployable to any environment at any rung. Only the final header-path deletion is one-way; per the [landing sequence](./rfc-0001-landing-sequence.md), it is a separate PR landed after the **last** environment (production) is enforcing.
 
 > [!IMPORTANT]
 > **Completion is a commitment, not an assumption.** The phases most at risk of stalling are exactly the ones with the weakest feature pull: Goobi — the funded driver — is delivered at Phase 1, after which nothing user-visible waits on Phases 2–4. If they stall, the platform lives indefinitely in dual mode: both audiences accepted, header fallback still active, no role enforcement — maximum transitional complexity with none of the end-state enforcement. Mitigation is managerial, not technical: **when Phase 1 lands, give Phases 2–4 a named owner and a target date** — or consciously record dual mode as the accepted end state and amend this RFC to say so. What must not happen is drifting into the latter while the document claims the former; that is how the ADR-005 gap opened.
@@ -323,21 +327,21 @@ Each phase is independently reversible until Phase 4 — and Phase 4's two behav
 
 ## 8. Open questions / follow-ups
 
-1. **Storage.API audience.** Should Storage get its own audience and an on-behalf-of exchange from Preservation, rather than the current verbatim token relay? (Out of scope here; tracked separately.) Note a current constraint: `AccessTokenProvider.GetBearerToken` only ever requests a token whose audience equals its *own* configured `client_id` (`scope=api://{client_id}/.default`, `resource=api://{client_id}`) — it cannot target a different downstream resource. Preservation→Storage works today only because both validate the same shared audience. Giving Storage a distinct audience therefore requires more than config: `TokenProvider`/`AccessTokenProvider` must be able to request a *different* resource than the caller's own registration (or an OBO/token-exchange step must be introduced).
+1. **Storage.API audience.** Should Storage get its own audience and an on-behalf-of exchange from Preservation, rather than the current verbatim token relay? (Out of scope here; tracked separately.) Preservation→Storage works today because both validate the same shared audience. Requesting a distinct Storage audience no longer needs a code change: since PR #284, `TokenProvider:ResourceUri` lets `AccessTokenProvider` request a resource other than its own registration. What remains is the Storage registration, its roles, and the decision about on-behalf-of.
 2. **Service *user* accounts on the API enterprise app.**
    - The **Playwright browser-login service account** is **resolved and out of scope**: it is a pseudo-human login the Playwright suite uses to drive a browser through a real UI sign-in for end-to-end tests. It rides the normal human/delegated path and needs no change. Note that Playwright therefore has *two distinct identities* — this browser user, and the app-only `API_CLIENT_ID` it uses for direct API calls. Only the latter (currently borrowing `a616cf42`) is in migration scope.
    - The **iiif-builder service account** is **still open**: the iiif-builder service itself is a daemon and should be purely app-only (client credentials), so a *user* account for it is unexpected. The leading hypothesis is that Leeds have built a **UI over iiif-builder** (source not currently available to us) that signs users in and calls the Preservation API on their behalf, with this account as its (test/service) login. That would explain a user-context path. What it does **not** yet explain is why that UI appears only as a user and not as its own client app registration — though that may simply be another instance of the registration-collapse described in §3 (if the iiif-builder UI also reuses `a616cf42`, it has no distinct app identity to surface). **Action:** confirm with Leeds whether such a UI exists, which registration it uses, and whether the account is live or a leftover — then fold it into the migration or retire it.
 3. **Role granularity — read/write, and per-API/per-endpoint (see §5.3.1).** Is a single `Preservation.Call` sufficient for v1, or do we split read vs write, and define Storage-specific roles (e.g. `Storage.Content.Read` gating `GET /content`) that an everyday Preservation caller does not hold? This interacts with Q1: Storage-specific roles are cleanest once Storage has its own audience.
 4. **Graph-based name resolution** vs the static `KnownClients` map — static is recommended for v1 (cheap, doubles as allow-list); revisit if caller churn becomes high.
 5. **Bucket: routing vs isolation (Goobi, §1.1).** *Routing* is now implemented (§5.2): config in the `KnownClients` profile, consumed at deposit creation. Still open is *isolation* ("**only** Goobi may write there") — an IAM/authz concern rather than routing code — and whether the policy would be better expressed as a per-caller app role.
-6. **Per-caller behaviour generally.** Bucket choice is the first identity-driven behaviour; others may follow (default rights statement, METS template, quota). Decide whether such policy belongs in the `KnownClients` profile or a separate policy store — and whether any of it warrants a change to the deposit-create API surface.
+6. **Per-caller behaviour generally.** Bucket choice was the first identity-driven behaviour, and `allowPipeline` (#410) the second, both in the `KnownClients` profile; others may follow (default rights statement, METS template, quota). Decide whether such policy belongs in the `KnownClients` profile or a separate policy store — and whether any of it warrants a change to the deposit-create API surface.
 7. **Move the human/machine discriminator to `idtyp`.** The two chokepoints (`AuthFilterIdentifier`, `CallerResolver`) now share one predicate, `ClaimsPrincipalX.IsHumanCaller`, covering v1.0 (`upn`/`unique_name`) and v2.0 (`preferred_username`) token shapes with tests for both. That predicate is still claim-shape inference; Appendix A names the authoritative discriminator, and the `idtyp` optional claim is **provisioned on `84c62880` in Phase 0** — portal only, marking app-only tokens with `idtyp: "app"`; the `include_user_token` property that would also mark user tokens is deliberately deferred as a manifest-only edit (see that phase's bullet). The end-state rule is therefore `idtyp = "app"` ⇒ machine, with user tokens recognised by their user claims as now. The switch itself must wait: optional claims attach only to tokens minted *for* the configured registration, so transitional `api://a616cf42…` tokens never carry `idtyp`. Adopt the rule once every machine token the API accepts is guaranteed to carry the claim — i.e. at Phase 4 (transitional audience retired), or earlier once all machine callers are verified onto the new audience. Until then, `IsHumanCaller` can *prefer* `idtyp` when present and fall back to claim shapes — a monotonic improvement that is safe from Phase 2 onward.
 
 ## 9. Testing the migrated identity
 
 Phase 0's `ApiAuthorizationStackTests` already characterise resolution at the filter level with a stubbed token (a signed `azp` → friendly name wins over the `X-Client-Identity` header). As later phases land, add end-to-end coverage that the *verified* identity drives real behaviour:
 
-1. **Goobi bucket routing — the driving use case (§1.1).** With a caller presenting Goobi's identity (resolved `azp` → the `goobi` profile carrying `depositBucket`), create a deposit and assert the deposit's `.files` S3 URIs point at the **Goobi bucket**, not `AwsStorage:DefaultWorkingBucket`. This proves verified-identity → data-isolation end to end. The routing mechanism is now implemented and unit-tested at each seam (`CallerResolverTests` for the identity→bucket decision, `StorageTests` for carving in an explicit `workingRoot`, `RunPipelineHandlerTests` for the pipeline's default-bucket-only guard); this end-to-end stubbed-`azp` test through the API surface is still the outstanding piece.
+1. **Goobi bucket routing — the driving use case (§1.1).** With a caller presenting Goobi's identity (resolved `azp` → the `goobi` profile carrying `depositBucket`), create a deposit and assert the deposit's `.files` S3 URIs point at the **Goobi bucket**, not `AwsStorage:DefaultWorkingBucket`. This proves verified-identity → data-isolation end to end. The routing mechanism is now implemented and unit-tested at each seam (`CallerResolverTests` for the identity→bucket decision, `StorageTests` for carving in an explicit `workingRoot`, `RunPipelineHandlerTests` for the pipeline's default-bucket-only guard); this end-to-end stubbed-`azp` test through the API surface is still the outstanding piece. On dev, `src/caller-check` with `--deposit`, run with the real Goobi registration, is the live version of this check. The e2e suite can't cover it until it has a registration of its own (requested from Leeds, 2026-11-10).
 2. **Default caller — e.g. the Playwright API identity.** A caller *without* a `depositBucket` in its profile creates a deposit and lands in the default bucket — proving Goobi's routing is specific to Goobi and the default path is unaffected. The app-only identity the Playwright suite uses for direct API calls (distinct from its browser-login user — §8 Q2) is the natural concrete subject once it has its own registration.
 
 **Test seam.** Real-Entra tokens are awkward in CI, so prefer driving these through the test host with a stubbed `azp` claim (as `ApiAuthorizationStackTests` does) for deterministic CI coverage, plus an optional `Category=Manual` smoke test using genuine client-credentials tokens against dev.
@@ -355,7 +359,8 @@ resolved it:
   "name": "goobi",                    // friendly name (or display name for a human)
   "source": "token",                  // user | token | header-fallback | unknown
   "appId": "2222…",                   // signed azp/appid, when present
-  "depositBucket": "leeds-goobi-deposits" // profile bucket, else the API's default working bucket
+  "depositBucket": "leeds-goobi-deposits", // profile bucket, else the API's default working bucket
+  "pipelineAllowed": false            // Preservation API only: may this caller's deposits run the pipeline (#410)
 }
 ```
 
@@ -382,5 +387,5 @@ Keep it minimal and self-only: it sits behind the standard `AuthorizeFilter` and
 - `DigitalPreservation.Core/Auth/AuthFilterIdentifier.cs` — stop synthesising identity from `X-Client-Identity`; enforce role; unify the human/machine predicate with `CallerResolver` on `idtyp` (§8 Q7).
 - `Preservation.API/Program.cs`, `Storage.API/Program.cs` — `AzureAd` audience config; role enforcement filter.
 - `DigitalPreservation.Core/Web/Headers/PropagateCorrelationIdHandler.cs` — relays the inbound user token downstream, and when there is none falls back to `AccessTokenProvider` for an app-only token, hard-coding `X-Client-Identity: "api-call"`; it also relays any *inbound* `X-Client-Identity` verbatim (remove both in Phase 4).
-- `DigitalPreservation.Core/Web/Headers/AccessTokenProvider.cs` + the `TokenProvider` config section (`Preservation.API`, `Pipeline.API`) — the APIs' own machine credentials/identity for service-to-service calls (see §3.2 #7). Migrating these in Phase 2 is *not* config-only — the own-resource-only limitation (§8 Q1) forces either a code change here or the run-as-`84c62880` stopgap (see Phase 2). While touching it, move off the legacy v1 `/oauth2/token` endpoint.
+- `DigitalPreservation.Core/Web/Headers/AccessTokenProvider.cs` + the `TokenProvider` config section (`Preservation.API`, `Pipeline.API`) — the APIs' own machine credentials/identity for service-to-service calls (see §3.2 #7). Since PR #284, migrating these in Phase 2 is config-only (`TokenProvider:ResourceUri`, landing sequence rung 4), and it uses the v2 endpoint when `ResourceUri` is set.
 - `Storage.API.Tests/Integration/ApiAuthorizationStackTests.cs` — existing characterisation of the authorization stack; extend with role-enforcement cases.

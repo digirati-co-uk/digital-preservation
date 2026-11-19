@@ -22,22 +22,7 @@ public class DepositArchiveJobsController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> GetArchiveJobResult([FromRoute] string id)
     {
         var result = await mediator.Send(new GetArchiveJobResultForDeposit(id));
-
-        if (result.Success)
-            return Ok(result.Value);
-
-        return StatusCode(
-            result.ErrorCode switch
-            {
-                ErrorCodes.NotFound => StatusCodes.Status404NotFound,
-                ErrorCodes.Unauthorized => StatusCodes.Status401Unauthorized,
-                _ => StatusCodes.Status400BadRequest
-            },
-            new ProblemDetails
-            {
-                Title = result.ErrorCode,
-                Detail = result.ErrorMessage
-            });
+        return this.StatusResponseFromResult(result);
     }
 
 }

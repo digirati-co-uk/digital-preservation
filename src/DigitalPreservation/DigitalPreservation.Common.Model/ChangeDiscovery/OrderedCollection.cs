@@ -31,4 +31,31 @@ public class OrderedCollection : ResourceWithContext
     [JsonPropertyName("last")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public OrderedCollectionPage? Last { get; set; }
+
+    /// <summary>
+    /// Builds the top-level collection both APIs' Activity Streams expose (issue #388 item 2.8):
+    /// its own id, first/last page links, and totalItems, with @context set. An empty stream (
+    /// <paramref name="totalItems"/> 0) still gets a real page 1 as both first and last - not page
+    /// 0, which Storage API's own copy of this logic used to compute and which no page handler
+    /// would ever answer.
+    /// </summary>
+    /// <param name="collectionId">This collection's own id.</param>
+    /// <param name="pageUri">Builds a page's id from its 1-based page number.</param>
+    /// <param name="totalItems">Total items across every page of the stream.</param>
+    public static OrderedCollection For(Uri collectionId, Func<int, Uri> pageUri, int totalItems)
+    {
+        var totalPages = totalItems == 0
+            ? 1
+            : (totalItems + OrderedCollectionPage.DefaultPageSize - 1) / OrderedCollectionPage.DefaultPageSize;
+
+        var collection = new OrderedCollection
+        {
+            Id = collectionId,
+            First = new OrderedCollectionPage { Id = pageUri(1) },
+            Last = new OrderedCollectionPage { Id = pageUri(totalPages) },
+            TotalItems = totalItems
+        };
+        collection.WithContext();
+        return collection;
+    }
 }

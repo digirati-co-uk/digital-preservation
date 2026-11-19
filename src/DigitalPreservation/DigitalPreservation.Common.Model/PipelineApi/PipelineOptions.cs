@@ -1,6 +1,8 @@
 ﻿namespace DigitalPreservation.Common.Model.PipelineApi;
 public class PipelineOptions
 {
+    public const string PipelineOptionsName = "PipelineOptions";
+
     public required string PipelineJobTopicArn { get; set; }
     public required string PipelineJobQueue { get; set; }
     /// <summary>

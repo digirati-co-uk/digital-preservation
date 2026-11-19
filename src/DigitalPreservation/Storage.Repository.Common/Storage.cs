@@ -83,7 +83,7 @@ public class Storage(
             BucketName = bucket,
             Key = $"{parentKey}{name}/"
         };
-        por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, name);
+        por.Metadata.SetOriginalName(name);
         await s3Client.PutObjectAsync(por);
         var workingDirectory = new WorkingDirectory
         {
@@ -119,7 +119,7 @@ public class Storage(
             ContentBody = JsonSerializer.Serialize(wd),
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256
         };
-        pReqDepositFileSystem.Metadata.Add(S3Helpers.OriginalNameMetadataKey, key.GetSlug());
+        pReqDepositFileSystem.Metadata.SetOriginalName(key.GetSlug());
         try
         {
             var resp = await s3Client.PutObjectAsync(pReqDepositFileSystem, cancellationToken);
@@ -362,9 +362,10 @@ public class Storage(
                     var dir = top.FindDirectory(path, true);
                     dir!.Modified = s3Object.LastModified!.Value.ToUniversalTime(); // will have been created
                     if (metadata == null) continue;
-                    if (metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
+                    var dirOriginalName = metadata.GetOriginalName();
+                    if (dirOriginalName != null)
                     {
-                        dir.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
+                        dir.Name = dirOriginalName;
                     }
                     decorator?.Invoke(dir);
                 }
@@ -382,9 +383,10 @@ public class Storage(
                     // need to get these from METS-like
                     wf.ContentType = metadataResponse.Headers.ContentType;
                     wf.Digest = AwsChecksum.FromBase64ToHex(metadataResponse.ChecksumSHA256);
-                    if (metadata != null && metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
+                    var fileOriginalName = metadata?.GetOriginalName();
+                    if (fileOriginalName != null)
                     {
-                        wf.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
+                        wf.Name = fileOriginalName;
                     }
 
                     decorator?.Invoke(wf);
