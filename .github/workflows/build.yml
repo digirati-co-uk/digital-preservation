@@ -136,16 +136,12 @@ jobs:
         run: pip install -r requirements.txt
       - id: compiled-schematron-matches-source
         # Recompile, then fail on ANY difference from what is committed: a changed file, a new
-        # (untracked) one from a new .sch, or one the tool deleted because its .sch is gone.
+        # one from a new .sch, or one the tool deleted because its .sch is gone. Staging first
+        # is what makes new and deleted files show up in the diff.
         run: |
           python tools/compile_schematron.py
-          changes="$(git status --porcelain -- schematron/compiled)"
-          if [ -n "$changes" ]; then
-            echo "schematron/compiled is not what the .sch sources compile to:"
-            echo "$changes"
-            git diff -- schematron/compiled
-            exit 1
-          fi
+          git add --all -- schematron/compiled
+          git diff --cached --exit-code HEAD -- schematron/compiled
       - id: run-tests
         run: python -m unittest tests -v
 
