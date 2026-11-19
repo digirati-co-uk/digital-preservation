@@ -937,8 +937,9 @@ public class MetsParser(
                 rightsExplicitlySet = true;
                 Uri.TryCreate(accessConditionEl.Value, UriKind.Absolute, out rightsStatement);
             }
-            else if (condType.HasText())
+            else if (condType.HasText() && accessConditionEl.Value.HasText())
             {
+                // An empty element is no value, as for the restriction: the writer reads it the same.
                 otherAccessConditions ??= new Dictionary<string, string>(StringComparer.Ordinal);
                 otherAccessConditions.TryAdd(condType, accessConditionEl.Value);
             }
@@ -1370,15 +1371,16 @@ public class MetsParser(
     {
         foreach (var fp in range.Files)
         {
-            // Only whole-file references (no time segment, no image region) contribute
-            if (fp.BeginTime == null && fp.EndTime == null && fp.Region == null)
+            // Only whole-file references (no time segment, no image region, no other extent)
+            // contribute; a range listing the same file twice is still one range.
+            if (fp.BeginTime == null && fp.EndTime == null && fp.Region == null && !AreaExtent.AnyIn(fp.ExtraAreaAttributes?.Keys))
             {
                 if (!result.TryGetValue(fp.LocalPath, out var ranges))
                 {
                     ranges = [];
                     result[fp.LocalPath] = ranges;
                 }
-                ranges.Add(range);
+                if (!ranges.Contains(range)) ranges.Add(range);
             }
         }
         foreach (var child in range.Ranges)

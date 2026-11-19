@@ -98,9 +98,10 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
 
     private static ChosenInputs ReadChosenInputs(DerivedPass pass, XmlGen.Mods.V3.ModsDefinition mods)
     {
-        // Only the platform's own chosen elements are inputs. A Goobi "status" element, which the
-        // parser DISPLAYS as a restriction, is not: the writer never derives from a div it did not
-        // itself set access metadata on.
+        // Only the platform's own chosen elements are inputs. Goobi's "status" element, which the
+        // parser reads as a restriction, never reaches here: Goobi METS is never editable (#223).
+        // Nor do ranges associated with files through div-to-div smLinks, another Goobi idiom the
+        // parser follows (docs/effective-metadata-inheritance.md, "Other typed access conditions").
         var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
         var statement = pass.StatementType == null ? null : mods.GetAccessConditions(pass.StatementType).FirstOrDefault();
         var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
@@ -230,13 +231,21 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
         if (!pass.Changed.Contains(id)) pass.Changed.Add(id);
     }
 
-    /// <summary>FILEID -> the logical divs that paint the whole file (an fptr with no area).</summary>
+    /// <summary>
+    /// FILEID -> the logical divs that paint the whole file: an fptr with no area, or with an area
+    /// that picks out no part of it (<see cref="AreaExtent"/>, as the parser reads it).
+    /// </summary>
     private static Dictionary<string, List<DivType>> WholeFileRangesByFileId(IEnumerable<DivType> logicalDivs)
     {
         var map = new Dictionary<string, List<DivType>>(StringComparer.Ordinal);
         foreach (var div in logicalDivs)
         {
-            foreach (var fileId in div.Fptr.Where(f => f.Area == null && f.Fileid != null).Select(f => f.Fileid).Distinct())
+            var wholeFileIds = div.Fptr
+                .Where(f => IsWholeFile(f.Area))
+                .Select(f => f.Fileid ?? f.Area?.Fileid)
+                .OfType<string>()
+                .Distinct();
+            foreach (var fileId in wholeFileIds)
             {
                 if (!map.TryGetValue(fileId, out var list))
                 {
@@ -247,6 +256,12 @@ internal sealed class DerivedAccessConditionWriter(IDerivedAccessConditionResolv
         }
         return map;
     }
+
+    /// <summary>No area, or one with none of the <see cref="AreaExtent.Attributes"/>: the whole file.</summary>
+    private static bool IsWholeFile(AreaType? area) =>
+        area == null
+        || (area.Begin == null && area.End == null && area.Coords == null && area.Extent == null
+            && !area.ShapeValueSpecified && !area.BetypeValueSpecified);
 
     /// <summary>
     /// Writes the managed types for <paramref name="inputs"/>; or, when that is null because the

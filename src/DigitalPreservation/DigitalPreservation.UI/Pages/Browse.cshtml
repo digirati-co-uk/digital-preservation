@@ -370,12 +370,12 @@
                                         if (localPath != null)
                                         {
                                             var metsContainer = Model.MetsWorkingDirectory?.FindDirectory(localPath);
-                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer, Logger);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer, Logger, Model.AccessConditionProfile);
                                             for (var i = 0; i < items.Count; i++)
                                             {
                                                 if (i > 0) { <br/> }
                                                 var item = items[i];
-                                                <small class="@(item.Inherited ? "text-secondary" : "")">
+                                                <small class="@(item.Inherited ? "text-secondary" : "")" title="@item.Detail">
                                                     @item.Label:
                                                     @if (item.Inherited)
                                                     {
@@ -425,12 +425,12 @@
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
                                     <td aria-label="td-access">
                                         @{
-                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary, Logger);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary, Logger, Model.AccessConditionProfile);
                                             for (var i = 0; i < items.Count; i++)
                                             {
                                                 if (i > 0) { <br/> }
                                                 var item = items[i];
-                                                <small class="@(item.Inherited ? "text-secondary" : "")">
+                                                <small class="@(item.Inherited ? "text-secondary" : "")" title="@item.Detail">
                                                     @item.Label:
                                                     @if (item.Inherited)
                                                     {

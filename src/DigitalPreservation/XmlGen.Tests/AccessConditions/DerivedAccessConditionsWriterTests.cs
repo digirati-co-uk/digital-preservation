@@ -577,4 +577,91 @@ public class DerivedAccessConditionsWriterTests
 
         TypedConditions(metsUri, "DMD_objects", "restriction on access").Should().BeEmpty(); // nothing was written
     }
+
+    // ---- Writer and parser agree on the METS the platform writes ------------------------------
+    // The writer only ever edits METS the platform created (GetFullMets refuses any other), so
+    // these are the shapes such a METS can take; smLink ranges and Goobi's status element belong
+    // to third-party METS, which is read but never written.
+
+    private async Task WriteRangeOverA(FullMets fullMets, List<FilePointer> files)
+    {
+        metsManager.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "LOG_ROOT", Type = "Collection", Name = "Root",
+            Ranges =
+            [
+                new LogicalRange
+                {
+                    Id = "LOG_ITEM", Type = "Item", Name = "Item",
+                    AccessRestrictions = ["PA1"],
+                    OtherAccessConditions = new Dictionary<string, string> { [Statement] = TestProfiles.LowRisk },
+                    Files = files
+                }
+            ]
+        }, Statement).Success.Should().BeTrue();
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_file_listed_twice_in_one_range_still_takes_its_inputs_from_it()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-lists-file-twice.xml");
+        await WriteRangeOverA(fullMets,
+            [new FilePointer { LocalPath = "objects/a.tif" }, new FilePointer { LocalPath = "objects/a.tif" }]);
+
+        var parsed = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        var a = parsed.Files.Single(f => f.LocalPath == "objects/a.tif");
+        a.EffectiveAccessRestrictions.Should().Equal("PA1");
+        a.EffectiveOtherAccessConditions.Should().Contain("tier", "1");
+        AssertDerivedInvariant(parsed, provider.Profile!);
+    }
+
+    [Fact]
+    public async Task An_area_that_only_names_its_file_paints_the_whole_file_for_writer_and_parser()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-range-area-without-extent.xml");
+        await WriteRangeOverA(fullMets, [new FilePointer { LocalPath = "objects/a.tif" }]);
+
+        // Rewrite the range's whole-file pointer as <mets:fptr><mets:area FILEID="..."/></mets:fptr>,
+        // which says the same thing, then let the writer run over it again.
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var fptr = doc.Descendants(MetsNs + "div").Single(d => (string?)d.Attribute("ID") == "LOG_ITEM").Element(MetsNs + "fptr")!;
+        var fileId = (string)fptr.Attribute("FILEID")!;
+        fptr.Attribute("FILEID")!.Remove();
+        fptr.Add(new XElement(MetsNs + "area", new XAttribute("FILEID", fileId)));
+        StripTier(doc, MetsIds.Dmd("objects/a.tif"));
+        doc.Save(metsUri.LocalPath);
+
+        var reread = (await metsManager.GetFullMets(metsUri, null)).Value!;
+        (await metsManager.WriteMets(reread)).Success.Should().BeTrue();
+
+        TypedConditions(metsUri, MetsIds.Dmd("objects/a.tif"), "tier").Should().Equal("1");
+        AssertDerivedInvariant((await parser.GetMetsFileWrapper(metsUri)).Value!, provider.Profile!);
+    }
+
+    [Fact]
+    public async Task An_empty_statement_element_is_no_statement_to_the_parser_as_to_the_writer()
+    {
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-empty-statement.xml");
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
+        SetStatement(fullMets, "objects", TestProfiles.OutOfCopyright);
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/a.tif", ["PA1"]);
+        await metsManager.WriteMets(fullMets);
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var mods = doc.Descendants(MetsNs + "dmdSec").Single(d => (string?)d.Attribute("ID") == MetsIds.Dmd("objects/a.tif"))
+            .Descendants(ModsNs + "mods").Single();
+        mods.Add(new XElement(ModsNs + "accessCondition", new XAttribute("type", Statement)));
+        doc.Save(metsUri.LocalPath);
+
+        var a = (await parser.GetMetsFileWrapper(metsUri)).Value!.Files.Single(f => f.LocalPath == "objects/a.tif");
+        a.OtherAccessConditions.Should().NotContainKey(Statement);
+        a.EffectiveOtherAccessConditions.Should().Contain(Statement, TestProfiles.OutOfCopyright, "it inherits, as the writer reads it");
+    }
+
+    private static void StripTier(XDocument doc, string dmdId)
+    {
+        doc.Descendants(MetsNs + "dmdSec").Single(d => (string?)d.Attribute("ID") == dmdId)
+            .Descendants(ModsNs + "accessCondition").Where(ac => (string?)ac.Attribute("type") == "tier").Remove();
+    }
 }

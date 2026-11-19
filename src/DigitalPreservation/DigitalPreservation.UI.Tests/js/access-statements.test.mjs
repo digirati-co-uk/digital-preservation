@@ -54,7 +54,7 @@ class Select extends Element {
 
 // The dialogue: editable (both dropdowns) or read-only (neither), opened on a node whose own and
 // inherited values are as given. Returns what it shows.
-function openDialogue({ editable = true, own = {}, inherited = {} } = {}) {
+function openDialogue({ editable = true, own = {}, inherited = {}, effectiveOther = {} } = {}) {
     const elements = {
         accessStatementDescription: new Element('div'),
         accessPreviewMets: new Element('div'),
@@ -85,7 +85,7 @@ function openDialogue({ editable = true, own = {}, inherited = {} } = {}) {
     });
     vm.runInContext(script, context);
 
-    const ownOther = own.statement ? { [statementType]: own.statement } : {};
+    const ownOther = { ...(own.statement ? { [statementType]: own.statement } : {}), ...(own.other ?? {}) };
     const inheritedOther = inherited.statement ? { [statementType]: inherited.statement } : {};
     context.applyAccessStatementFields({
         dataset: {
@@ -94,7 +94,8 @@ function openDialogue({ editable = true, own = {}, inherited = {} } = {}) {
             rights: own.rights ?? '',
             rightsSuppressed: 'false',
             other: JSON.stringify(ownOther),
-            inhOther: JSON.stringify(inheritedOther)
+            inhOther: JSON.stringify(inheritedOther),
+            effOther: JSON.stringify(effectiveOther)
         }
     });
 
@@ -154,15 +155,30 @@ test('a cleared value shows what the node inherits', () => {
     assert.match(dialogue.iiif(), /\(inherited\)/);
 });
 
-test('a read-only dialogue shows the node\'s own values, not only what it inherits', () => {
+test('a read-only dialogue shows the node\'s values as stored, not only what it inherits', () => {
     const dialogue = openDialogue({
         editable: false,
-        own: { restrictions: ['PA1'], statement: 'out-of-copyright' },
-        inherited: { restrictions: ['PA4'], statement: 'inc-high-risk' }
+        own: { restrictions: ['PA1'], statement: 'out-of-copyright', other: { tier: '0' } },
+        inherited: { restrictions: ['PA4'], statement: 'inc-high-risk' },
+        effectiveOther: { [statementType]: 'out-of-copyright', tier: '0' }
     });
-    assert.equal(dialogue.tier(), computed('0'));
+    assert.equal(dialogue.tier(), tierLabel('0'), 'stored, so not "(computed)"');
     assert.ok(dialogue.mets().includes(element(statementType, 'out-of-copyright')));
+    assert.ok(dialogue.mets().includes(element('tier', '0')));
     assert.doesNotMatch(dialogue.iiif(), /\(inherited\)/);
+});
+
+test('a read-only dialogue shows a tier another system wrote, without recomputing it', () => {
+    // A Goobi export: a tier and nothing chosen. The platform never writes such a METS, so the
+    // dialogue shows the tier as it is rather than what the matrix would give.
+    const dialogue = openDialogue({
+        editable: false,
+        own: { other: { tier: '3' } },
+        effectiveOther: { tier: '3' }
+    });
+    assert.equal(dialogue.tier(), tierLabel('3'));
+    assert.ok(dialogue.mets().includes(element('tier', '3')));
+    assert.match(dialogue.mets()[0], /as stored/);
 });
 
 test('a node with no access conditions anywhere previews no tier and writes none', () => {
@@ -188,4 +204,43 @@ test('the rights statement follows the chosen statement and goes when it is clea
     dialogue.choose('PA1', null);
     assert.ok(!dialogue.mets().some(line => line.includes('use and reproduction')),
         'clearing the node\'s own statement removes the rights written from it');
+});
+
+// ---- A logical range's inherited values (logical-structmap.js) -----------------------------------
+
+// The three functions that work out what a range inherits, taken from the editor's script alone:
+// the rest of it drives the page.
+function rangeInheritance() {
+    const source = read('DigitalPreservation.UI/wwwroot/js/logical-structmap.js');
+    const take = name => {
+        const start = source.indexOf(`function ${name}(`);
+        return source.slice(start, source.indexOf('\n}', start) + 2);
+    };
+    const context = vm.createContext({});
+    vm.runInContext(['findParentAndIndex', 'ancestorsOf', 'inheritedForRange'].map(take).join('\n'), context);
+    // Plain copies: objects made in the script's own realm don't deep-equal this module's.
+    return (root, id) => JSON.parse(JSON.stringify(context.inheritedForRange(root, id)));
+}
+
+test('a range inherits from the ranges above it as they stand in the browser', () => {
+    const inheritedForRange = rangeInheritance();
+    const child = { id: 'c', accessRestrictions: [], otherAccessConditions: null, ranges: [] };
+    const middle = { id: 'm', accessRestrictions: [], otherAccessConditions: null, ranges: [child] };
+    const root = {
+        id: 'r', accessRestrictions: [], otherAccessConditions: null, ranges: [middle],
+        // From the server: what the root inherits from the physical root.
+        inheritedAccessRestrictions: ['PA1'],
+        inheritedOtherAccessConditions: { [statementType]: 'out-of-copyright' }
+    };
+    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA1'], other: { [statementType]: 'out-of-copyright' } });
+
+    // An unsaved edit to the middle range reaches the child at once.
+    middle.accessRestrictions = ['PA4'];
+    middle.otherAccessConditions = { [statementType]: 'inc-high-risk' };
+    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA4'], other: { [statementType]: 'inc-high-risk' } });
+
+    // Per type: a range that sets only a restriction passes its parent's statement down.
+    middle.otherAccessConditions = null;
+    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA4'], other: { [statementType]: 'out-of-copyright' } });
+    assert.deepEqual(inheritedForRange(root, 'r'), { access: ['PA1'], other: { [statementType]: 'out-of-copyright' } });
 });

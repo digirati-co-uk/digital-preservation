@@ -644,9 +644,7 @@ function openModsModalForRange(structmapId, rangeId) {
 // A stand-in for the tree's launcher element: the range's metadata as data attributes.
 function rangeLauncher(root, rangeId) {
     const range = (root ? findRange(root, rangeId) : null) ?? {};
-    // What the range would have without its own values: from the server, or for a range added in
-    // the browser since, its parent range's.
-    const parent = (root ? findParentAndIndex(root, rangeId)?.parent : null) ?? {};
+    const inherited = root ? inheritedForRange(root, rangeId) : { access: [], other: {} };
     const launcher = document.createElement('span');
     launcher.dataset.access = (range.accessRestrictions ?? []).join(',');
     launcher.dataset.effAccess = (range.effectiveAccessRestrictions ?? []).join(',');
@@ -654,11 +652,40 @@ function rangeLauncher(root, rangeId) {
     launcher.dataset.effRights = getRightsShortLabel(range.effectiveRightsStatement) ?? '';
     launcher.dataset.other = JSON.stringify(range.otherAccessConditions ?? {});
     launcher.dataset.effOther = JSON.stringify(range.effectiveOtherAccessConditions ?? {});
-    launcher.dataset.inhAccess = (range.inheritedAccessRestrictions ?? parent.effectiveAccessRestrictions ?? []).join(',');
-    launcher.dataset.inhOther = JSON.stringify(range.inheritedOtherAccessConditions ?? parent.effectiveOtherAccessConditions ?? {});
+    launcher.dataset.inhAccess = inherited.access.join(',');
+    launcher.dataset.inhOther = JSON.stringify(inherited.other);
     launcher.dataset.recordinfo = toRecordInfoCompact(range.recordInfo) ?? '';
     launcher.dataset.toolOutput = '';
     return launcher;
+}
+
+// What a range would have without its own values, from the ranges above it as they stand in the
+// browser, so an unsaved change to an ancestor shows. The root range inherits from the physical
+// root, which only the server knows (MetsParser: ranges inherit from the physical root, not the
+// folders). Per type for the other access conditions, as the parser does.
+function inheritedForRange(root, rangeId) {
+    let inherited = {
+        access: root.inheritedAccessRestrictions ?? [],
+        other: { ...(root.inheritedOtherAccessConditions ?? {}) }
+    };
+    for (const ancestor of ancestorsOf(root, rangeId)) {
+        inherited = {
+            access: ancestor.accessRestrictions?.length > 0 ? ancestor.accessRestrictions : inherited.access,
+            other: { ...inherited.other, ...(ancestor.otherAccessConditions ?? {}) }
+        };
+    }
+    return inherited;
+}
+
+// The ranges above rangeId, from the root down; empty for the root itself.
+function ancestorsOf(root, rangeId) {
+    const ancestors = [];
+    let parent = findParentAndIndex(root, rangeId)?.parent;
+    while (parent) {
+        ancestors.unshift(parent);
+        parent = findParentAndIndex(root, parent.id)?.parent;
+    }
+    return ancestors;
 }
 
 // ----------------------------------------------------------------

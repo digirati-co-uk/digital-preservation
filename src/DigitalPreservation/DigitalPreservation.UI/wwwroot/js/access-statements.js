@@ -30,10 +30,18 @@ function applyAccessStatementFields(launcher) {
         ownRights: launcher.dataset.rights ?? '',
         ownRightsSuppressed: launcher.dataset.rightsSuppressed === 'true',
         ownOther: own,
-        inheritedOther: parseJsonOrEmpty(launcher.dataset.inhOther)
+        inheritedOther: parseJsonOrEmpty(launcher.dataset.inhOther),
+        effectiveOther: parseJsonOrEmpty(launcher.dataset.effOther)
     };
     showOwnStatement(own[accessStatements.type] ?? null);
     updateStatementPreviews();
+}
+
+// A read-only dialogue (a deposit that cannot be edited here, such as a Goobi export) has no
+// dropdowns: nothing will be saved, so it shows the node's values as they are in the METS rather
+// than computing what a save would write.
+function isEditable() {
+    return !!document.getElementById("accessStatementSelect");
 }
 
 function parseJsonOrEmpty(text) {
@@ -119,9 +127,10 @@ function lookupCell(derived, row, column) {
     return cells[column] ?? cells[wildcardKey] ?? null;
 }
 
-// Mirrors StatementProfile.ResolveDerived: the most restrictive value over the rows.
-// Returns type -> { value, label } | { none: true } (no cell) | { unset: true } (no inputs at all).
+// Mirrors StatementProfile.ResolveDerived: the most restrictive value over the rows. Returns
+// type -> { value, label, stored? } | { none: true } (no cell) | { unset: true } (no inputs at all).
 function derivedValues(node) {
+    if (!isEditable()) return storedDerivedValues(node);
     const result = {};
     if (hasNoInputsAnywhere(node)) {
         for (const derived of accessStatements.derived) result[derived.type] = { unset: true };
@@ -151,10 +160,22 @@ function updateStatementPreviews() {
     showIiifPreview(statementNode);
 }
 
+// The derived values the node has in the METS, own or inherited, for a read-only dialogue.
+function storedDerivedValues(node) {
+    const result = {};
+    for (const derived of accessStatements.derived) {
+        const value = node.effectiveOther[derived.type];
+        result[derived.type] = value === undefined
+            ? { unset: true }
+            : { value, label: derived.values.find(v => v.value === value)?.label ?? value, stored: true };
+    }
+    return result;
+}
+
 function derivedText(v) {
     if (v.unset) return "(none: no access conditions here or above)";
     if (v.none) return "(no value for this combination)";
-    return `${v.label} (computed)`;
+    return v.stored ? v.label : `${v.label} (computed)`;
 }
 
 function showDerivedValues(derived) {
@@ -187,6 +208,10 @@ function previewLine(line) {
 function showMetsPreview(node, derived) {
     const target = document.getElementById("accessPreviewMets");
     if (!target) return;
+    if (!isEditable()) {
+        target.replaceChildren(...storedElementLines(node).map(previewLine));
+        return;
+    }
     const chosen = chosenElementLines(node);
     const rights = rightsAfterSave(node);
     const hasOwnInput = chosen.length > 0 || rights !== null;
@@ -207,8 +232,27 @@ function chosenElementLines(node) {
     return lines;
 }
 
+// The access conditions a read-only node carries, exactly as they are.
+function storedElementLines(node) {
+    const lines = node.ownRestrictions.flatMap(r => accessConditionLines("restriction on access", r));
+    if (hasOwnRights(node)) lines.push(...accessConditionLines("use and reproduction", ownRightsValue(node)));
+    for (const [type, value] of Object.entries(node.ownOther)) {
+        lines.push(...accessConditionLines(type, value));
+    }
+    const note = lines.length > 0
+        ? "as stored: this deposit cannot be edited here"
+        : "nothing of its own: everything is inherited from the folder or range above";
+    return [{ text: `<!-- ${note} -->`, note: true }, ...lines];
+}
+
 function hasOwnRights(node) {
     return !!node.ownRights || node.ownRightsSuppressed;
+}
+
+// The node's own use and reproduction value: its rights URI, or the "none" sentinel.
+function ownRightsValue(node) {
+    if (node.ownRightsSuppressed) return "null";
+    return rightsStatements[node.ownRights]?.value ?? node.ownRights;
 }
 
 // The node's own use and reproduction after saving: written from a chosen statement the profile
@@ -223,8 +267,7 @@ function rightsAfterSave(node) {
     }
     if (!statement && node.ownOther[accessStatements.type]) return null;
     if (!hasOwnRights(node)) return null;
-    const uri = node.ownRightsSuppressed ? "null" : (rightsStatements[node.ownRights]?.value ?? node.ownRights);
-    return { value: uri, computed: false };
+    return { value: ownRightsValue(node), computed: false };
 }
 
 function rightsLines(rights) {
