@@ -47,10 +47,10 @@ _BLOCKERS = frozenset([
 #: What the parser reads, with SingleOrDefault, from a file's technical metadata - PREMIS
 #: elements, and the platform's own un-namespaced ExifMetadata.
 _READ_FROM_A_FILE_SECTION = ("premis:fixity", "premis:size", "premis:originalName",
-                             "premis:contentLocation", "premis:format", "premis:formatName",
-                             "premis:formatRegistryKey", "ExifMetadata")
+                             "premis:format", "premis:formatName", "premis:formatRegistryKey",
+                             "ExifMetadata")
 #: What the parser reads, the same way, from a directory's.
-_READ_FROM_A_DIRECTORY_SECTION = ("premis:originalName", "premis:contentLocation")
+_READ_FROM_A_DIRECTORY_SECTION = ("premis:originalName",)
 
 _XML_WHITESPACE_RUN = re.compile(r"[ \t\r\n]+")
 _URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
@@ -375,12 +375,17 @@ def _check_directory_div(div, index, reasons):
                 add(reasons, "DIRECTORY_PATH_INVALID",
                     f"directory div {_name(div)} has premis:originalName '{value}', which is "
                     "not a normalised path within the deposit")
-        for location in section.iter(f"{{{PREMIS_NS}}}contentLocation"):
-            value = _text(location)
-            if not _ABSOLUTE_URI.match(value):
-                add(reasons, "DIRECTORY_LOCATION_NOT_URI",
-                    f"directory div {_name(div)} has premis:contentLocation '{value}', which "
-                    "the platform's parser cannot read as an absolute URI")
+        # The parser reads a directory's location only from the platform's own storage (one
+        # whose storageMedium is the platform agent), and turns it into a Uri unguarded.
+        for storage in section.iter(f"{{{PREMIS_NS}}}storage"):
+            if not _is_platform_storage(storage):
+                continue
+            for location in storage.iter(f"{{{PREMIS_NS}}}contentLocationValue"):
+                value = _text(location)
+                if value.strip() and not _ABSOLUTE_URI.match(value):
+                    add(reasons, "DIRECTORY_LOCATION_NOT_URI",
+                        f"directory div {_name(div)} has the storage location '{value}', which "
+                        "the platform's parser cannot read as an absolute URI")
 
 
 def _resolve_fptr(fptr, div, index, seen_file_ids, paths_seen, file_sections, reasons):
@@ -448,6 +453,12 @@ def _path_problem(path) -> str | None:
     if any(segment == "" or part == "." for segment, part in zip(segments, decoded)):
         return "HREF_NOT_NORMALISED"
     return None
+
+
+def _is_platform_storage(storage) -> bool:
+    """A premis:storage the platform wrote: its storageMedium is the platform agent."""
+    return PLATFORM_AGENT in [_text(medium)
+                              for medium in storage.iter(f"{{{PREMIS_NS}}}storageMedium")]
 
 
 def _check_read_once(section, names, reasons):
@@ -519,23 +530,21 @@ def _quirk_notes(mets, index, notes) -> int:
     Corpus quirks reported for every document, whatever the verdict. Returns the count of
     mdWrap elements needing the xmlData repair, which the EPrints tier turns into a mutation.
     """
-    foreign_storage = 0
-    for storage in mets.iter(f"{{{PREMIS_NS}}}storage"):
-        mediums = [_text(m) for m in storage.iter(f"{{{PREMIS_NS}}}storageMedium")]
-        if PLATFORM_AGENT not in mediums:
-            foreign_storage += 1
+    foreign_storage = sum(1 for storage in mets.iter(f"{{{PREMIS_NS}}}storage")
+                          if not _is_platform_storage(storage))
     if foreign_storage:
         notes.append(Finding(
             "FOREIGN_STORAGE_LOCATION",
             f"{foreign_storage} premis:storage assertion(s) belong to another system (no "
-            "platform storageMedium); the editing stack ignores them, and #236 tracks making "
-            "the parser do the same", foreign_storage))
+            "platform storageMedium); the platform reads only its own, so these are kept as "
+            "history and never read as a location", foreign_storage))
 
     if mets.find(f".//{{{METS_NS}}}dmdSec//{{{METS_NS}}}recordInfo") is not None:
         notes.append(Finding(
             "METS_NAMESPACE_RECORD_INFO",
-            "record identifiers are declared in the METS namespace (an EPrints quirk); "
-            "invisible to the platform's parser until #237"))
+            "record identifiers are declared in the METS namespace (an EPrints quirk); the "
+            "platform reads them because the dmdSec claims MODS, and its own edits add MODS "
+            "ones alongside"))
 
     foreign_dmd_secs = sum(1 for dmd_id in _dmd_referents(mets, index)
                            if _is_foreign_dmd_sec(index.dmd_secs[dmd_id]))

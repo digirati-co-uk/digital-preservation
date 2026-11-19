@@ -51,12 +51,12 @@ public static class EditabilityJudge
     /// PREMIS elements, and the platform's own un-namespaced ExifMetadata.</summary>
     private static readonly string[] ReadFromAFileSection =
     [
-        "premis:fixity", "premis:size", "premis:originalName", "premis:contentLocation",
-        "premis:format", "premis:formatName", "premis:formatRegistryKey", "ExifMetadata"
+        "premis:fixity", "premis:size", "premis:originalName", "premis:format",
+        "premis:formatName", "premis:formatRegistryKey", "ExifMetadata"
     ];
 
     /// <summary>What the parser reads, the same way, from a directory's.</summary>
-    private static readonly string[] ReadFromADirectorySection = ["premis:originalName", "premis:contentLocation"];
+    private static readonly string[] ReadFromADirectorySection = ["premis:originalName"];
 
     private static readonly char[] XmlWhitespace = [' ', '\t', '\r', '\n'];
 
@@ -511,13 +511,18 @@ public static class EditabilityJudge
                         "which is not a normalised path within the deposit");
                 }
             }
-            foreach (var location in section.Descendants(PremisNs + "contentLocation"))
+            // The parser reads a directory's location only from the platform's own storage (one
+            // whose storageMedium is the platform agent), and turns it into a Uri unguarded.
+            foreach (var storage in section.Descendants(PremisNs + "storage").Where(IsPlatformStorage))
             {
-                if (!AbsoluteUri.IsMatch(location.Value))
+                foreach (var location in storage.Descendants(PremisNs + "contentLocationValue"))
                 {
-                    Findings.Add(reasons, "DIRECTORY_LOCATION_NOT_URI",
-                        $"directory div {Name(div)} has premis:contentLocation '{location.Value}', " +
-                        "which the platform's parser cannot read as an absolute URI");
+                    if (!string.IsNullOrWhiteSpace(location.Value) && !AbsoluteUri.IsMatch(location.Value))
+                    {
+                        Findings.Add(reasons, "DIRECTORY_LOCATION_NOT_URI",
+                            $"directory div {Name(div)} has the storage location '{location.Value}', " +
+                            "which the platform's parser cannot read as an absolute URI");
+                    }
                 }
             }
         }
@@ -617,6 +622,11 @@ public static class EditabilityJudge
         return null;
     }
 
+    /// <summary>A premis:storage the platform wrote: its storageMedium is the platform
+    /// agent.</summary>
+    private static bool IsPlatformStorage(XElement storage) =>
+        storage.Descendants(PremisNs + "storageMedium").Any(medium => medium.Value == Constants.MetsCreatorAgent);
+
     /// <summary>The parser reads each of these once from the section, and throws if there are
     /// two.</summary>
     private static void CheckReadOnce(XElement section, string[] names, List<Finding> reasons)
@@ -712,22 +722,21 @@ public static class EditabilityJudge
     /// </summary>
     private static int QuirkNotes(XElement mets, Index index, List<Finding> notes)
     {
-        var foreignStorage = mets.Descendants(PremisNs + "storage")
-            .Count(storage => storage.Descendants(PremisNs + "storageMedium")
-                .All(medium => medium.Value != Constants.MetsCreatorAgent));
+        var foreignStorage = mets.Descendants(PremisNs + "storage").Count(storage => !IsPlatformStorage(storage));
         if (foreignStorage > 0)
         {
             notes.Add(new Finding("FOREIGN_STORAGE_LOCATION",
                 $"{foreignStorage} premis:storage assertion(s) belong to another system (no " +
-                "platform storageMedium); the editing stack ignores them, and #236 tracks making " +
-                "the parser do the same", foreignStorage));
+                "platform storageMedium); the platform reads only its own, so these are kept as " +
+                "history and never read as a location", foreignStorage));
         }
 
         if (mets.Descendants(MetsNs + "dmdSec").Descendants(MetsNs + "recordInfo").Any())
         {
             notes.Add(new Finding("METS_NAMESPACE_RECORD_INFO",
-                "record identifiers are declared in the METS namespace (an EPrints quirk); " +
-                "invisible to the platform's parser until #237"));
+                "record identifiers are declared in the METS namespace (an EPrints quirk); the " +
+                "platform reads them because the dmdSec claims MODS, and its own edits add MODS " +
+                "ones alongside"));
         }
 
         var foreignDmdSecs = DmdReferents(mets, index).Keys.Count(id => IsForeignDmdSec(index.DmdSecs[id]));

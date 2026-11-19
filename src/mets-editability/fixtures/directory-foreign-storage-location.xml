@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Pins: a Directory's premis:contentLocation that is not an absolute URI - the parser's new Uri() throws -->
+<!-- Pins: another system's storage on a Directory is never read as its location, whatever it holds -->
 <mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:mods="http://www.loc.gov/mods/v3">
   <mets:metsHdr>
     <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
@@ -13,7 +13,10 @@
           <premis:object>
             <premis:originalName>objects</premis:originalName>
             <premis:storage>
-              <premis:contentLocation>objects</premis:contentLocation>
+              <premis:contentLocation>
+                <premis:contentLocationType>URI</premis:contentLocationType>
+                <premis:contentLocationValue>objects</premis:contentLocationValue>
+              </premis:contentLocation>
             </premis:storage>
           </premis:object>
         </mets:xmlData>

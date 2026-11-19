@@ -14,20 +14,6 @@
       "mutations": []
     },
     {
-      "document": "directory-contentlocation-relative.xml",
-      "pins": "a Directory's premis:contentLocation that is not an absolute URI - the parser's new Uri() throws",
-      "verdict": "not-editable",
-      "fileCount": 1,
-      "reasons": [
-        "DIRECTORY_LOCATION_NOT_URI"
-      ],
-      "assumptions": [],
-      "notes": [
-        "FOREIGN_STORAGE_LOCATION"
-      ],
-      "mutations": []
-    },
-    {
       "document": "directory-empty-label.xml",
       "pins": "LABEL=\"\" on a Directory div - the parser throws",
       "verdict": "not-editable",
@@ -37,6 +23,18 @@
       ],
       "assumptions": [],
       "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-foreign-storage-location.xml",
+      "pins": "another system's storage on a Directory is never read as its location, whatever it holds",
+      "verdict": "editable",
+      "fileCount": 1,
+      "reasons": [],
+      "assumptions": [],
+      "notes": [
+        "FOREIGN_STORAGE_LOCATION"
+      ],
       "mutations": []
     },
     {
@@ -74,6 +72,18 @@
       "fileCount": 1,
       "reasons": [
         "DIRECTORY_PATH_INVALID"
+      ],
+      "assumptions": [],
+      "notes": [],
+      "mutations": []
+    },
+    {
+      "document": "directory-storage-location-relative.xml",
+      "pins": "a Directory's own (platform) storage location that is not an absolute URI - the parser's new Uri() throws",
+      "verdict": "not-editable",
+      "fileCount": 1,
+      "reasons": [
+        "DIRECTORY_LOCATION_NOT_URI"
       ],
       "assumptions": [],
       "notes": [],
