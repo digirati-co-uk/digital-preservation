@@ -49,7 +49,8 @@ def main() -> int:
         skipped = len(entries) - len(files)
         if skipped:
             print(f"judging {len(files)} .xml file(s); skipping {skipped} other "
-                  "entr(y/ies) (subfolders are not descended)", file=sys.stderr)
+                  f"{'entry' if skipped == 1 else 'entries'} (subfolders are not descended)",
+                  file=sys.stderr)
     else:
         files = [target]
     if not files:
@@ -74,7 +75,8 @@ def _print_human(path: pathlib.Path, judgement) -> None:
                             ("assumed", judgement.assumptions),
                             ("note", judgement.notes)):
         for finding in findings:
-            print(f"  {label:8} {finding.code}: {finding.message}")
+            repeated = f" (x{finding.count})" if finding.count > 1 else ""
+            print(f"  {label:8} {finding.code}: {finding.message}{repeated}")
     for mutation in judgement.mutations:
         print(f"  on save  {mutation}")
 

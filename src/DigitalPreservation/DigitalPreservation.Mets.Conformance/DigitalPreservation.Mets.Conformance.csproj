@@ -4,22 +4,31 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <CompiledSchematronDir>$(MSBuildThisFileDirectory)..\..\mets-editability\schematron\compiled\</CompiledSchematronDir>
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- The canonical Schematron rules live with the Python judge; this project executes the
-             compiled XSLT form of the same files. tools/compile_schematron.py regenerates them.
-             Two guards keep this embedding honest: the Python suite proves the compiled form
-             behaves identically to the .sch source, and CI (test-mets-editability in build.yml)
-             recompiles and fails on any diff, so a stale compiled/ cannot merge. -->
-        <EmbeddedResource Include="..\..\mets-editability\schematron\compiled\*.xsl"
-                          LinkBase="Schematron" />
+        <!-- The canonical Schematron rules live with the Python judge; both judges run the
+             compiled XSLT form under schematron/compiled/, which tools/compile_schematron.py
+             regenerates and CI (test-mets-editability in build.yml) checks is current.
+
+             These files sit OUTSIDE src/DigitalPreservation/. A Docker build of any service
+             that references this project must copy src/mets-editability/schematron/compiled
+             into its build context as well - the Dockerfiles in this repository copy only
+             src/DigitalPreservation/ today. The target below makes a build without them fail
+             loudly instead of producing a judge that throws on first use. -->
+        <EmbeddedResource Include="$(CompiledSchematronDir)*.xsl" LinkBase="Schematron" />
     </ItemGroup>
 
+    <Target Name="RequireCompiledSchematron" BeforeTargets="BeforeBuild">
+        <Error Condition="!Exists('$(CompiledSchematronDir)common.xsl') Or !Exists('$(CompiledSchematronDir)platform-tier.xsl') Or !Exists('$(CompiledSchematronDir)eprints-tier.xsl')"
+               Text="The editability judge embeds the compiled Schematron rules from $(CompiledSchematronDir) (common.xsl, platform-tier.xsl, eprints-tier.xsl), and they are missing. A Docker build must copy src/mets-editability/schematron/compiled into the build context; in a checkout, run python tools/compile_schematron.py in src/mets-editability." />
+    </Target>
+
     <ItemGroup>
-        <!-- For MetsIds.IsValidId (the XmlConvert authority) and Constants.MetsCreatorAgent.
-             Nothing here depends on the platform beyond that: this project must stay
-             extractable alongside a future standalone METS library. -->
+        <!-- For MetsIds.IsValidId (the XmlConvert authority), XNames and
+             Constants.MetsCreatorAgent. Nothing here depends on the platform beyond that: this
+             project must stay extractable alongside a future standalone METS library. -->
         <ProjectReference Include="..\DigitalPreservation.Mets\DigitalPreservation.Mets.csproj" />
     </ItemGroup>
 

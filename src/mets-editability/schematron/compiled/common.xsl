@@ -40,7 +40,7 @@
 <axsl:template match="/"><svrl:schematron-output xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" title="METS editability: rules common to every editable tier" schemaVersion=""><axsl:comment><axsl:value-of select="$archiveDirParameter"/>   
 		 <axsl:value-of select="$archiveNameParameter"/>  
 		 <axsl:value-of select="$fileNameParameter"/>  
-		 <axsl:value-of select="$fileDirParameter"/></axsl:comment><svrl:ns-prefix-in-attribute-values uri="http://www.loc.gov/METS/" prefix="mets"/><svrl:ns-prefix-in-attribute-values uri="http://www.w3.org/1999/xlink" prefix="xlink"/><svrl:active-pattern><axsl:attribute name="id">file-pointers</axsl:attribute><axsl:attribute name="name">file-pointers</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M5"/><svrl:active-pattern><axsl:attribute name="id">file-locations</axsl:attribute><axsl:attribute name="name">file-locations</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M6"/><svrl:active-pattern><axsl:attribute name="id">logical-structmaps</axsl:attribute><axsl:attribute name="name">logical-structmaps</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M7"/><svrl:active-pattern><axsl:attribute name="id">struct-links</axsl:attribute><axsl:attribute name="name">struct-links</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M8"/></svrl:schematron-output></axsl:template>
+		 <axsl:value-of select="$fileDirParameter"/></axsl:comment><svrl:ns-prefix-in-attribute-values uri="http://www.loc.gov/METS/" prefix="mets"/><svrl:ns-prefix-in-attribute-values uri="http://www.w3.org/1999/xlink" prefix="xlink"/><svrl:active-pattern><axsl:attribute name="id">file-pointers</axsl:attribute><axsl:attribute name="name">file-pointers</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M5"/><svrl:active-pattern><axsl:attribute name="id">judged-structmap</axsl:attribute><axsl:attribute name="name">judged-structmap</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M6"/><svrl:active-pattern><axsl:attribute name="id">file-locations</axsl:attribute><axsl:attribute name="name">file-locations</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M7"/><svrl:active-pattern><axsl:attribute name="id">logical-structmaps</axsl:attribute><axsl:attribute name="name">logical-structmaps</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M8"/><svrl:active-pattern><axsl:attribute name="id">struct-links</axsl:attribute><axsl:attribute name="name">struct-links</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M9"/></svrl:schematron-output></axsl:template>
 
 <!--SCHEMATRON PATTERNS-->
 <svrl:text xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron">METS editability: rules common to every editable tier</svrl:text>
@@ -49,66 +49,68 @@
 
 
 	<!--RULE -->
-<axsl:template match="mets:structMap//mets:fptr[@FILEID]" priority="1002" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap//mets:fptr[@FILEID]"/>
+<axsl:template match="mets:structMap//mets:fptr[@FILEID]" priority="1001" mode="M5">
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="key('file-by-id', @FILEID)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('file-by-id', @FILEID)"><axsl:attribute name="id">C_FILEID_RESOLVES</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="key('file-by-id', @FILEID)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('file-by-id', @FILEID)"><axsl:attribute name="id">C_FILEID_RESOLVES</axsl:attribute><svrl:text>
         An fptr references a FILEID that no mets:file declares.
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:structMap//mets:area[@FILEID]" priority="1001" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap//mets:area[@FILEID]"/>
+<axsl:template match="mets:structMap//mets:area[@FILEID]" priority="1000" mode="M5">
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="key('file-by-id', @FILEID)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('file-by-id', @FILEID)"><axsl:attribute name="id">C_AREA_FILEID_RESOLVES</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="key('file-by-id', @FILEID)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('file-by-id', @FILEID)"><axsl:attribute name="id">C_AREA_FILEID_RESOLVES</axsl:attribute><svrl:text>
         An area (time segment or image region) references a FILEID that no mets:file declares.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template><axsl:template match="text()" priority="-1" mode="M5"/><axsl:template match="@*|node()" priority="-2" mode="M5"><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
+
+<!--PATTERN judged-structmap-->
+
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'][not(preceding-sibling::mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])] | mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])]" priority="1000" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'][not(preceding-sibling::mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])] | mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])]"/>
+<axsl:template match="mets:structMap[translate(@TYPE, 'PHYSICAL', 'physical') = 'physical'][not(preceding-sibling::mets:structMap[translate(@TYPE, 'PHYSICAL', 'physical') = 'physical'])] | mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[translate(@TYPE, 'PHYSICAL', 'physical') = 'physical'])]" priority="1000" mode="M6">
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="not(.//mets:fptr[not(@FILEID)])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(.//mets:fptr[not(@FILEID)])"><axsl:attribute name="id">C_PHYSICAL_FPTR_HAS_FILEID</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        An fptr in the physical structMap has no FILEID of its own; the platform's physical
-        walk requires one (area-only pointers belong in logical structMaps).
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template><axsl:template match="text()" priority="-1" mode="M5"/><axsl:template match="@*|node()" priority="-2" mode="M5"><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
+<axsl:choose><axsl:when test="count(mets:div) = 1"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="count(mets:div) = 1"><axsl:attribute name="id">C_ONE_ROOT_DIV</axsl:attribute><svrl:text>
+        The physical structMap has more than one root div; METS allows one, and the platform's
+        editing model keeps only one.
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template><axsl:template match="text()" priority="-1" mode="M6"/><axsl:template match="@*|node()" priority="-2" mode="M6"><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template>
 
 <!--PATTERN file-locations-->
 
 
 	<!--RULE -->
-<axsl:template match="mets:fileSec//mets:file" priority="1000" mode="M6"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:fileSec//mets:file"/>
+<axsl:template match="mets:fileSec//mets:file" priority="1000" mode="M7">
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="count(mets:FLocat) = 1 and mets:FLocat/@xlink:href"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="count(mets:FLocat) = 1 and mets:FLocat/@xlink:href"><axsl:attribute name="id">C_ONE_FLOCAT</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        A file must have exactly one FLocat, carrying an xlink:href - the platform's parser
-        cannot load a file with zero or several locations, or a location without an href.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template><axsl:template match="text()" priority="-1" mode="M6"/><axsl:template match="@*|node()" priority="-2" mode="M6"><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template>
+<axsl:choose><axsl:when test="count(mets:FLocat) = 1 and mets:FLocat/@xlink:href"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="count(mets:FLocat) = 1 and mets:FLocat/@xlink:href"><axsl:attribute name="id">C_ONE_FLOCAT</axsl:attribute><svrl:text>
+        A file must have exactly one FLocat, carrying an xlink:href.
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M7"/></axsl:template><axsl:template match="text()" priority="-1" mode="M7"/><axsl:template match="@*|node()" priority="-2" mode="M7"><axsl:apply-templates select="@*|*" mode="M7"/></axsl:template>
 
 <!--PATTERN logical-structmaps-->
 
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[translate(@TYPE, 'logical', 'LOGICAL') = 'LOGICAL']" priority="1000" mode="M7"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[translate(@TYPE, 'logical', 'LOGICAL') = 'LOGICAL']"/>
+<axsl:template match="mets:structMap[translate(@TYPE, 'LOGICAL', 'logical') = 'logical']" priority="1000" mode="M8">
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="mets:div/@ID"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="mets:div/@ID"><axsl:attribute name="id">C_LOGICAL_ROOT_HAS_ID</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="not(mets:div[normalize-space(@ID) = ''])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:div[normalize-space(@ID) = ''])"><axsl:attribute name="id">C_LOGICAL_ROOT_HAS_ID</axsl:attribute><svrl:text>
         A logical structMap's root div has no ID, so the structMap cannot be replaced,
         reordered or removed.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M7"/></axsl:template><axsl:template match="text()" priority="-1" mode="M7"/><axsl:template match="@*|node()" priority="-2" mode="M7"><axsl:apply-templates select="@*|*" mode="M7"/></axsl:template>
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M8"/></axsl:template><axsl:template match="text()" priority="-1" mode="M8"/><axsl:template match="@*|node()" priority="-2" mode="M8"><axsl:apply-templates select="@*|*" mode="M8"/></axsl:template>
 
 <!--PATTERN struct-links-->
 
 
 	<!--RULE -->
-<axsl:template match="mets:structLink/mets:smLink" priority="1000" mode="M8"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structLink/mets:smLink"/>
+<axsl:template match="mets:structLink/mets:smLink" priority="1000" mode="M9">
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="key('any-by-id', @xlink:from)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('any-by-id', @xlink:from)"><axsl:attribute name="id">C_SMLINK_FROM_RESOLVES</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="key('any-by-id', @xlink:from)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('any-by-id', @xlink:from)"><axsl:attribute name="id">C_SMLINK_FROM_RESOLVES</axsl:attribute><svrl:text>
         An smLink's xlink:from references an ID nothing declares.
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose>
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="key('any-by-id', @xlink:to)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('any-by-id', @xlink:to)"><axsl:attribute name="id">C_SMLINK_TO_RESOLVES</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="key('any-by-id', @xlink:to)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('any-by-id', @xlink:to)"><axsl:attribute name="id">C_SMLINK_TO_RESOLVES</axsl:attribute><svrl:text>
         An smLink's xlink:to references an ID nothing declares.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M8"/></axsl:template><axsl:template match="text()" priority="-1" mode="M8"/><axsl:template match="@*|node()" priority="-2" mode="M8"><axsl:apply-templates select="@*|*" mode="M8"/></axsl:template></axsl:stylesheet>
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M9"/></axsl:template><axsl:template match="text()" priority="-1" mode="M9"/><axsl:template match="@*|node()" priority="-2" mode="M9"><axsl:apply-templates select="@*|*" mode="M9"/></axsl:template></axsl:stylesheet>

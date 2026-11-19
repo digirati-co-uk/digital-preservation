@@ -1,18 +1,19 @@
 #!/usr/bin/env python
 """
-Compile the canonical Schematron rules into plain XSLT 1.0, for the .NET judge.
+Compile the canonical Schematron rules (schematron/*.sch) into plain XSLT 1.0.
 
-The Python judge runs the .sch files directly through lxml's ISO Schematron support. .NET has no
-Schematron implementation, but it has XslCompiledTransform - so the .sch is compiled once, here,
-into the validating XSLT (which emits SVRL), and the result is committed under
-schematron/compiled/. The .NET judge runs that XSLT and reads the svrl:failed-assert elements.
+Both judges run the compiled form: the Python judge through lxml's etree.XSLT, the .NET judge
+through XslCompiledTransform (it embeds schematron/compiled/*.xsl). The .sch files stay the
+human-maintained source; the compiled files are committed so that neither judge needs a
+Schematron processor at run time, and so that both run the very same artefact.
 
-Run this whenever a .sch file changes:
+Run this whenever a .sch file (or chosen-structmap.ent) changes:
 
     python tools/compile_schematron.py
 
-A test on each side pins the compiled form to the source, so a drifted checkout fails loudly
-rather than judging with stale rules.
+It also deletes any compiled .xsl whose .sch no longer exists. CI recompiles and fails if the
+result differs from what is committed in any way - a changed, new or deleted file - so a stale
+compiled/ cannot merge. The Python suite checks the same thing locally.
 """
 
 import pathlib
@@ -24,16 +25,39 @@ HERE = pathlib.Path(__file__).resolve().parent
 SCHEMATRON = HERE.parent / "schematron"
 COMPILED = SCHEMATRON / "compiled"
 
+# The ISO skeleton by default records, for every failed assert, an XPath to the failing node
+# (svrl:failed-assert/@location) and an svrl:fired-rule for every node a rule matched. The judges
+# use neither, and the location is computed by counting preceding siblings, which makes a
+# document with thousands of failing files quadratic. Leave both out.
+_COMPILE_PARAMS = {
+    "generate-paths": "'false'",
+    "generate-fired-rule": "'false'",
+}
+
+
+def compiled_rules() -> dict[str, bytes]:
+    """Every .sch compiled to XSLT, as {file name: bytes} - what compiled/ must hold."""
+    # load_dtd: the .sch files pull the chosen-structmap entities in from chosen-structmap.ent.
+    parser = etree.XMLParser(load_dtd=True, resolve_entities=True, no_network=True)
+    result = {}
+    for source in sorted(SCHEMATRON.glob("*.sch")):
+        schema = isoschematron.Schematron(
+            etree.parse(str(source), parser), compile_params=_COMPILE_PARAMS, store_xslt=True)
+        result[source.stem + ".xsl"] = etree.tostring(
+            schema.validator_xslt, xml_declaration=True, encoding="utf-8")
+    return result
+
 
 def compile_all() -> int:
     COMPILED.mkdir(exist_ok=True)
-    for source in sorted(SCHEMATRON.glob("*.sch")):
-        schema = isoschematron.Schematron(
-            etree.parse(str(source)), store_xslt=True)
-        target = COMPILED / (source.stem + ".xsl")
-        target.write_bytes(etree.tostring(
-            schema.validator_xslt, xml_declaration=True, encoding="utf-8"))
-        print(f"compiled {source.name} -> {target.relative_to(SCHEMATRON.parent)}")
+    wanted = compiled_rules()
+    for name, content in wanted.items():
+        (COMPILED / name).write_bytes(content)
+        print(f"compiled {pathlib.Path(name).stem}.sch -> compiled/{name}")
+    for orphan in sorted(COMPILED.glob("*.xsl")):
+        if orphan.name not in wanted:
+            orphan.unlink()
+            print(f"removed compiled/{orphan.name} (no {orphan.stem}.sch)")
     return 0
 
 

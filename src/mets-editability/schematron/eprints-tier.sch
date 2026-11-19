@@ -1,22 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 The XML-visible rules of the "editable with declared assumptions" tier - the EPrints-migrated
-shape defined in the docs repo's 02e-METS-Editability.md. One rule source, executed by both the
-Python judge (lxml isoschematron) and the .NET judge (the compiled XSLT in compiled/).
+shape defined on the docs site's "METS editability" page. See common.sch for how these files are
+built and run, and chosen-structmap.ent for the one map the structural rules are scoped to.
 
-Each assert's @id is a finding code shared with the native checks; the judges merge Schematron
-failures and native findings into one report. Rules that XPath 1.0 cannot express - path
-normalisation and uniqueness, NCName legality, the robust deposit-relative guard - are native
-code on both sides, specified by 02e. Keep everything here XPath 1.0: lxml's isoschematron
-compiles via the XSLT 1.0 skeleton, and .NET's XslCompiledTransform runs XSLT 1.0.
-
-The chosenExplicit/chosenUntyped entities scope structural rules to the ONE structMap the
-contract judges; see common.sch for why chosen-scope rules aggregate on the structMap and why
-the xsl:key exists.
+The tier is the shape the save's mutations (CONTRACT.md) turn into the platform's own: a flat
+structMap - one root div, untyped or a Directory, holding one div per file, each untyped or an
+Item with exactly one fptr - over files that sit directly in objects/ and carry SHA256 fixity, in
+one level of fileGrps that agree on USE. Anything outside that shape is a document the mutations
+would not turn into a platform document, so it fails the tier.
 -->
 <!DOCTYPE sch:schema [
-<!ENTITY chosenExplicit "mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'][not(preceding-sibling::mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])]">
-<!ENTITY chosenUntyped "mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])]">
+<!ENTITY % chosen-structmap SYSTEM "chosen-structmap.ent">
+%chosen-structmap;
 ]>
 <sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron"
             xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
@@ -30,23 +26,32 @@ the xsl:key exists.
   <xsl:key name="md-by-id" match="mets:techMD | mets:amdSec" use="@ID"/>
 
   <sch:pattern id="structmap">
-    <sch:rule context="mets:mets">
-      <!-- A physical structMap candidate: explicitly physical in any case, or untyped.
-           (Which candidate wins, and the case-insensitivity assumption, are reported natively.) -->
-      <sch:assert id="E_NO_PHYSICAL_CANDIDATE"
-                  test="mets:structMap[not(@TYPE)] or mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']">
-        The document has no structMap that is physical or can be assumed physical (untyped).
-      </sch:assert>
-    </sch:rule>
-
     <sch:rule context="&chosenExplicit; | &chosenUntyped;">
-      <!-- The tier is flat: a root div whose children are file divs. Any deeper nesting is a
-           directory structure this tier does not cover. -->
+      <sch:assert id="E_HAS_FILES" test="mets:div/mets:div">
+        The physical structMap has no file divs; the EPrints tier is a root div holding one div
+        per file, and there is nothing here to restructure.
+      </sch:assert>
       <sch:assert id="E_NOT_FLAT" test="not(mets:div/mets:div/mets:div)">
         The physical structMap nests divs more than one level below the root; the EPrints tier
         only covers a flat root-plus-file-divs shape.
       </sch:assert>
-      <!-- Each file div points at exactly one file. -->
+      <sch:assert id="E_ROOT_NO_FPTR" test="not(mets:div/mets:fptr)">
+        The root div points at a file itself; in the EPrints tier the root only holds the file
+        divs, and the save turns it into a Directory.
+      </sch:assert>
+      <!-- TYPE is optional in METS and compared case-insensitively; any OTHER type (EPrints'
+           own "eprint"/"page" vocabulary, say) means something the save would have to guess
+           at, so it fails the tier rather than being silently retyped. -->
+      <sch:assert id="E_ROOT_TYPE"
+                  test="not(mets:div[@TYPE][translate(@TYPE, 'DIRECTORY', 'directory') != 'directory'])">
+        The root div has a TYPE other than Directory; the EPrints tier's root is untyped or a
+        Directory.
+      </sch:assert>
+      <sch:assert id="E_FILE_DIV_TYPE"
+                  test="not(mets:div/mets:div[@TYPE][translate(@TYPE, 'ITEM', 'item') != 'item'])">
+        A file div has a TYPE other than Item; the EPrints tier's file divs are untyped or
+        Items.
+      </sch:assert>
       <sch:assert id="E_ITEM_ONE_FPTR" test="not(mets:div/mets:div[count(mets:fptr) != 1])">
         A file div must carry exactly one fptr.
       </sch:assert>
@@ -54,28 +59,38 @@ the xsl:key exists.
   </sch:pattern>
 
   <sch:pattern id="filesec">
-    <sch:rule context="mets:fileSec/mets:fileGrp/mets:file">
-      <sch:assert id="E_HREF_UNDER_OBJECTS" test="starts-with(mets:FLocat/@xlink:href, 'objects/')">
-        A file's href is not under objects/; the EPrints tier's implied objects container
-        requires every file path to sit beneath it.
+    <sch:rule context="mets:fileSec//mets:file">
+      <!-- Directly in objects/: the save materialises ONE directory div, objects, and puts
+           every file div in it. A file in objects/sub/ would need directory divs the save does
+           not create. -->
+      <sch:assert id="E_HREF_UNDER_OBJECTS"
+                  test="starts-with(mets:FLocat/@xlink:href, 'objects/') and not(contains(substring-after(mets:FLocat/@xlink:href, 'objects/'), '/'))">
+        A file's href is not directly under objects/; the save materialises a single objects
+        directory and every file must sit directly in it.
       </sch:assert>
-      <!-- SHA256 fixity WITH an actual digest value, resolved through the file's ADMID (a
-           single token in this shape). An algorithm label with an empty digest is a record of
-           having lost the checksum, not of having one. translate() lowercases and deletes '-'
-           so SHA256, sha256 and SHA-256 all match. -->
+      <!-- SHA256 fixity WITH a digest that is one (64 hex digits), resolved through the file's
+           ADMID (a single token in this shape) - as P_SHA256. -->
       <sch:assert id="E_SHA256"
-                  test="key('md-by-id', @ADMID)//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256'][normalize-space(premis:messageDigest) != '']">
-        The file's technical metadata carries no SHA256 digest value, which every import job -
-        and therefore every edit-and-preserve - requires.
+                  test="key('md-by-id', @ADMID)//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256'][string-length(normalize-space(premis:messageDigest)) = 64][translate(normalize-space(premis:messageDigest), '0123456789abcdefABCDEF', '') = '']">
+        The file's technical metadata carries no SHA256 digest (64 hex digits), which every
+        import job - and therefore every edit-and-preserve - requires.
       </sch:assert>
     </sch:rule>
 
-    <!-- All groups must agree on USE: EPrints writes one group per file, all USE="reference",
-         and consolidation on save needs them to be one kind of thing. Mixed USE values are the
-         genuine ambiguity (which copy is the content?) - and so is a mix of groups WITH a USE
-         and groups WITHOUT one, which the second clause catches (an XPath 1.0 comparison
-         against a missing attribute is silently false, so the first clause alone cannot). -->
     <sch:rule context="mets:fileSec">
+      <!-- The save consolidates EVERY fileGrp into one USE="OBJECTS" group. Nested groups have
+           no single obvious flattening, so they fail the tier. -->
+      <sch:assert id="E_FLAT_FILEGRPS" test="not(mets:fileGrp//mets:fileGrp)">
+        The fileSec nests fileGrps; the EPrints tier's groups are one level deep, so they can
+        be consolidated into one.
+      </sch:assert>
+      <!-- All groups must agree on USE: EPrints writes one group per file, all
+           USE="reference", and consolidation needs them to be one kind of thing. Mixed USE
+           values are the genuine ambiguity (which copy is the content?) - and so is a mix of
+           groups WITH a USE and groups WITHOUT one, which the second clause catches (an XPath
+           1.0 comparison against a missing attribute is silently false, so the first clause
+           alone cannot). Every group counts, referenced or not, because every group is
+           consolidated. -->
       <sch:assert id="E_MIXED_FILEGRP_USE"
                   test="not(mets:fileGrp[@USE != current()/mets:fileGrp[1]/@USE])
                         and not(mets:fileGrp[@USE] and mets:fileGrp[not(@USE)])">
