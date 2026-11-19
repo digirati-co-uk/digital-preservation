@@ -59,6 +59,10 @@ jobs:
               - 'src/mets-editability/**'
               # The Python judge's acceptance corpus is XmlGen.Tests' sample set.
               - 'src/DigitalPreservation/XmlGen.Tests/Samples/**'
+              # Copies the Python suite pins to their originals: the platform agent string and
+              # the NCName tables.
+              - 'src/DigitalPreservation/DigitalPreservation.Mets/Constants.cs'
+              - 'src/mets-id-migration/app/ncname_ranges.json'
               - '.github/**'
 
   sonar-cloud-analysis:
@@ -123,9 +127,17 @@ jobs:
       - id: install-dependencies
         run: pip install -r requirements.txt
       - id: compiled-schematron-matches-source
+        # Recompile, then fail on ANY difference from what is committed: a changed file, a new
+        # (untracked) one from a new .sch, or one the tool deleted because its .sch is gone.
         run: |
           python tools/compile_schematron.py
-          git diff --exit-code -- schematron/compiled
+          changes="$(git status --porcelain -- schematron/compiled)"
+          if [ -n "$changes" ]; then
+            echo "schematron/compiled is not what the .sch sources compile to:"
+            echo "$changes"
+            git diff -- schematron/compiled
+            exit 1
+          fi
       - id: run-tests
         run: python -m unittest tests -v
 
