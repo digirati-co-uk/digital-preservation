@@ -36,13 +36,17 @@ public static class EditabilityJudge
     /// caller can catch.</summary>
     public const int MaxDepth = 256;
 
+    private const string HrefNotDepositRelative = "HREF_NOT_DEPOSIT_RELATIVE";
+    private const string HrefNotNormalised = "HREF_NOT_NORMALISED";
+    private const string Admid = "ADMID";
+
     /// <summary>Any of these means the platform cannot open the document: not-editable.</summary>
     private static readonly HashSet<string> Blockers =
     [
         "PARSE_FAILED", "DOCTYPE_DECLARED", "TOO_DEEP", "SEVERAL_METS_ELEMENTS",
         "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "DUPLICATE_ID",
         "FPTR_NO_FILEID", "FILEID_UNRESOLVED", "FILE_REFERENCED_TWICE", "FILE_SEVERAL_FLOCATS",
-        "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "HREF_NOT_NORMALISED", "DUPLICATE_PATH",
+        "FILE_NO_HREF", HrefNotDepositRelative, HrefNotNormalised, "DUPLICATE_PATH",
         "DIRECTORY_NO_LABEL", "DIRECTORY_PATH_INVALID", "DIRECTORY_LOCATION_NOT_URI",
         "PREMIS_REPEATED", "RECORD_IDENTIFIER_NO_SOURCE", "TIME_VALUE_BLANK"
     ];
@@ -57,6 +61,9 @@ public static class EditabilityJudge
 
     /// <summary>What the parser reads, the same way, from a directory's.</summary>
     private static readonly string[] ReadFromADirectorySection = ["premis:originalName"];
+
+    /// <summary>Elements whose ADMID the platform's deletion reasoning does not consult.</summary>
+    private static readonly string[] OutsideTheSurvivalIndex = ["fileGrp", "area", "stream"];
 
     private static readonly char[] XmlWhitespace = [' ', '\t', '\r', '\n'];
 
@@ -382,20 +389,20 @@ public static class EditabilityJudge
             mets.Descendants().Where(e => e.Name == MetsNs + "techMD" || e.Name == MetsNs + "amdSec"));
 
         public readonly Dictionary<string, XElement> DmdSecs = ById(mets.Elements(MetsNs + "dmdSec"));
-    }
 
-    private static Dictionary<string, XElement> ById(IEnumerable<XElement> elements)
-    {
-        var index = new Dictionary<string, XElement>(StringComparer.Ordinal);
-        foreach (var element in elements)
+        private static Dictionary<string, XElement> ById(IEnumerable<XElement> elements)
         {
-            var id = (string?)element.Attribute("ID");
-            if (id != null)
+            var index = new Dictionary<string, XElement>(StringComparer.Ordinal);
+            foreach (var element in elements)
             {
-                index.TryAdd(id, element);
+                var id = (string?)element.Attribute("ID");
+                if (id != null)
+                {
+                    index.TryAdd(id, element);
+                }
             }
+            return index;
         }
-        return index;
     }
 
     /// <summary>
@@ -449,7 +456,7 @@ public static class EditabilityJudge
             if (ReadsAs((string?)div.Attribute("TYPE"), "directory"))
             {
                 CheckDirectoryDiv(div, index, reasons);
-                if (div.Parent != structMap && div.Attribute("ADMID") == null)
+                if (div.Parent != structMap && div.Attribute(Admid) == null)
                 {
                     directoriesWithoutAdmid++;
                 }
@@ -494,37 +501,41 @@ public static class EditabilityJudge
                 $"directory div {Name(div)} has no LABEL; the platform's parser requires one on " +
                 "every directory");
         }
-        var admid = (string?)div.Attribute("ADMID");
+        var admid = (string?)div.Attribute(Admid);
         if (string.IsNullOrEmpty(admid))
         {
             return;
         }
         foreach (var section in ResolveIdRefs(admid, index.Sections))
         {
-            CheckReadOnce(section, ReadFromADirectorySection, reasons);
-            foreach (var originalName in section.Descendants(PremisNs + "originalName"))
-            {
-                if (PathProblem(originalName.Value) != null)
-                {
-                    Findings.Add(reasons, "DIRECTORY_PATH_INVALID",
-                        $"directory div {Name(div)} has premis:originalName '{originalName.Value}', " +
-                        "which is not a normalised path within the deposit");
-                }
-            }
-            // The parser reads a directory's location only from the platform's own storage (one
-            // whose storageMedium is the platform agent), and turns it into a Uri unguarded.
-            foreach (var storage in section.Descendants(PremisNs + "storage").Where(IsPlatformStorage))
-            {
-                foreach (var location in storage.Descendants(PremisNs + "contentLocationValue"))
-                {
-                    if (!string.IsNullOrWhiteSpace(location.Value) && !AbsoluteUri.IsMatch(location.Value))
-                    {
-                        Findings.Add(reasons, "DIRECTORY_LOCATION_NOT_URI",
-                            $"directory div {Name(div)} has the storage location '{location.Value}', " +
-                            "which the platform's parser cannot read as an absolute URI");
-                    }
-                }
-            }
+            CheckDirectorySection(div, section, reasons);
+        }
+    }
+
+    /// <summary>One section a Directory div's ADMID names: what the parser reads from it must
+    /// be there once, and must be a path or location it can use.</summary>
+    private static void CheckDirectorySection(XElement div, XElement section, List<Finding> reasons)
+    {
+        CheckReadOnce(section, ReadFromADirectorySection, reasons);
+        var invalidNames = section.Descendants(PremisNs + "originalName")
+            .Where(originalName => PathProblem(originalName.Value) != null);
+        foreach (var originalName in invalidNames)
+        {
+            Findings.Add(reasons, "DIRECTORY_PATH_INVALID",
+                $"directory div {Name(div)} has premis:originalName '{originalName.Value}', " +
+                "which is not a normalised path within the deposit");
+        }
+        // The parser reads a directory's location only from the platform's own storage (one
+        // whose storageMedium is the platform agent), and turns it into a Uri unguarded.
+        var unreadableLocations = section.Descendants(PremisNs + "storage")
+            .Where(IsPlatformStorage)
+            .SelectMany(storage => storage.Descendants(PremisNs + "contentLocationValue"))
+            .Where(location => !string.IsNullOrWhiteSpace(location.Value) && !AbsoluteUri.IsMatch(location.Value));
+        foreach (var location in unreadableLocations)
+        {
+            Findings.Add(reasons, "DIRECTORY_LOCATION_NOT_URI",
+                $"directory div {Name(div)} has the storage location '{location.Value}', " +
+                "which the platform's parser cannot read as an absolute URI");
         }
     }
 
@@ -553,17 +564,7 @@ public static class EditabilityJudge
             return;
         }
         seenFileIds.Add(fileId);
-
-        foreach (var admid in new[] { (string?)div.Attribute("ADMID"), (string?)file.Attribute("ADMID") })
-        {
-            foreach (var section in string.IsNullOrEmpty(admid) ? [] : ResolveIdRefs(admid, index.Sections))
-            {
-                if (!fileSections.Contains(section))
-                {
-                    fileSections.Add(section);
-                }
-            }
-        }
+        CollectFileSections(div, file, index, fileSections);
 
         var locations = file.Elements(MetsNs + "FLocat").ToList();
         if (locations.Count > 1)
@@ -579,14 +580,32 @@ public static class EditabilityJudge
             Findings.Add(reasons, "FILE_NO_HREF", $"file '{fileId}' has no FLocat href");
             return;
         }
+        CheckHref(fileId, href, pathsSeen, reasons);
+    }
+
+    /// <summary>The sections the parser reads a file's technical metadata from: those its div's
+    /// ADMID names and those its own ADMID names, each once.</summary>
+    private static void CollectFileSections(XElement div, XElement file, Index index, List<XElement> fileSections)
+    {
+        var sections = new[] { (string?)div.Attribute(Admid), (string?)file.Attribute(Admid) }
+            .Where(admid => !string.IsNullOrEmpty(admid))
+            .SelectMany(admid => ResolveIdRefs(admid!, index.Sections));
+        foreach (var section in sections.Where(section => !fileSections.Contains(section)))
+        {
+            fileSections.Add(section);
+        }
+    }
+
+    private static void CheckHref(string fileId, string href, Dictionary<string, int> pathsSeen, List<Finding> reasons)
+    {
         switch (PathProblem(href))
         {
-            case "HREF_NOT_DEPOSIT_RELATIVE":
-                Findings.Add(reasons, "HREF_NOT_DEPOSIT_RELATIVE",
+            case HrefNotDepositRelative:
+                Findings.Add(reasons, HrefNotDepositRelative,
                     $"file '{fileId}' href '{href}' is not a relative path within the deposit");
                 break;
-            case "HREF_NOT_NORMALISED":
-                Findings.Add(reasons, "HREF_NOT_NORMALISED",
+            case HrefNotNormalised:
+                Findings.Add(reasons, HrefNotNormalised,
                     $"file '{fileId}' href '{href}' contains an empty or '.' segment, which the " +
                     "platform's path cache does not normalise - the entry would be unreachable");
                 break;
@@ -613,11 +632,11 @@ public static class EditabilityJudge
         if (UriScheme.IsMatch(path) || path.StartsWith('/') || path.Contains('\\')
             || decoded.Any(part => part == ".." || part.Contains('/') || part.Contains('\\')))
         {
-            return "HREF_NOT_DEPOSIT_RELATIVE";
+            return HrefNotDepositRelative;
         }
         if (segments.Where((segment, i) => segment == "" || decoded[i] == ".").Any())
         {
-            return "HREF_NOT_NORMALISED";
+            return HrefNotNormalised;
         }
         return null;
     }
@@ -651,19 +670,27 @@ public static class EditabilityJudge
     /// </summary>
     private static void CheckValuesTheParserConverts(XElement mets, Index index, List<Finding> reasons)
     {
-        foreach (var dmdId in DmdReferents(mets, index).Keys)
-        {
-            foreach (var identifier in index.DmdSecs[dmdId].Descendants(ModsNs + "recordIdentifier"))
-            {
-                if (identifier.Attribute("source") == null)
-                {
-                    Findings.Add(reasons, "RECORD_IDENTIFIER_NO_SOURCE",
-                        $"dmdSec '{dmdId}' holds a mods:recordIdentifier without a source " +
-                        "attribute, which the platform's parser requires");
-                }
-            }
-        }
+        CheckRecordIdentifiers(mets, index, reasons);
+        CheckTimeValues(mets, reasons);
+    }
 
+    private static void CheckRecordIdentifiers(XElement mets, Index index, List<Finding> reasons)
+    {
+        // One entry per recordIdentifier without a source, naming the dmdSec that holds it.
+        var dmdSecsHoldingOne = DmdReferents(mets, index).Keys
+            .SelectMany(dmdId => index.DmdSecs[dmdId].Descendants(ModsNs + "recordIdentifier")
+                .Where(identifier => identifier.Attribute("source") == null)
+                .Select(_ => dmdId));
+        foreach (var dmdId in dmdSecsHoldingOne)
+        {
+            Findings.Add(reasons, "RECORD_IDENTIFIER_NO_SOURCE",
+                $"dmdSec '{dmdId}' holds a mods:recordIdentifier without a source " +
+                "attribute, which the platform's parser requires");
+        }
+    }
+
+    private static void CheckTimeValues(XElement mets, List<Finding> reasons)
+    {
         foreach (var area in mets.Descendants(MetsNs + "area"))
         {
             foreach (var attribute in new[] { "BEGIN", "END" })
@@ -758,9 +785,9 @@ public static class EditabilityJudge
                 "itself is preserved verbatim", unwrapped));
         }
 
-        var unusualAdmids = new[] { "fileGrp", "area", "stream" }
+        var unusualAdmids = OutsideTheSurvivalIndex
             .Sum(name => mets.Descendants(MetsNs + name)
-                .Count(element => !string.IsNullOrEmpty((string?)element.Attribute("ADMID"))));
+                .Count(element => !string.IsNullOrEmpty((string?)element.Attribute(Admid))));
         if (unusualAdmids > 0)
         {
             notes.Add(new Finding("ADMID_OUTSIDE_SURVIVAL_INDEX",

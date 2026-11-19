@@ -27,7 +27,7 @@ internal static class SchematronRunner
     // XslCompiledTransform.Transform is thread-safe once loaded, and each call below produces
     // its own report document, so one transform per rule set serves every thread.
     private static readonly Dictionary<string, XslCompiledTransform> Transforms = new();
-    private static readonly object TransformsLock = new();
+    private static readonly Lock TransformsLock = new();
 
     /// <summary>
     /// The failed asserts of one rule set ("common", "platform-tier" or "eprints-tier") against

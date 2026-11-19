@@ -799,7 +799,7 @@ public class EditabilityJudgeTests
 
     private static readonly string Fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
 
-    private static IEnumerable<JsonElement> Golden() =>
+    private static List<JsonElement> Golden() =>
         JsonDocument.Parse(File.ReadAllText(Path.Combine(Fixtures, "judgements.json")))
             .RootElement.GetProperty("judgements").EnumerateArray().ToList();
 
@@ -875,11 +875,13 @@ public class EditabilityJudgeTests
         Codes(judgement.Reasons).Should().BeEquivalentTo("PARSE_FAILED");
     }
 
+    private static readonly string[] ThreadedFixtures =
+        ["platform-minimal.xml", "eprints-minimal.xml", "two-root-divs.xml"];
+
     [Fact]
     public void Judging_From_Many_Threads_Gives_The_Single_Threaded_Answers()
     {
-        var documents = new[] { "platform-minimal.xml", "eprints-minimal.xml", "two-root-divs.xml" }
-            .Select(name => Path.Combine(Fixtures, name)).ToList();
+        var documents = ThreadedFixtures.Select(name => Path.Combine(Fixtures, name)).ToList();
         static string Summary(Judgement j) =>
             j.Verdict + string.Join(",", j.Reasons.Select(f => $"{f.Code}x{f.Count}"));
         var expected = documents.ToDictionary(path => path, path => Summary(EditabilityJudge.JudgeFile(path)));

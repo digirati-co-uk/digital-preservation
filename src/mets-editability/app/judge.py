@@ -368,24 +368,32 @@ def _check_directory_div(div, index, reasons):
     if not admid:
         return
     for section in _resolve_idrefs(admid, index.sections):
-        _check_read_once(section, _READ_FROM_A_DIRECTORY_SECTION, reasons)
-        for original_name in section.iter(f"{{{PREMIS_NS}}}originalName"):
-            value = _text(original_name)
-            if _path_problem(value) is not None:
-                add(reasons, "DIRECTORY_PATH_INVALID",
-                    f"directory div {_name(div)} has premis:originalName '{value}', which is "
-                    "not a normalised path within the deposit")
-        # The parser reads a directory's location only from the platform's own storage (one
-        # whose storageMedium is the platform agent), and turns it into a Uri unguarded.
-        for storage in section.iter(f"{{{PREMIS_NS}}}storage"):
-            if not _is_platform_storage(storage):
-                continue
-            for location in storage.iter(f"{{{PREMIS_NS}}}contentLocationValue"):
-                value = _text(location)
-                if value.strip() and not _ABSOLUTE_URI.match(value):
-                    add(reasons, "DIRECTORY_LOCATION_NOT_URI",
-                        f"directory div {_name(div)} has the storage location '{value}', which "
-                        "the platform's parser cannot read as an absolute URI")
+        _check_directory_section(div, section, reasons)
+
+
+def _check_directory_section(div, section, reasons):
+    """
+    One section a Directory div's ADMID names: what the parser reads from it must be there
+    once, and must be a path or location it can use.
+    """
+    _check_read_once(section, _READ_FROM_A_DIRECTORY_SECTION, reasons)
+    for original_name in section.iter(f"{{{PREMIS_NS}}}originalName"):
+        value = _text(original_name)
+        if _path_problem(value) is not None:
+            add(reasons, "DIRECTORY_PATH_INVALID",
+                f"directory div {_name(div)} has premis:originalName '{value}', which is "
+                "not a normalised path within the deposit")
+    # The parser reads a directory's location only from the platform's own storage (one
+    # whose storageMedium is the platform agent), and turns it into a Uri unguarded.
+    for storage in section.iter(f"{{{PREMIS_NS}}}storage"):
+        if not _is_platform_storage(storage):
+            continue
+        for location in storage.iter(f"{{{PREMIS_NS}}}contentLocationValue"):
+            value = _text(location)
+            if value.strip() and not _ABSOLUTE_URI.match(value):
+                add(reasons, "DIRECTORY_LOCATION_NOT_URI",
+                    f"directory div {_name(div)} has the storage location '{value}', which "
+                    "the platform's parser cannot read as an absolute URI")
 
 
 def _resolve_fptr(fptr, div, index, seen_file_ids, paths_seen, file_sections, reasons):
@@ -406,11 +414,7 @@ def _resolve_fptr(fptr, div, index, seen_file_ids, paths_seen, file_sections, re
             "structMap; the platform's parser would list it twice and fail")
         return
     seen_file_ids.add(file_id)
-
-    for admid in (div.get("ADMID"), file_element.get("ADMID")):
-        for section in _resolve_idrefs(admid, index.sections) if admid else []:
-            if section not in file_sections:
-                file_sections.append(section)
+    _collect_file_sections(div, file_element, index, file_sections)
 
     locations = file_element.findall(f"{{{METS_NS}}}FLocat")
     if len(locations) > 1:
@@ -422,6 +426,21 @@ def _resolve_fptr(fptr, div, index, seen_file_ids, paths_seen, file_sections, re
     if not href:
         add(reasons, "FILE_NO_HREF", f"file '{file_id}' has no FLocat href")
         return
+    _check_href(file_id, href, paths_seen, reasons)
+
+
+def _collect_file_sections(div, file_element, index, file_sections):
+    """
+    The sections the parser reads a file's technical metadata from: those its div's ADMID names
+    and those its own ADMID names, each once.
+    """
+    for admid in (div.get("ADMID"), file_element.get("ADMID")):
+        for section in _resolve_idrefs(admid, index.sections) if admid else []:
+            if section not in file_sections:
+                file_sections.append(section)
+
+
+def _check_href(file_id, href, paths_seen, reasons):
     problem = _path_problem(href)
     if problem == "HREF_NOT_DEPOSIT_RELATIVE":
         add(reasons, problem,
@@ -478,6 +497,11 @@ def _check_values_the_parser_converts(mets, index, reasons):
     the document at all. Each check covers at least every value the parser reads, and sometimes
     more: a stricter judge is safe, a more tolerant one is not.
     """
+    _check_record_identifiers(mets, index, reasons)
+    _check_time_values(mets, reasons)
+
+
+def _check_record_identifiers(mets, index, reasons):
     for dmd_id in _dmd_referents(mets, index):
         for identifier in index.dmd_secs[dmd_id].iter(f"{{{MODS_NS}}}recordIdentifier"):
             if identifier.get("source") is None:
@@ -485,6 +509,8 @@ def _check_values_the_parser_converts(mets, index, reasons):
                     f"dmdSec '{dmd_id}' holds a mods:recordIdentifier without a source "
                     "attribute, which the platform's parser requires")
 
+
+def _check_time_values(mets, reasons):
     for area in mets.iter(f"{{{METS_NS}}}area"):
         for attribute in ("BEGIN", "END"):
             value = area.get(attribute)
