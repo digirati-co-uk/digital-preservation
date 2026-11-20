@@ -75,7 +75,13 @@ else
                         <br/><span class="text-danger">@request.Error</span>
                     }
                 </td>
-                <td>@request.Expires.ToString("u")</td>
+                <td>
+                    @* Only a copy that is still there can expire. *@
+                    @if (request.Status is DownloadStatus.Ready or DownloadStatus.Copying)
+                    {
+                        <text>@request.Expires.ToString("u")</text>
+                    }
+                </td>
                 <td>@request.LinksIssued</td>
                 <td>
                     @if (request.Status is DownloadStatus.Ready or DownloadStatus.Copying)
