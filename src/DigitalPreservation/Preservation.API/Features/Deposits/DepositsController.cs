@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -10,6 +11,7 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using DigitalPreservation.Workspace.Requests;
 using IIIF.Presentation.V3;
 using IIIF.Serialisation;
 using LeedsDlipServices.Identity;
@@ -18,6 +20,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
 
@@ -311,6 +314,72 @@ public class DepositsController(
         var workspaceManager = workspaceManagerFactory.CreateUninitialised(deposit);
         var result = await workspaceManager.NormaliseMetsIds();
         return this.StatusResponseFromResult(result);
+    }
+
+
+    /// <summary>
+    /// Set the access conditions and rights of one file or folder in the deposit's METS: what the
+    /// UI's metadata dialogue does, for a caller with no dialogue. A property left out is left as
+    /// it is; one sent as null is cleared, so the file or folder inherits from its parent.
+    /// </summary>
+    [HttpPost("{id}/mets/access", Name = "SetAccess")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    public async Task<IActionResult> SetAccess(
+        [FromRoute] string id,
+        [FromBody] AccessChange change,
+        [FromServices] IOptions<AccessConditionProfile> profile)
+    {
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is not { Success: true, Value: not null })
+        {
+            return this.StatusResponseFromResult(depositResult);
+        }
+        var deposit = depositResult.Value;
+        if (!deposit.MetsETag.HasText())
+        {
+            return this.ProblemFor(ErrorCodes.BadRequest, null, "Deposit has no METS file to edit");
+        }
+
+        var otherLockOwner = deposit.GetOtherLockOwner(User.GetCallerIdentity());
+        if (otherLockOwner is not null)
+        {
+            return this.ProblemFor(ErrorCodes.Conflict, otherLockOwner, "Conflict: Deposit is locked by another user");
+        }
+
+        var ifMatchFailure = CheckMetsIfMatch(deposit, required: true);
+        if (ifMatchFailure != null)
+        {
+            return ifMatchFailure;
+        }
+
+        var problems = change.Problems(profile.Value);
+        if (problems.Count > 0)
+        {
+            return this.ProblemFor(ErrorCodes.BadRequest, string.Join(" ", problems), "Access change not accepted");
+        }
+
+        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
+        if (!workspaceManager.Editable)
+        {
+            return this.ProblemFor(ErrorCodes.BadRequest, null, "The platform did not write this METS file, so it can't edit it");
+        }
+
+        var rights = change.RightsStatementSent
+            ? change.RightsStatement is null ? RightsChoice.Inherit : RightsChoice.SetTo(change.RightsStatement)
+            : RightsChoice.LeaveUnchanged;
+        var changes = new ModsChanges(
+            change.AccessRestrictionsSent ? change.AccessRestrictions ?? [] : null,
+            rights,
+            change.AccessStatement,
+            RecordIdentifiers: null,
+            FileLinks: null,
+            StatementInForm: change.AccessStatementSent);
+        var result = await workspaceManager.SetModsInformation(change.Path, changes);
+        return this.StatusResponseFromResult(result, 204);
     }
 
 
