@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.ChangeDiscovery.Reader;
+using DigitalPreservation.Common.Model.Download;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
@@ -234,4 +235,30 @@ public class StorageApiClient(
             return Result.Fail<SearchCollectiveFedora?>(ErrorCodes.UnknownError, ex.Message);
         }
     }
+
+    public Task<Result> StartDownloadCopy(DownloadCopy copy, CancellationToken cancellationToken = default) =>
+        SendForResult(
+            () => storageHttpClient.PostAsJsonAsync("/downloads", copy, cancellationToken),
+            "Unable to start download copy");
+
+    public Task<Result<DownloadCopyStatus>> GetDownloadCopyStatus(string id, CancellationToken cancellationToken = default) =>
+        SendForJsonNotNull<DownloadCopyStatus>(
+            () => storageHttpClient.GetAsync($"/downloads/{id}", cancellationToken),
+            "Unable to get download copy status",
+            ErrorCodes.UnknownError,
+            "Download copy status could not be parsed.",
+            cancellationToken: cancellationToken);
+
+    public Task<Result<DownloadLink>> GetDownloadLink(string id, CancellationToken cancellationToken = default) =>
+        SendForJsonNotNull<DownloadLink>(
+            () => storageHttpClient.GetAsync($"/downloads/{id}/link", cancellationToken),
+            "Unable to get download link",
+            ErrorCodes.UnknownError,
+            "Download link could not be parsed.",
+            cancellationToken: cancellationToken);
+
+    public Task<Result> DeleteDownloadCopy(string id, CancellationToken cancellationToken = default) =>
+        SendForResult(
+            () => storageHttpClient.DeleteAsync($"/downloads/{id}", cancellationToken),
+            "Unable to delete download copy");
 }
