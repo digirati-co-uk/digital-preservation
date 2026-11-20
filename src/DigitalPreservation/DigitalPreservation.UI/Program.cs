@@ -43,6 +43,7 @@ try
     IEnumerable<string>? initialScopes = new List<string>();
     builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
 
+    builder.Services.Configure<BuildInfo>(builder.Configuration.GetSection(BuildInfo.Build));
     builder.Services.AddDistributedMemoryCache();
 
     builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)

@@ -183,6 +183,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      # To name the pull request an image was built from (the docker-build-and-push action).
+      pull-requests: read
     needs: [changes, test-dotnet]
     if: github.event_name != 'pull_request' || needs.changes.outputs.dotnet == 'true'
     strategy:
