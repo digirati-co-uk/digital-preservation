@@ -223,6 +223,99 @@ namespace Preservation.API.Data.Migrations
                     b.ToTable("deposit_archive_jobs", (string)null);
                 });
 
+            modelBuilder.Entity("Preservation.API.Data.Entities.DownloadLinkIssued", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DownloadRequestId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("download_request_id");
+
+                    b.Property<DateTime>("Issued")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued");
+
+                    b.Property<string>("IssuedTo")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("issued_to");
+
+                    b.HasKey("Id")
+                        .HasName("pk_download_link_issued");
+
+                    b.HasIndex("DownloadRequestId")
+                        .HasDatabaseName("ix_download_link_issued_download_request_id");
+
+                    b.ToTable("download_link_issued", (string)null);
+                });
+
+            modelBuilder.Entity("Preservation.API.Data.Entities.DownloadRequest", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .HasColumnType("text")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created");
+
+                    b.Property<string>("Digest")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("digest");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<DateTime>("Expires")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("path");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("requested_by");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_download_requests");
+
+                    b.ToTable("download_requests", (string)null);
+                });
+
             modelBuilder.Entity("Preservation.API.Data.Entities.ImportJob", b =>
                 {
                     b.Property<string>("Id")
@@ -360,6 +453,21 @@ namespace Preservation.API.Data.Migrations
                         .HasFilter("status IN ('waiting','processing','metadataCreated')");
 
                     b.ToTable("pipeline_run_jobs", (string)null);
+                });
+
+            modelBuilder.Entity("Preservation.API.Data.Entities.DownloadLinkIssued", b =>
+                {
+                    b.HasOne("Preservation.API.Data.Entities.DownloadRequest", null)
+                        .WithMany("LinksIssued")
+                        .HasForeignKey("DownloadRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_download_link_issued_download_requests_download_request_id");
+                });
+
+            modelBuilder.Entity("Preservation.API.Data.Entities.DownloadRequest", b =>
+                {
+                    b.Navigation("LinksIssued");
                 });
 #pragma warning restore 612, 618
         }

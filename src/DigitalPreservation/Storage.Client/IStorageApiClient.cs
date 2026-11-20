@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
+using DigitalPreservation.Common.Model.Download;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -70,4 +71,10 @@ public interface IStorageApiClient
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     
     Task<Result<List<Activity>>> GetImportJobActivities(DateTime after, CancellationToken cancellationToken = default);
+
+    // Copies of preserved files in the downloads bucket (RFC 011)
+    Task<Result> StartDownloadCopy(DownloadCopy copy, CancellationToken cancellationToken = default);
+    Task<Result<DownloadCopyStatus>> GetDownloadCopyStatus(string id, CancellationToken cancellationToken = default);
+    Task<Result<DownloadLink>> GetDownloadLink(string id, CancellationToken cancellationToken = default);
+    Task<Result> DeleteDownloadCopy(string id, CancellationToken cancellationToken = default);
 }

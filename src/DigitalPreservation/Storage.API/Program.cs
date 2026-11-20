@@ -4,6 +4,7 @@ using DigitalPreservation.Core.Web.Headers;
 using Storage.API.Web;
 using Serilog;
 using Storage.API.Data;
+using Storage.API.Features.Downloads;
 using Storage.API.Features.Export;
 using Storage.API.Features.Import;
 using Storage.API.Fedora;
@@ -87,6 +88,13 @@ try
     {
         throw new NotSupportedException("Separate export service not yet implemented!");
     }
+
+    // Copies of preserved files for people to download (RFC 011). Made here, not by the Importer.
+    builder.Services
+        .Configure<DownloadOptions>(builder.Configuration.GetSection(DownloadOptions.Downloads))
+        .AddSingleton<DownloadCopyQueue>()
+        .AddScoped<DownloadCopies>()
+        .AddHostedService<DownloadCopyService>();
 
     // Unconditional, regardless of which mode actually executes import jobs (in-process or the
     // separate SQS Importer): this is the one host that is always running, and the sweep's reap is
