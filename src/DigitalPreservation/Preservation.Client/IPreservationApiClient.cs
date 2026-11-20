@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model.Download;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
@@ -75,7 +76,13 @@ public interface IPreservationApiClient
     Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken);
     
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
-    Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
+
+    // Downloading preserved files (RFC 011)
+    Task<Result<Download>> RequestDownload(string path, string? reason, CancellationToken cancellationToken);
+    Task<Result<List<Download>>> GetDownloads(CancellationToken cancellationToken);
+    Task<Result<DownloadLink>> IssueDownloadLink(string id, CancellationToken cancellationToken);
+    Task<Result> DeleteDownload(string id, CancellationToken cancellationToken);
+
     Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, bool parsedJson = false, CancellationToken cancellationToken = default);
     
     Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken);

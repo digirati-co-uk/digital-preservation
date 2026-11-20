@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model.Download;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
@@ -344,23 +345,34 @@ public class PreservationApiClient(
 
 
 
-    public async Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken)
-    {
-        var path = "/content/" + repositoryPath
-            .RemoveStart("/")
-            .RemoveStart(PreservedResource.BasePathElement)
-            .RemoveStart("/");
-        var uri = new Uri(path, UriKind.Relative);
-        var req = new HttpRequestMessage(HttpMethod.Get, uri);
-        var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            return (await response.Content.ReadAsStreamAsync(cancellationToken),
-                response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
-        }
+    public Task<Result<Download>> RequestDownload(string path, string? reason, CancellationToken cancellationToken) =>
+        SendForJsonNotNull<Download>(
+            () => preservationHttpClient.PostAsJsonAsync("/downloads", new NewDownload { Path = path, Reason = reason }, cancellationToken),
+            "Unable to request download",
+            ErrorCodes.UnknownError,
+            "Download could not be parsed.",
+            cancellationToken: cancellationToken);
 
-        return (null, null);
-    }
+    public Task<Result<List<Download>>> GetDownloads(CancellationToken cancellationToken) =>
+        SendForJsonNotNull<List<Download>>(
+            () => preservationHttpClient.GetAsync("/downloads", cancellationToken),
+            "Unable to get downloads",
+            ErrorCodes.UnknownError,
+            "Downloads could not be parsed.",
+            cancellationToken: cancellationToken);
+
+    public Task<Result<DownloadLink>> IssueDownloadLink(string id, CancellationToken cancellationToken) =>
+        SendForJsonNotNull<DownloadLink>(
+            () => preservationHttpClient.PostAsync($"/downloads/{id}/link", null, cancellationToken),
+            "Unable to get download link",
+            ErrorCodes.UnknownError,
+            "Download link could not be parsed.",
+            cancellationToken: cancellationToken);
+
+    public Task<Result> DeleteDownload(string id, CancellationToken cancellationToken) =>
+        SendForResult(
+            () => preservationHttpClient.DeleteAsync($"/downloads/{id}", cancellationToken),
+            "Unable to delete download");
 
     public async Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, bool parsedJson = false, CancellationToken cancellationToken = default)
     {
