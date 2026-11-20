@@ -22,5 +22,31 @@ LABEL org.opencontainers.image.description="UoL DLIP Digital Preservation UI"
 
 WORKDIR /app
 COPY --from=publish /app/publish .
+
+# What the image was built from. The docker-build-and-push action passes these; a local build
+# leaves them empty. They become the Build configuration section, which the Status page shows.
+ARG BUILD_COMMIT= \
+    BUILD_REF= \
+    BUILD_DESCRIBE= \
+    BUILD_COMMIT_SUBJECT= \
+    BUILD_COMMIT_AUTHOR= \
+    BUILD_COMMIT_DATE= \
+    BUILD_PULL_REQUEST= \
+    BUILD_PULL_REQUEST_TITLE= \
+    BUILD_REPOSITORY= \
+    BUILD_RUN= \
+    BUILD_DATE=
+ENV Build__Commit="$BUILD_COMMIT" \
+    Build__Ref="$BUILD_REF" \
+    Build__Describe="$BUILD_DESCRIBE" \
+    Build__CommitSubject="$BUILD_COMMIT_SUBJECT" \
+    Build__CommitAuthor="$BUILD_COMMIT_AUTHOR" \
+    Build__CommitDate="$BUILD_COMMIT_DATE" \
+    Build__PullRequest="$BUILD_PULL_REQUEST" \
+    Build__PullRequestTitle="$BUILD_PULL_REQUEST_TITLE" \
+    Build__Repository="$BUILD_REPOSITORY" \
+    Build__Run="$BUILD_RUN" \
+    Build__Date="$BUILD_DATE"
+
 USER $APP_UID
 ENTRYPOINT ["dotnet", "DigitalPreservation.UI.dll"]

@@ -1,0 +1,71 @@
+@using DigitalPreservation.UI.Infrastructure
+@model (BuildInfo Build, string Environment, DateTime Started)
+@{
+    var build = Model.Build;
+}
+
+<h2 class="h4">What is deployed here</h2>
+<p>
+    This is the UI's own image. A deploy moves every service to the same build (the Preservation API, the
+    Storage API and its importer, the Pipeline API and the Deposit Archiver), so the rest of
+    <strong>@Model.Environment</strong> is normally running it too.
+</p>
+@if (!build.IsKnown)
+{
+    <div class="alert alert-warning" role="alert">
+        This is a local build. Only images built by GitHub Actions record what they were built from.
+    </div>
+}
+<table class="table" aria-label="What is deployed here">
+    @if (build.IsKnown)
+    {
+        <tr>
+            <th scope="row">Commit</th>
+            <td><a href="@build.CommitUrl"><code>@build.Commit</code></a></td>
+        </tr>
+        <tr>
+            <th scope="row">Pull request</th>
+            <td>
+                @if (string.IsNullOrEmpty(build.PullRequest))
+                {
+                    <span>none found</span>
+                }
+                else
+                {
+                    <a href="@build.PullRequestUrl">#@build.PullRequest</a> @build.PullRequestTitle
+                }
+            </td>
+        </tr>
+        <tr>
+            <th scope="row">Commit message</th>
+            <td>@build.CommitSubject</td>
+        </tr>
+        <tr>
+            <th scope="row">Commit author, date</th>
+            <td>@build.CommitAuthor, @build.CommitDateUtc</td>
+        </tr>
+        <tr>
+            <th scope="row">Built from</th>
+            <td><a href="@build.RefUrl">@build.Ref</a></td>
+        </tr>
+        <tr>
+            <th scope="row">Version</th>
+            <td>
+                <code>@build.Describe</code>
+                <span class="text-muted">(a release tag alone, or the nearest earlier tag on this branch, the commits since it, and the commit)</span>
+            </td>
+        </tr>
+        <tr>
+            <th scope="row">Built</th>
+            <td><a href="@build.Run">@build.DateUtc</a></td>
+        </tr>
+    }
+    <tr>
+        <th scope="row">Environment</th>
+        <td>@Model.Environment</td>
+    </tr>
+    <tr>
+        <th scope="row">UI running since</th>
+        <td>@Model.Started.ToString("yyyy-MM-dd HH:mm") UTC <span class="text-muted">(its last deploy or restart)</span></td>
+    </tr>
+</table>
