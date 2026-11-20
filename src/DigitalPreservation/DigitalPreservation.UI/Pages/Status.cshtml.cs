@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.UI.Features.Preservation.Requests;
+using DigitalPreservation.UI.Infrastructure;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -12,8 +13,16 @@ namespace DigitalPreservation.UI.Pages;
 public class StatusModel(
     IOptions<PreservationOptions> preservationOptions,
     IOptions<AwsStorageOptions> awsStorageOptions,
+    IOptions<BuildInfo> buildInfo,
+    IHostEnvironment environment,
     IMediator mediator) : PageModel
 {
+    /// <summary>What this image was built from, with where and since when it is running.</summary>
+    public (BuildInfo, string, DateTime) Build => (
+        buildInfo.Value,
+        environment.EnvironmentName,
+        System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime());
+
     [BindProperty] public List<ConnectivityCheckResult> ConnectivityChecks { get; set; } = [];
 
     public Dictionary<string, string> GetOptions()
