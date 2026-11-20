@@ -104,8 +104,7 @@ public class Downloads(
         }
         if (request.Status != DownloadStatus.Ready)
         {
-            return Result.FailNotNull<DownloadLink>(ErrorCodes.Conflict,
-                $"Download {id} is {request.Status}; there is a link only while it is {DownloadStatus.Ready}.");
+            return Result.FailNotNull<DownloadLink>(ErrorCodes.Conflict, WhyNoLink(request));
         }
 
         var link = await storageApiClient.GetDownloadLink(id, cancellationToken);
@@ -188,6 +187,14 @@ public class Downloads(
         }
         return deleted;
     }
+
+    private static string WhyNoLink(DownloadRequest request) => request.Status switch
+    {
+        DownloadStatus.Copying => $"The copy of {request.Name} is still being made. Try again shortly.",
+        DownloadStatus.Deleted => $"The copy of {request.Name} has been deleted. Request the file again to download it.",
+        DownloadStatus.Expired => $"The copy of {request.Name} has expired. Request the file again to download it.",
+        _ => $"The copy of {request.Name} could not be made. Request the file again."
+    };
 
     // The name in the repository can be any text, so it may not be usable as a file name.
     private static string FileName(Binary binary, string path)

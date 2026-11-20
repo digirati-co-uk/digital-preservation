@@ -135,7 +135,9 @@ public class DownloadsTests
     public async Task A_Link_Is_Issued_Only_While_Ready_And_Each_One_Is_Recorded()
     {
         var id = await ARequest();
-        (await Downloads().IssueLink(id, "tom", CancellationToken.None)).ErrorCode.Should().Be(ErrorCodes.Conflict);
+        var tooSoon = await Downloads().IssueLink(id, "tom", CancellationToken.None);
+        tooSoon.ErrorCode.Should().Be(ErrorCodes.Conflict);
+        tooSoon.ErrorMessage.Should().Be("The copy of photo.tiff is still being made. Try again shortly.");
 
         CopyIsReady(true);
         A.CallTo(() => storage.GetDownloadLink(id, A<CancellationToken>._)).Returns(Result.OkNotNull(new DownloadLink
@@ -174,6 +176,8 @@ public class DownloadsTests
 
         A.CallTo(() => storage.DeleteDownloadCopy(id, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
         (await Downloads().Get(id, CancellationToken.None)).Value!.Status.Should().Be(DownloadStatus.Deleted);
+        (await Downloads().IssueLink(id, "tom", CancellationToken.None)).ErrorMessage.Should()
+            .Be("The copy of photo.tiff has been deleted. Request the file again to download it.");
     }
 
     private Preservation.API.Features.Downloads.Downloads Downloads() =>
