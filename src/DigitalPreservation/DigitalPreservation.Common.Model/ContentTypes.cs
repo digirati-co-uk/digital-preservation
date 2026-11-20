@@ -28,7 +28,8 @@ public static class ContentTypes
         ["audio/x-mpeg"] = "audio/mpeg",
         ["image/jpg"] = "image/jpeg",
         ["image/pjpeg"] = "image/jpeg",
-        ["application/x-pdf"] = "application/pdf"
+        ["application/x-pdf"] = "application/pdf",
+        ["application/x-zip-compressed"] = "application/zip"
     };
 
     /// <summary>
@@ -117,6 +118,13 @@ public static class ContentTypes
         if (applicationCount == 2 && distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
         {
             return "application/rtf";
+        }
+
+        // Windows calls a .csv file an Excel document, going by its extension. Siegfried has read
+        // the file. Not a synonym: a real .xls is application/vnd.ms-excel from both sources.
+        if (distinctTypes.Count == 2 && distinctTypes.Contains("text/csv") && distinctTypes.Contains("application/vnd.ms-excel"))
+        {
+            return "text/csv";
         }
 
         return null;
