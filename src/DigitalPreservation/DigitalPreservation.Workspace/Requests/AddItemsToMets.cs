@@ -53,6 +53,10 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
                     IsDirectory = item is WorkingDirectory,
                     Whereabouts = Whereabouts.Mets
                 });
+                if (item is WorkingFile file && ContentTypes.WarningIfUnsettled(file) is { } warning)
+                {
+                    goodResult.Warnings.Add(warning);
+                }
                 metsHasBeenWrittenTo = true;
             }
             else
