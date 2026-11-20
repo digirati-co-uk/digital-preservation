@@ -1,6 +1,8 @@
 using DigitalPreservation.Mets;
+using DigitalPreservation.Mets.AccessConditions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Storage.Repository.Common.Mets.StorageImpl;
 
 namespace DigitalPreservation.Workspace;
@@ -31,6 +33,13 @@ public static class ServiceCollectionX
             .AddSingleton<PremisEventManagerVirus>()
             .AddSingleton<IMetsStorage, S3MetsStorage>()
             .AddSingleton<WorkspaceManagerFactory>();
+
+        // Derived access conditions (issue #433): the METS writer recomputes them on every write
+        // from the installation's profile. Services that have a profile (Preservation API from its
+        // configuration, the UI from the API) register their provider BEFORE calling this; anything
+        // else gets the null provider and derives nothing.
+        services.TryAddSingleton<IAccessConditionProfileProvider, NullAccessConditionProfileProvider>();
+        services.TryAddSingleton<IDerivedAccessConditionResolver, ProfileDerivedAccessConditionResolver>();
 
         return services;
     }

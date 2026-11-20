@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Mets.AccessConditions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,8 @@ public class MetsManager(
     IMetsStorage metsStorage,
     MetadataManager metadataManager,
     IOptions<MetsManagerOptions>? options = null,
-    ILogger<MetsManager>? logger = null) : IMetsManager
+    ILogger<MetsManager>? logger = null,
+    IDerivedAccessConditionResolver? derivedAccessConditionResolver = null) : IMetsManager
 {
     private bool NormaliseOnWrite => options?.Value.NormaliseMetsIdsOnWrite ?? false;
 
@@ -68,6 +70,21 @@ public class MetsManager(
     /// </remarks>
     public async Task<Result> WriteMets(FullMets fullMets)
     {
+        // Every write recomputes the derived access conditions for the whole document first (issue
+        // #433), so a change to an ancestor's chosen values can never leave a stale derived value on
+        // a descendant. A no-op where nothing is configured to be derived - but a provider that
+        // EXPECTS a profile and cannot get one fails the write, since writing without recomputing
+        // would leave the old derived values beside the new chosen ones.
+        try
+        {
+            await ApplyDerivedAccessConditions(fullMets);
+        }
+        catch (AccessConditionProfileUnavailableException e)
+        {
+            logger?.LogError(e, "Refusing to write {MetsUri}: the access condition profile is unavailable, so its derived access conditions cannot be recomputed", fullMets.Uri);
+            return Result.Fail(ErrorCodes.UpstreamUnavailable, ProfileUnavailableMessage(e));
+        }
+
         if (NormaliseOnWrite)
         {
             var normalisation = NormaliseIds(fullMets);
@@ -1051,6 +1068,81 @@ public class MetsManager(
         Result.Fail(ErrorCodes.BadRequest,
             $"The descriptive metadata for div '{div.Id}' could not be read or created as MODS.");
 
+    /// <summary>
+    /// Recompute the derived access conditions (issue #433) across the whole document: see
+    /// <see cref="DerivedAccessConditionWriter"/>. A no-op without a resolver or with nothing derived,
+    /// which is every installation using the standard access conditions.
+    /// </summary>
+    /// <returns>The IDs of the divs whose MODS changed.</returns>
+    public Task<List<string>> ApplyDerivedAccessConditions(FullMets fullMets) =>
+        derivedAccessConditionResolver == null
+            ? Task.FromResult(new List<string>())
+            : new DerivedAccessConditionWriter(derivedAccessConditionResolver, logger).ApplyAsync(fullMets);
+
+    /// <summary>
+    /// The <c>@type</c> of the installation's chosen statement axis, or null without one. Fails, as
+    /// <see cref="WriteMets"/> does, when the profile cannot be fetched.
+    /// </summary>
+    public async Task<Result<string?>> GetAccessStatementTypeAsync()
+    {
+        if (derivedAccessConditionResolver == null) return Result.Ok<string>(null);
+        try
+        {
+            return Result.Ok(await derivedAccessConditionResolver.GetStatementTypeAsync());
+        }
+        catch (AccessConditionProfileUnavailableException e)
+        {
+            logger?.LogError(e, "The access condition profile is unavailable, so the statement type is unknown");
+            return Result.Fail<string>(ErrorCodes.UpstreamUnavailable, ProfileUnavailableMessage(e));
+        }
+    }
+
+    private static string ProfileUnavailableMessage(AccessConditionProfileUnavailableException e) =>
+        "The access condition profile could not be fetched, so the METS file was not written: " + e.Message;
+
+    // ---- The chosen statement (issue #433): on an installation with a statement profile, chosen
+    // ---- instead of a rights statement, written under the profile's type, inherited like the
+    // ---- restriction. Unused with the standard access conditions. ------------------------------
+
+    /// <summary>
+    /// Set, or with null clear, the node's chosen statement (<c>mods:accessCondition type="{statementType}"</c>).
+    /// <paramref name="statementType"/> comes from <see cref="GetAccessStatementTypeAsync"/>; with none
+    /// configured a non-null value is refused and null is a no-op.
+    /// </summary>
+    public Result SetAccessStatementByPath(FullMets mets, string localPath, string? statementType, string? statement)
+    {
+        if (statementType == null)
+        {
+            return statement == null
+                ? Result.Ok()
+                : Result.Fail(ErrorCodes.BadRequest, "This installation has no access statement axis configured.");
+        }
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
+        return SetAccessStatementForDiv(mets, div, statementType, statement, MetsCache.NormalisePathKey(localPath));
+    }
+
+    private static Result SetAccessStatementForDiv(FullMets mets, DivType div, string statementType, string? statement, string? localPath)
+    {
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true, localPath);
+        if (mods is null) return ModsUnavailable(div);
+        var hadStatement = mods.GetAccessConditions(statementType).Count > 0;
+        mods.RemoveAccessConditions(statementType);
+        if (statement.HasText())
+        {
+            mods.AddAccessCondition(statement, statementType);
+        }
+        else if (hadStatement)
+        {
+            // The div's rights statement was written from the statement being cleared
+            // (DerivedAccessConditionWriter.ApplyStatementRights): it goes too, so both inherit.
+            mods.RemoveAccessConditions(Constants.UseAndReproduction);
+        }
+        ModsManager.SetModsForDiv(mets.Mets, div, mods);
+        return Result.Ok();
+    }
+
     public Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
@@ -1162,7 +1254,8 @@ public class MetsManager(
         if (mods is null) return ModsUnavailable(div);
 
         mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
-        foreach (var accessRestriction in accessRestrictions)
+        // A blank value is the single-select "(inherit from parent)" choice: write nothing for it.
+        foreach (var accessRestriction in accessRestrictions.Where(r => r.HasText()))
         {
             mods.AddAccessCondition(accessRestriction, Constants.RestrictionOnAccess);
         }
@@ -1170,7 +1263,7 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    public Result SetStructMap(FullMets mets, LogicalRange logSm)
+    public Result SetStructMap(FullMets mets, LogicalRange logSm, string? statementType = null)
     {
         // Logical div IDs are the client's, not ours: they are written into the METS verbatim
         // and the client round-trips them, so an invalid one is REJECTED rather than encoded -
@@ -1201,7 +1294,7 @@ public class MetsManager(
         mets.Mets.StructMap.Add(new StructMapType
         {
             Type = Constants.Logical,
-            Div = BuildLogicalDiv(mets, logSm)
+            Div = BuildLogicalDiv(mets, logSm, statementType)
         });
         return Result.Ok();
     }
@@ -1279,7 +1372,7 @@ public class MetsManager(
         }
     }
 
-    private static DivType BuildLogicalDiv(FullMets mets, LogicalRange range)
+    private static DivType BuildLogicalDiv(FullMets mets, LogicalRange range, string? statementType)
     {
         var div = new DivType
         {
@@ -1292,8 +1385,9 @@ public class MetsManager(
             Label = range.Name
         };
 
+        var statement = statementType == null ? null : range.OtherAccessConditions?.GetValueOrDefault(statementType);
         bool needsMods = range.Name != null || range.RecordInfo != null
-            || range.AccessRestrictions is { Count: > 0 } || range.RightsStatement != null;
+            || range.AccessRestrictions is { Count: > 0 } || range.RightsStatement != null || statement != null;
         if (needsMods)
         {
             var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true)!;
@@ -1311,11 +1405,16 @@ public class MetsManager(
         if (range.RightsStatement != null)
             SetRightsStatementForDiv(mets, div, range.RightsStatement, null);
 
+        // The chosen statement (issue #433) travels in OtherAccessConditions under the profile's type;
+        // any other entry there is derived or third-party and is not written from the client's copy.
+        if (statement != null)
+            SetAccessStatementForDiv(mets, div, statementType!, statement, null);
+
         foreach (var fp in range.Files)
             div.Fptr.Add(BuildFptr(mets.Mets, fp));
 
         foreach (var child in range.Ranges)
-            div.Div.Add(BuildLogicalDiv(mets, child));
+            div.Div.Add(BuildLogicalDiv(mets, child, statementType));
 
         return div;
     }

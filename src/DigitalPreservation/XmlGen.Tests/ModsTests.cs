@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
+using DigitalPreservation.XmlGen.Mods.V3;
 
 namespace XmlGen.Tests;
 
@@ -186,5 +187,18 @@ public class ModsTests
         objectsDir.Files[0].AccessRestrictions![0].Should().Be("my-access-restriction");
         objectsDir.Files[0].RightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
         
+    }
+
+    [Theory]
+    [InlineData("restriction on access")]
+    [InlineData(null)]
+    public void GetAccessConditions_Skips_An_Empty_Element(string? type)
+    {
+        // <mods:accessCondition type="restriction on access"/> deserialises with null Text.
+        var mods = ModsManager.CreateRootMods("name");
+        mods.AccessCondition.Add(new AccessConditionDefinition { Type = "restriction on access" });
+        mods.AddAccessCondition("Closed", "restriction on access");
+
+        mods.GetAccessConditions(type).Should().Equal("Closed");
     }
 }

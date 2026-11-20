@@ -1,3 +1,5 @@
+using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.UI.Pages.Shared;
@@ -114,5 +116,85 @@ public class ModsMetadataDisplayBuilderTests
         item.Label.Should().Be("Record");
         item.Text.Should().Contain("AA1");
         item.Inherited.Should().BeFalse();
+    }
+}
+
+/// <summary>
+/// With a statement profile (issue #433) a row shows short labels, with the full ones in the
+/// tooltip, and does not repeat the rights statement its statement implies.
+/// </summary>
+public class ModsMetadataDisplayBuilderStatementTests
+{
+    private static readonly Uri InC = new("http://rightsstatements.org/vocab/InC/1.0/");
+    private static readonly Uri NoCUs = new("http://rightsstatements.org/vocab/NoC-US/1.0/");
+
+    private static readonly AccessConditionProfile Profile = AccessConditionProfile.FromJson("""
+        {
+          "name": "Test",
+          "restrictionAxis": { "label": "Level", "values": [ { "value": "PA1", "label": "Level 1", "shortLabel": "PA1" } ] },
+          "statements": {
+            "label": "Copyright Statement",
+            "type": "copyright statement",
+            "values": [ { "value": "inc", "label": "In Copyright: Assessed - LOW RISK", "shortLabel": "InC low risk", "category": "c", "iiif": "e" } ],
+            "categories": [ { "value": "c", "label": "C" } ],
+            "iiif": { "entries": [ { "id": "e", "rights": "http://rightsstatements.org/vocab/InC/1.0/" } ] },
+            "derived": [ {
+              "type": "tier", "label": "Access Tier",
+              "values": [ { "value": "1", "label": "Tier 1 - Open", "shortLabel": "Tier 1" } ],
+              "matrix": { "*": { "*": "1" } }
+            } ]
+          }
+        }
+        """);
+
+    private static WorkingFile Resource(Uri? rights) => new()
+    {
+        LocalPath = "objects/page-001.jpg",
+        AccessRestrictions = ["PA1"],
+        EffectiveAccessRestrictions = ["PA1"],
+        RightsStatement = rights,
+        EffectiveRightsStatement = rights,
+        OtherAccessConditions = new() { ["copyright statement"] = "inc", ["tier"] = "1" },
+        EffectiveOtherAccessConditions = new() { ["copyright statement"] = "inc", ["tier"] = "1" }
+    };
+
+    [Fact]
+    public void A_row_shows_short_labels_and_the_tooltip_the_full_ones()
+    {
+        var items = ModsMetadataDisplayBuilder.GetDisplayItems(Resource(InC), profile: Profile);
+
+        items.Select(i => i.Text).Should().Equal("PA1", "InC low risk", "Tier 1");
+        items[0].Detail.Should().Be("Level 1");
+        items[1].Detail.Should().StartWith("In Copyright: Assessed - LOW RISK\nIIIF rights: " + InC);
+        items[2].Detail.Should().Be("Tier 1 - Open");
+    }
+
+    [Fact]
+    public void The_rights_statement_a_statement_implies_is_not_repeated_but_a_different_one_is_shown()
+    {
+        ModsMetadataDisplayBuilder.GetDisplayItems(Resource(InC), profile: Profile)
+            .Should().NotContain(i => i.Label == "Rights");
+        ModsMetadataDisplayBuilder.GetDisplayItems(Resource(NoCUs), profile: Profile)
+            .Should().ContainSingle(i => i.Label == "Rights" && i.Text == "NoC-US", "a value left from before is worth seeing");
+    }
+
+    [Fact]
+    public void Typed_conditions_the_profile_does_not_name_are_shown_raw()
+    {
+        // A standard profile (Browse always has one now), or a Leeds one meeting a third party's type:
+        // what the parser found is still shown, under its raw type.
+        var resource = Resource(InC);
+        resource.OtherAccessConditions!["goobi type"] = "x";
+        resource.EffectiveOtherAccessConditions["goobi type"] = "x";
+
+        var standard = ModsMetadataDisplayBuilder.GetDisplayItems(resource,
+            profile: AccessConditionProfile.Simple([new AccessRestriction { Value = "PA1", Label = "Level 1" }]));
+        standard.Select(i => (i.Label, i.Text)).Should().Contain(new[]
+        {
+            ("copyright statement", "inc"), ("tier", "1"), ("goobi type", "x")
+        });
+
+        var leeds = ModsMetadataDisplayBuilder.GetDisplayItems(resource, profile: Profile);
+        leeds.Select(i => i.Text).Should().Equal("PA1", "InC low risk", "Tier 1", "x");
     }
 }

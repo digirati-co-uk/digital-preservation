@@ -85,6 +85,9 @@ try
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
+        // Before AddDepositWorkspace: the UI derives access conditions from the API's profile (issue #433)
+        .AddSingleton<DigitalPreservation.Mets.AccessConditions.IAccessConditionProfileProvider,
+            DigitalPreservation.UI.Infrastructure.UiAccessConditionProfileProvider>()
         .AddDepositWorkspace(builder.Configuration)
         .AddFeatureFlagOptions(builder.Configuration)
         .AddCorrelationIdHeaderPropagation()

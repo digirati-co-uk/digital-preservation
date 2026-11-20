@@ -14,12 +14,20 @@ function populateModsModalFromAttributes(launcher){
     applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
+    // An installation with a statement profile (issue #433) also loads access-statements.js.
+    if (typeof applyAccessStatementFields === 'function') {
+        applyAccessStatementFields(launcher);
+    }
 }
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
     if(accessRestrictionsSelect){
         accessRestrictionsSelect.selectedIndex = -1;
+        if(accessConditionList.length === 0 && !accessRestrictionsSelect.multiple){
+            // Single-select (issue #433): no explicit value is the "(inherit from parent)" option.
+            selectOptionByValue(accessRestrictionsSelect, "");
+        }
         if(accessConditionList.length > 0){
             const accessConditions = new Set(accessConditionList.split(","));
             const existingValues = new Set(Array.from(accessRestrictionsSelect.options).map(o => o.value));
@@ -59,7 +67,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
         if(rightsSuppressed){
-            // Explicit "no rights — do not inherit": select the sentinel option.
+            // Explicit "not chosen — do not inherit": select the sentinel option.
             selectOptionByValue(rightsStatementSelect, rightsDoNotInheritSentinel);
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
@@ -78,7 +86,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
         }
     } else if (nonEditableRightsStatement){
         if(rightsSuppressed){
-            nonEditableRightsStatement.innerHTML = "<ul><li><em>no rights (not inherited)</em></li></ul>";
+            nonEditableRightsStatement.innerHTML = "<ul><li><em>not chosen (not inherited)</em></li></ul>";
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
             const rsUri = rsEntry ? rsEntry.value : rightsStatement;

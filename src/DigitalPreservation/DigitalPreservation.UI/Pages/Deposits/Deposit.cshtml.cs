@@ -1,4 +1,5 @@
 ﻿using Amazon.S3.Util;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -13,6 +14,8 @@ using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using ModsChanges = DigitalPreservation.Workspace.Requests.ModsChanges;
+using RightsChoice = DigitalPreservation.Workspace.Requests.RightsChoice;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -69,7 +72,14 @@ public class DepositModel(
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
     public List<LogicalRange> LogicalStructMaps { get; set; } = [];
-    public List<AccessRestriction> AccessConditions { get; set; } = [];
+    /// <summary>
+    /// The installation's access condition profile (issue #433), fetched from the Preservation API:
+    /// the captions and vocabulary for the dropdowns, the optional statements with their IIIF
+    /// rights, and the derived conditions the dialogue previews live.
+    /// </summary>
+    public AccessConditionProfile AccessConditionProfile { get; set; } = new();
+
+    public string AccessConditionProfileJson => JsonSerializer.Serialize(AccessConditionProfile);
     public List<string> RangeTypes { get; set; } = [];
 
     private static readonly JsonSerializerOptions CamelCaseOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -154,9 +164,9 @@ public class DepositModel(
         CancellationToken cancellationToken)
     {
         await BindDeposit(id, cancellationToken);
-        var conditionsResult = await preservationApiClient.GetAccessConditions(cancellationToken);
-        if (conditionsResult.Success)
-            AccessConditions = conditionsResult.Value!;
+        var profileResult = await preservationApiClient.GetAccessConditions(cancellationToken);
+        if (profileResult.Success)
+            AccessConditionProfile = profileResult.Value!;
         var rangeTypesResult = await preservationApiClient.GetRangeTypes(cancellationToken);
         if (rangeTypesResult.Success && rangeTypesResult.Value!.Count > 0)
             RangeTypes = rangeTypesResult.Value;
@@ -668,23 +678,33 @@ public class DepositModel(
                 catch { /* ignore malformed */ }
             }
 
-            // The rights dropdown distinguishes three choices:
-            //   ""        → clear any explicit rights and inherit from the parent
-            //   sentinel  → explicitly no rights; stop inheriting (effective null)
-            //   a URI     → set that rights statement
-            var suppressRights = form.RightsStatement == RightsStatement.DoNotInheritSentinel;
-            Uri? rightsUri = null;
-            if (!suppressRights)
-            {
-                Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out rightsUri);
-            }
-            var result = await WorkspaceManager.SetModsInformation(form.ModsContext, form.AccessRestrictions, rightsUri, suppressRights, form.RecordIdentifiers, fileLinks);
-            ReportOutcome(result, "Access Restrictions and Rights Statement updated.", TempDataKeys.AccessConditionsUpdated);
+            var changes = new ModsChanges(
+                form.AccessRestrictions,
+                ReadRightsChoice(form),
+                string.IsNullOrEmpty(form.AccessStatement) ? null : form.AccessStatement,
+                form.RecordIdentifiers,
+                fileLinks,
+                form.StatementInForm);
+            var result = await WorkspaceManager.SetModsInformation(form.ModsContext, changes);
+            ReportOutcome(result, "Metadata updated.", TempDataKeys.AccessConditionsUpdated);
         }
 
         return RedirectToPage();
     }
 
+    /// <summary>
+    /// The rights dropdown's three choices - "" to inherit, the sentinel for "not chosen", or a URI -
+    /// and a fourth when the form had no rights dropdown at all (a statement profile, issue #433):
+    /// leave the node's rights as they are.
+    /// </summary>
+    private static RightsChoice ReadRightsChoice(SetRightsAndAccessFormModel form)
+    {
+        if (!form.RightsInForm) return RightsChoice.LeaveUnchanged;
+        if (form.RightsStatement == RightsStatement.DoNotInheritSentinel) return RightsChoice.NotChosen;
+        return Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out var uri)
+            ? RightsChoice.SetTo(uri)
+            : RightsChoice.Inherit;
+    }
 
     public string? GetDisplayTitle()
     {
@@ -883,7 +903,21 @@ public class SetRightsAndAccessFormModel
     public string ModsContext { get; set; } = "";
     public bool ModsContextIsFile { get; set; }
     public List<string> AccessRestrictions { get; set; } = [];
+    /// <summary>The chosen statement on an installation whose profile has statements (issue #433); empty means inherit.</summary>
+    public string? AccessStatement { get; set; }
     public string? RightsStatement { get; set; }
+    /// <summary>
+    /// True when the form carried a rights statement dropdown. On an installation whose profile has
+    /// statements it does not, and the node's rights are then left as they are rather than cleared
+    /// (issue #433).
+    /// </summary>
+    public bool RightsInForm { get; set; }
+    /// <summary>
+    /// True when the form carried the statement dropdown (issue #433). A form rendered without the
+    /// statement profile - its fetch failed - does not, and the node's statement is then left as it
+    /// is rather than cleared.
+    /// </summary>
+    public bool StatementInForm { get; set; }
     public RecordIdentifier[] RecordIdentifiers { get; set; } = [];
     public string? FileLinksJson { get; set; }
 }

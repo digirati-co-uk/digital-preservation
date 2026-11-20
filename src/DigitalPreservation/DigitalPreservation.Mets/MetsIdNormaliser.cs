@@ -21,9 +21,9 @@ namespace DigitalPreservation.Mets;
 /// Every place an ID can be referenced is covered, including the two the schema types as plain
 /// strings and so hides from the reflective walk: the xlink attributes on <c>smLink</c> and
 /// <c>smLocatorLink</c>, and <c>BEGIN</c>/<c>END</c> on an <c>area</c> whose <c>BETYPE</c> says
-/// <c>IDREF</c>. The platform writes neither, but nothing stops a document it did not write reaching
-/// here - <c>GetFullMets</c> reads whatever METS the deposit holds and makes no check of the
-/// creating agent - so "we never write it" is not a reason to leave a reference behind.
+/// <c>IDREF</c>. The platform writes neither. <c>GetFullMets</c> refuses a METS another agent
+/// created, but a document the platform created can still carry what was in it before (an import,
+/// a hand edit), so "we never write it" is not a reason to leave a reference behind.
 /// </para>
 /// <para>
 /// A document that already carries the same ID on two elements is refused rather than normalised.

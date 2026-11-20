@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
@@ -110,6 +111,11 @@ public interface IPreservationApiClient
     Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob,
         CancellationToken cancellationToken);
 
-    Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The installation's access-condition profile (issue #433): the restriction vocabulary and,
+    /// with a statement profile, the statements and derived conditions. Cached briefly; a missing
+    /// body is an empty profile.
+    /// </summary>
+    Task<Result<AccessConditionProfile>> GetAccessConditions(CancellationToken cancellationToken = default);
     Task<Result<List<string>>> GetRangeTypes(CancellationToken cancellationToken = default);
 }

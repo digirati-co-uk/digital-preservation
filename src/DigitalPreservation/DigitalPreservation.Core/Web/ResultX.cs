@@ -23,6 +23,9 @@ public static class ResultX
                 // the caller their own token is the problem.
                 pd.Status = 502;
                 break;
+            case ErrorCodes.UpstreamUnavailable:
+                pd.Status = 503;
+                break;
             case ErrorCodes.BadRequest:
                 pd.Status = 400;
                 break;

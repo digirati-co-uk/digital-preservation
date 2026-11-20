@@ -1,0 +1,80 @@
+@using DigitalPreservation.Common.Model.AccessConditions
+@model (StatementProfile Statements, bool Editable)
+
+@*
+    The fields an installation with a statement profile (issue #433) shows in place of the rights
+    statement dropdown: the statement itself, the values derived from it, and a preview of what
+    IIIF will say. Behaviour is in access-statements.js. The standard model never renders
+    this partial.
+*@
+@{
+    var statements = Model.Statements;
+    var categoryKeys = statements.Categories.Select(c => c.Value).ToHashSet();
+    var uncategorised = statements.Values.Where(v => v.Category == null || !categoryKeys.Contains(v.Category)).ToList();
+}
+
+@* The statement, grouped by its category (the matrix column it falls into); inherited like the restriction. *@
+<div class="mb-3">
+    <label id="accessStatementSelectLabel" for="accessStatementSelect" class="form-label">@statements.Label</label>
+    @if (Model.Editable)
+    {
+        <select id="accessStatementSelect" class="form-select" name="accessStatement"
+                aria-labelledby="accessStatementSelectLabel" aria-describedby="accessStatementDescription">
+            <!option value="">(inherit from parent)</!option>
+            @foreach (var category in statements.Categories)
+            {
+                var inCategory = statements.Values.Where(v => v.Category == category.Value).ToList();
+                if (inCategory.Count == 0) continue;
+                <optgroup label="@category.Label">
+                    @foreach (var statement in inCategory)
+                    {
+                        <!option value="@statement.Value">@statement.Label</!option>
+                    }
+                </optgroup>
+            }
+            @if (uncategorised.Count > 0)
+            {
+                <optgroup label="Other">
+                    @foreach (var statement in uncategorised)
+                    {
+                        <!option value="@statement.Value">@statement.Label</!option>
+                    }
+                </optgroup>
+            }
+        </select>
+        <div id="accessStatementDescription" class="form-text small" aria-live="polite"></div>
+        <input type="hidden" name="statementInForm" value="true" />
+    }
+    else
+    {
+        <p id="nonEditableAccessStatement">(none)</p>
+    }
+</div>
+
+@* Derived values are never chosen. This shows what they will be; the server writes the real value
+   from the node's EFFECTIVE inputs on save. *@
+@if (statements.Derived.Count > 0)
+{
+    <div class="mb-3" id="derivedAccessConditionsSection">
+        @foreach (var derived in statements.Derived)
+        {
+            <div class="form-label mb-0">@derived.Label</div>
+            <p class="derived-access-condition mb-2" data-derived-type="@derived.Type" aria-live="polite"></p>
+        }
+    </div>
+}
+
+@* What a IIIF manifest built from the same profile will say for this node. Nothing here is saved;
+   the METS this node will carry is previewed at the end of the dialogue (_AccessStatementMetsPreview). *@
+<div class="mb-3">
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="iiifPreviewToggle"
+            data-bs-toggle="collapse" data-bs-target="#iiifPreview" aria-expanded="false" aria-controls="iiifPreview">
+        Preview IIIF rights
+    </button>
+    <div class="collapse mt-2" id="iiifPreview">
+        <div class="card card-body small py-2">
+            <div class="text-secondary mb-1">What a IIIF manifest will say, when iiif-builder follows this profile</div>
+            <dl id="accessPreviewIiif" class="row mb-0" aria-live="polite"></dl>
+        </div>
+    </div>
+</div>

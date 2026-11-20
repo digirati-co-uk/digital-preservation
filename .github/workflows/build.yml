@@ -105,7 +105,9 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
          dotnet tool install --global dotnet-coverage
-         dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+         # RightsStatement.cs is the fixed rights statement vocabulary: its URIs are identifiers (some
+         # http:// by the rightsstatements.org spec), not configuration, so S1075 and S5332 don't apply.
+         dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml /d:sonar.issue.ignore.multicriteria=rsuri,rshttp /d:sonar.issue.ignore.multicriteria.rsuri.ruleKey=csharpsquid:S1075 /d:sonar.issue.ignore.multicriteria.rsuri.resourceKey="**/RightsStatement.cs" /d:sonar.issue.ignore.multicriteria.rshttp.ruleKey=csharpsquid:S5332 /d:sonar.issue.ignore.multicriteria.rshttp.resourceKey="**/RightsStatement.cs"
          # Deliberately Debug (no --configuration): coverage is collected from this build, and
          # Release inlining/optimisation can mis-attribute or drop covered lines. The Release
          # build that matters for shipping is test-dotnet's, below.
@@ -168,6 +170,13 @@ jobs:
         run: dotnet build $SOLUTION --configuration $BUILD_CONFIG --no-restore
       - id: test-dotnet
         run: dotnet test --solution $SOLUTION --filter-not-trait 'Category=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
+      - id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - id: test-ui-js
+        # The UI's JavaScript that mirrors C# (the access statements preview, issue #433). No packages.
+        run: node --test DigitalPreservation.UI.Tests/js/*.test.mjs
 
   build-push-images:
     runs-on: ubuntu-latest

@@ -1,0 +1,376 @@
+// --------------------------------------------------------------------------------------------
+// Statements, derived values and the METS / IIIF preview (issue #433).
+//
+// Loaded only on an installation whose access condition profile has statements (for Leeds, the
+// specific copyright statements), next to the _AccessStatementFields partial. A person chooses a
+// restriction and a statement; each statement falls into a category (a matrix column) and names
+// what it publishes in IIIF; derived values (for Leeds, the Access Tier) are looked up from
+// restriction x category. The server writes the real values from each node's EFFECTIVE inputs on
+// save; this file mirrors that so the consequences of a choice are visible before saving. The
+// launcher carries what the node inherits, so clearing its own value shows what it will then have.
+//
+// Reads the page's accessConditionProfile (the API's profile) and rightsStatements.
+// --------------------------------------------------------------------------------------------
+
+const accessStatements = accessConditionProfile.statements;
+
+// Mirror StatementProfile.NoneKey and .Wildcard.
+const noneKey = '__none__';
+const wildcardKey = '*';
+
+// The node being edited: its own and inherited values, as the dialogue launcher carries them.
+let statementNode = null;
+
+// Called by deposit.js when the dialogue opens.
+function applyAccessStatementFields(launcher) {
+    const own = parseJsonOrEmpty(launcher.dataset.other);
+    const ownRights = launcher.dataset.rights ?? '';
+    const ownRightsSuppressed = launcher.dataset.rightsSuppressed === 'true';
+    statementNode = {
+        // A read-only dialogue (a deposit that cannot be edited here, such as a Goobi export) has no
+        // dropdowns: nothing will be saved, so it shows the node's values as they are in the METS
+        // rather than computing what a save would write.
+        editable: !!document.getElementById("accessStatementSelect"),
+        ownRestrictions: launcher.dataset.access ? launcher.dataset.access.split(',') : [],
+        inheritedRestrictions: launcher.dataset.inhAccess ? launcher.dataset.inhAccess.split(',') : [],
+        ownRights,
+        ownRightsSuppressed,
+        // A rights statement from above: the effective one, when the node has none of its own.
+        inheritsRights: !ownRights && !ownRightsSuppressed && !!launcher.dataset.effRights,
+        ownOther: own,
+        inheritedOther: parseJsonOrEmpty(launcher.dataset.inhOther),
+        effectiveOther: parseJsonOrEmpty(launcher.dataset.effOther)
+    };
+    showOwnStatement(own[accessStatements.type] ?? null);
+    updateStatementPreviews();
+}
+
+function parseJsonOrEmpty(text) {
+    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+}
+
+function findStatement(value) {
+    return accessStatements.values.find(v => v.value === value) ?? null;
+}
+
+// The node's own statement after saving: the dropdown's choice; on a read-only dialogue, which
+// saves nothing, the one it has.
+function statementAfterSave(node) {
+    if (!node.editable) return node.ownOther[accessStatements.type] ?? null;
+    return document.getElementById("accessStatementSelect").value || null;
+}
+
+// The node's own restrictions after saving, the same way.
+function restrictionsAfterSave(node) {
+    const select = document.getElementById("accessRestrictionsSelect");
+    if (!node.editable || !select) return node.ownRestrictions;
+    return Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+// Select the node's own statement, or "(inherit from parent)". A value the profile does not know
+// (from another source, or since removed) is shown as itself.
+function showOwnStatement(value) {
+    const select = document.getElementById("accessStatementSelect");
+    if (!select) {
+        const readOnly = document.getElementById("nonEditableAccessStatement");
+        if (readOnly) readOnly.textContent = value ? (findStatement(value)?.label ?? value) : "(none)";
+        return;
+    }
+    if (value && !Array.from(select.options).some(o => o.value === value)) {
+        select.appendChild(new Option(`${value} (not in this profile)`, value));
+    }
+    select.value = value ?? "";
+    showStatementDescription();
+}
+
+function showStatementDescription() {
+    const target = document.getElementById("accessStatementDescription");
+    const chosen = document.getElementById("accessStatementSelect")?.value;
+    if (target) target.textContent = findStatement(chosen)?.description ?? "";
+}
+
+// ---- What the node will have after saving ---------------------------------------------------
+
+// The node's effective statement: its own, else what it inherits (null for none).
+function effectiveStatement(node) {
+    const own = statementAfterSave(node);
+    if (own) return { value: own, inherited: false };
+    return { value: node.inheritedOther[accessStatements.type] ?? null, inherited: true };
+}
+
+// The matrix rows: the node's own restriction(s), else the inherited ones, else the "none" row.
+function effectiveRestrictions(node) {
+    const own = restrictionsAfterSave(node);
+    if (own.length > 0) return own;
+    return node.inheritedRestrictions.length > 0 ? node.inheritedRestrictions : [noneKey];
+}
+
+// Nothing on the node or above it that the writer counts as an input - no restriction, no
+// statement, no rights statement - once saved. The writer derives nothing for such a node, so the
+// dialogue shows no value either; what content with no access conditions means is the builder's
+// decision.
+function hasNoInputsAnywhere(node) {
+    return effectiveRestrictions(node)[0] === noneKey
+        && effectiveStatement(node).value === null
+        && rightsAfterSave(node) === null
+        && !hasInputsAbove(node);
+}
+
+// Something above counts even without a restriction or statement: a rights statement kept from
+// before the profile is an input to the writer. It shows as an inherited derived value once that
+// ancestor has been saved, and as inherited rights before.
+function hasInputsAbove(node) {
+    return node.inheritsRights
+        || accessStatements.derived.some(derived => node.inheritedOther[derived.type] !== undefined);
+}
+
+// Mirrors StatementProfile.ColumnFor.
+function columnFor(statement) {
+    if (statement === null) return noneKey;
+    return findStatement(statement)?.category ?? wildcardKey;
+}
+
+// Mirrors DerivedAccessCondition.Lookup.
+function lookupCell(derived, row, column) {
+    const cells = derived.matrix[row] ?? derived.matrix[wildcardKey];
+    if (!cells) return null;
+    return cells[column] ?? cells[wildcardKey] ?? null;
+}
+
+// Each derived condition as type -> { value, text }: what a save will write, or on a read-only
+// dialogue what the METS holds. value is null when there is none.
+function derivedValues(node) {
+    const result = {};
+    for (const derived of accessStatements.derived) {
+        result[derived.type] = node.editable ? computedValue(node, derived) : storedValue(node, derived);
+    }
+    return result;
+}
+
+// Mirrors StatementProfile.ResolveDerived: the most restrictive value over the rows.
+function computedValue(node, derived) {
+    if (hasNoInputsAnywhere(node)) return { value: null, text: "(none: no access conditions here or above)" };
+    const column = columnFor(effectiveStatement(node).value);
+    const values = effectiveRestrictions(node).map(row => lookupCell(derived, row, column)).filter(v => v !== null);
+    const rank = value => derived.values.findIndex(v => v.value === value);
+    const best = values.reduce((a, b) => (a === null || rank(b) > rank(a) ? b : a), null);
+    if (best === null) return { value: null, text: "(no value for this combination)" };
+    return { value: best, text: `${labelFor(derived, best)} (computed)` };
+}
+
+// The value in the METS, the node's own or inherited.
+function storedValue(node, derived) {
+    const value = node.effectiveOther[derived.type] ?? null;
+    if (value === null) return { value: null, text: "(none in the METS)" };
+    return { value, text: labelFor(derived, value) };
+}
+
+function labelFor(derived, value) {
+    return derived.values.find(v => v.value === value)?.label ?? value;
+}
+
+// ---- Rendering ---------------------------------------------------------------------------
+// Labels and text come from configuration, which is trusted, but nothing here is parsed as HTML.
+
+function updateStatementPreviews() {
+    if (!statementNode) return;
+    const derived = derivedValues(statementNode);
+    showDerivedValues(derived);
+    showMetsPreview(statementNode, derived);
+    showIiifPreview(statementNode);
+}
+
+function showDerivedValues(derived) {
+    for (const target of document.querySelectorAll(".derived-access-condition")) {
+        const v = derived[target.dataset.derivedType];
+        const el = document.createElement(v.value === null ? "em" : "strong");
+        el.textContent = v.text;
+        target.replaceChildren(el);
+    }
+}
+
+// One element as it will appear in METS; a note about it goes above it as an XML comment.
+// Each line is { text, note }: notes are shown muted.
+function accessConditionLines(type, value, note) {
+    const element = { text: `<mods:accessCondition type="${type}">${value}</mods:accessCondition>`, note: false };
+    return note ? [{ text: `<!-- ${note} -->`, note: true }, element] : [element];
+}
+
+function previewLine(line) {
+    const div = document.createElement("div");
+    if (line.note) div.className = "access-preview-note";
+    div.textContent = line.text;
+    return div;
+}
+
+// What this node's MODS will carry after saving: the elements chosen in the form; whatever else it
+// already has, kept as it is; and the derived values. The writer puts those on every node with a
+// chosen element of its own, and keeps them on a node that has derived values but no chosen
+// elements: a file whose inputs come from its logical range.
+function showMetsPreview(node, derived) {
+    const target = document.getElementById("accessPreviewMets");
+    if (!target) return;
+    if (!node.editable) {
+        target.replaceChildren(...storedElementLines(node).map(previewLine));
+        return;
+    }
+    const chosen = chosenElementLines(node);
+    const rights = rightsAfterSave(node);
+    const hasOwnInput = chosen.length > 0 || rights !== null;
+    let derivedLines = [];
+    if (hasOwnInput) derivedLines = derivedElementLines(derived, "computed");
+    else if (takesInputsFromRange(node)) derivedLines = derivedElementLines(derived, "computed: this file takes its inputs from a logical range, so it carries the value itself");
+    const lines = [...chosen, ...rightsLines(rights), ...keptElementLines(node), ...derivedLines];
+    const shown = lines.length > 0
+        ? lines
+        : [{ text: "<!-- nothing of its own: everything is inherited from the folder or range above -->", note: true }];
+    target.replaceChildren(...shown.map(previewLine));
+}
+
+function chosenElementLines(node) {
+    const lines = restrictionsAfterSave(node).flatMap(r => accessConditionLines("restriction on access", r));
+    const statement = statementAfterSave(node);
+    if (statement) lines.push(...accessConditionLines(accessStatements.type, statement));
+    return lines;
+}
+
+// The access conditions a read-only node carries, exactly as they are.
+function storedElementLines(node) {
+    const lines = node.ownRestrictions.flatMap(r => accessConditionLines("restriction on access", r));
+    if (hasOwnRights(node)) lines.push(...accessConditionLines("use and reproduction", ownRightsValue(node)));
+    for (const [type, value] of Object.entries(node.ownOther)) {
+        lines.push(...accessConditionLines(type, value));
+    }
+    const note = lines.length > 0
+        ? "as stored: this deposit cannot be edited here"
+        : "nothing of its own: everything is inherited from the folder or range above";
+    return [{ text: `<!-- ${note} -->`, note: true }, ...lines];
+}
+
+function hasOwnRights(node) {
+    return !!node.ownRights || node.ownRightsSuppressed;
+}
+
+// The node's own use and reproduction value: its rights URI, or the "none" sentinel.
+function ownRightsValue(node) {
+    if (node.ownRightsSuppressed) return "null";
+    return rightsStatements[node.ownRights]?.value ?? node.ownRights;
+}
+
+// The node's own use and reproduction after saving: written from a chosen statement the profile
+// knows (its rights URI, or the "none" sentinel); removed with a statement being cleared, since it
+// was written from it; otherwise whatever the node has, kept. Null when it will have none.
+function rightsAfterSave(node) {
+    const statement = statementAfterSave(node);
+    const found = findStatement(statement);
+    if (found) {
+        const entry = accessStatements.iiif?.entries.find(e => e.id === found.iiif);
+        return { value: entry?.rights ?? "null", computed: true };
+    }
+    if (!statement && node.ownOther[accessStatements.type]) return null;
+    if (!hasOwnRights(node)) return null;
+    return { value: ownRightsValue(node), computed: false };
+}
+
+function rightsLines(rights) {
+    if (rights === null) return [];
+    const note = rights.computed ? "computed from the statement" : "already here, not edited by this form: kept";
+    return accessConditionLines("use and reproduction", rights.value, note);
+}
+
+// No chosen element of its own in METS, yet a derived value of its own: the writer leaves one there
+// only on a file fed by its logical range (or in a third party's dmdSec, which it never edits).
+function takesInputsFromRange(node) {
+    const hasOwnChosen = node.ownRestrictions.length > 0 || !!node.ownOther[accessStatements.type] || hasOwnRights(node);
+    return !hasOwnChosen && accessStatements.derived.some(d => node.ownOther[d.type] !== undefined);
+}
+
+// Other typed elements the node already has, which this form does not edit.
+function keptElementLines(node) {
+    const kept = "already here, not edited by this form: kept";
+    const lines = [];
+    const derivedTypes = new Set(accessStatements.derived.map(d => d.type));
+    for (const [type, value] of Object.entries(node.ownOther)) {
+        if (type !== accessStatements.type && !derivedTypes.has(type)) {
+            lines.push(...accessConditionLines(type, value, kept));
+        }
+    }
+    return lines;
+}
+
+function derivedElementLines(derived, note) {
+    return Object.entries(derived)
+        .filter(([, v]) => v.value !== null)
+        .flatMap(([type, v]) => accessConditionLines(type, v.value, note));
+}
+
+// What a IIIF manifest built from this profile says for the node: its effective statement's
+// configured rights URI and requiredStatement. The statement is shown only when it is inherited;
+// a statement chosen here is already in the dropdown above.
+function showIiifPreview(node) {
+    const list = document.getElementById("accessPreviewIiif");
+    if (!list) return;
+    list.replaceChildren();
+    const statement = effectiveStatement(node);
+    if (statement.value === null) {
+        addDefinition(list, "Statement", "none here or above, so neither rights nor requiredStatement");
+        return;
+    }
+    const found = findStatement(statement.value);
+    if (statement.inherited) {
+        addDefinition(list, "Statement", `${found?.label ?? statement.value} (inherited)`);
+    }
+    const entry = accessStatements.iiif?.entries.find(e => e.id === found?.iiif);
+    if (!entry) {
+        addDefinition(list, "rights", "nothing configured for this statement");
+        return;
+    }
+    if (entry.rights) {
+        addDefinition(list, "rights", rightsLabelFor(entry.rights), entry.rights);
+    } else {
+        addDefinition(list, "rights", "(none)");
+    }
+    if (entry.requiredStatement) {
+        const label = entry.requiredStatementLabel ?? accessStatements.iiif.requiredStatementLabel;
+        addDefinition(list, "requiredStatement", entry.requiredStatement, null, label);
+    } else {
+        addDefinition(list, "requiredStatement", "(none)");
+    }
+}
+
+// One row of the IIIF preview: a term, then its text - a link when there is an href, and prefixed
+// with a bold label when the IIIF property has one (requiredStatement's label and value).
+function addDefinition(list, term, text, href = null, label = null) {
+    const dt = document.createElement("dt");
+    dt.className = "col-sm-4 fw-normal text-secondary";
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.className = "col-sm-8 mb-1";
+    if (label) {
+        const strong = document.createElement("strong");
+        strong.textContent = `${label}: `;
+        dd.append(strong);
+    }
+    if (href) {
+        const link = document.createElement("a");
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = href;
+        dd.append(link);
+        if (text) dd.append(` (${text})`);
+    } else {
+        dd.append(text);
+    }
+    list.append(dt, dd);
+}
+
+function rightsLabelFor(uri) {
+    return Object.values(rightsStatements).find(rs => rs.value === uri)?.label ?? null;
+}
+
+document.getElementById("accessRestrictionsSelect")?.addEventListener('change', updateStatementPreviews);
+document.getElementById("accessStatementSelect")?.addEventListener('change', () => {
+    showStatementDescription();
+    updateStatementPreviews();
+});

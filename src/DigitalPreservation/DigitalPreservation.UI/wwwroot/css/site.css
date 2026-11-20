@@ -337,6 +337,18 @@ tr.where-both td {
     }
 }
 
+/* The metadata dialogue's METS preview (issue #433): one METS element per line; a line too long for the dialogue wraps with a hanging indent, so the
+   value is never off to the right. Notes (XML comments) are muted. */
+.access-preview-mets > div {
+    padding-left: 2ch;
+    text-indent: -2ch;
+    overflow-wrap: anywhere;
+}
+
+.access-preview-mets .access-preview-note {
+    color: var(--bs-secondary-color);
+}
+
 /* Inline access/rights/record metadata icons */
 .dep-meta-item .bi {
     width: 0.8rem;
