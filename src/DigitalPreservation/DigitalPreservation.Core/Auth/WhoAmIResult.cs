@@ -31,4 +31,11 @@ public sealed class WhoAmIResult
     /// Preservation API, which owns that policy; null where it was not determined.
     /// </summary>
     public bool? PipelineAllowed { get; set; }
+
+    /// <summary>
+    /// Whether the token carries the <c>Preservation.Call</c> app role or the <c>access_as_user</c>
+    /// delegated scope - what <c>FeatureFlags:RequireCallerRole</c> would demand (issue #293). Check
+    /// it reads <c>true</c> for every caller before turning that flag on.
+    /// </summary>
+    public bool HasCallerPermission { get; init; }
 }

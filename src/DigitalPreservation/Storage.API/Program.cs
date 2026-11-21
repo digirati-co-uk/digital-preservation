@@ -1,3 +1,4 @@
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -45,6 +46,9 @@ try
     // Allow-list of known machine callers, keyed by signed azp/appid (RFC-0001 Phase 0).
     // Registered unconditionally so AuthFilterIdentifier can resolve it even with auth disabled.
     builder.Services.AddClientDirectory(builder.Configuration);
+    // AuthFilterIdentifier and /whoami read the Phase 4 enforcement flags through this (issue #293);
+    // without it they'd see the defaults (off) whatever the configuration says.
+    builder.Services.AddFeatureFlagOptions(builder.Configuration);
 
     builder.Services
         .AddStorageCore(builder.Configuration, "Storage-API")

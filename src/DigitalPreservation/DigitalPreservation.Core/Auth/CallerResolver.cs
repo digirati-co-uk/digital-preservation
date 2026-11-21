@@ -16,10 +16,17 @@ public static class CallerResolver
     public const string SourceHeaderFallback = "header-fallback";
     public const string SourceUnknown = "unknown";
 
+    /// <param name="requireKnownCaller">
+    /// <c>FeatureFlags:RequireKnownCaller</c> (RFC-0001 Phase 4, issue #293): when true the header is
+    /// ignored, as <see cref="AuthFilterIdentifier"/> ignores it, so an unknown machine resolves to
+    /// <c>unknown</c> rather than <c>header-fallback</c>.
+    /// </param>
     public static WhoAmIResult Resolve(
-        ClaimsPrincipal user, string? clientIdentityHeader, IClientDirectory? clients, string defaultBucket)
+        ClaimsPrincipal user, string? clientIdentityHeader, IClientDirectory? clients, string defaultBucket,
+        bool requireKnownCaller = false)
     {
         var appId = user.FindFirst("azp")?.Value ?? user.FindFirst("appid")?.Value;
+        var hasCallerPermission = user.HasCallerPermission();
 
         // Single source of truth for bucket routing, shared with deposit creation - what /whoami
         // reports is what CreateDeposit does.
@@ -35,7 +42,8 @@ public static class CallerResolver
                 Name = user.GetDisplayName() ?? HumanName(user) ?? "user",
                 Source = SourceUser,
                 AppId = appId,
-                DepositBucket = depositBucket
+                DepositBucket = depositBucket,
+                HasCallerPermission = hasCallerPermission
             };
         }
 
@@ -47,19 +55,21 @@ public static class CallerResolver
                 Name = profile.Name,
                 Source = SourceToken,
                 AppId = appId,
-                DepositBucket = depositBucket
+                DepositBucket = depositBucket,
+                HasCallerPermission = hasCallerPermission
             };
         }
 
         // 3. Machine caller falling back to the self-asserted header (RFC-0001 Phase 0 dual mode).
-        if (!string.IsNullOrEmpty(clientIdentityHeader))
+        if (!requireKnownCaller && !string.IsNullOrEmpty(clientIdentityHeader))
         {
             return new WhoAmIResult
             {
                 Name = clientIdentityHeader,
                 Source = SourceHeaderFallback,
                 AppId = appId,
-                DepositBucket = depositBucket
+                DepositBucket = depositBucket,
+                HasCallerPermission = hasCallerPermission
             };
         }
 
@@ -69,7 +79,8 @@ public static class CallerResolver
             Name = "unknown",
             Source = SourceUnknown,
             AppId = appId,
-            DepositBucket = depositBucket
+            DepositBucket = depositBucket,
+            HasCallerPermission = hasCallerPermission
         };
     }
 

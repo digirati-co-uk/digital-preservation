@@ -38,4 +38,20 @@ public class FeatureFlagOptions
 
     /// <summary>Pipeline.API: run pipeline jobs in-process instead of via SQS.</summary>
     public bool UseLocalHostedServiceForPipeline { get; set; }
+
+    /// <summary>
+    /// Preservation.API, Storage.API: RFC-0001 Phase 4 (issue #293). Refuse (403) a machine caller whose
+    /// signed <c>azp</c>/<c>appid</c> is not in <c>KnownClients</c>, and stop consulting the self-asserted
+    /// <c>X-Client-Identity</c> header for identity. Turn on only once <c>/whoami</c> shows
+    /// <c>source: token</c> for every machine caller of this environment.
+    /// </summary>
+    public bool RequireKnownCaller { get; set; }
+
+    /// <summary>
+    /// Preservation.API, Storage.API: RFC-0001 Phase 4 (issue #293). Refuse (403) a caller whose token
+    /// carries neither the <c>Preservation.Call</c> app role nor the <c>access_as_user</c> delegated
+    /// scope. Turn on only once <c>/whoami</c> shows <c>hasCallerPermission: true</c> for every caller,
+    /// people through the UI included.
+    /// </summary>
+    public bool RequireCallerRole { get; set; }
 }

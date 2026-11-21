@@ -1,4 +1,5 @@
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Core.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Preservation.API.Features.Deposits;
@@ -18,14 +19,16 @@ namespace Preservation.API.Features.Identity;
 public class WhoAmIController(
     IClientDirectory clients,
     IOptions<AwsStorageOptions> storageOptions,
-    IOptions<PipelineDeliveryFlags> pipelineDeliveryFlags) : ControllerBase
+    IOptions<PipelineDeliveryFlags> pipelineDeliveryFlags,
+    IOptionsMonitor<FeatureFlagOptions> featureFlags) : ControllerBase
 {
     [HttpGet(Name = "WhoAmI")]
     [ProducesResponseType(typeof(WhoAmIResult), 200)]
     public IActionResult Get([FromHeader(Name = AuthFilterIdentifier.MachineHeaderName)] string? header)
     {
         var defaultBucket = storageOptions.Value.DefaultWorkingBucket;
-        var result = CallerResolver.Resolve(User, header, clients, defaultBucket);
+        var result = CallerResolver.Resolve(User, header, clients, defaultBucket,
+            featureFlags.CurrentValue.RequireKnownCaller);
         result.PipelineAllowed = PipelinePolicy.ForBucket(result.DepositBucket, defaultBucket,
             pipelineDeliveryFlags.Value.AllowPipelineForCallerBuckets, clients) == PipelineAccess.Permitted;
         return Ok(result);
