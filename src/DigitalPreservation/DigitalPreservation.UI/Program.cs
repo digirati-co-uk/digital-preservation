@@ -2,6 +2,7 @@
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
+using DigitalPreservation.UI.Infrastructure.SharedState;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -43,7 +44,10 @@ try
     IEnumerable<string>? initialScopes = new List<string>();
     builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
 
-    builder.Services.AddDistributedMemoryCache();
+    // Data protection keys, and the cache behind the MSAL token cache and session: shared between tasks
+    // and deployments when SharedState configures a store, in memory otherwise (issue #320).
+    var sharedState = builder.Services.AddSharedState(builder.Configuration);
+    Log.Information("Shared sign-in state: {SharedState}", sharedState);
 
     builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
         .AddMicrosoftIdentityWebApp(builder.Configuration, "AzureAd")

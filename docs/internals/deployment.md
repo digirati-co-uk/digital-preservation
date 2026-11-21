@@ -119,7 +119,34 @@ The same sections as the Storage API, minus everything to do with serving HTTP: 
 | `AzureAd` | The interactive sign-in registration: tenant, client id and secret, the OIDC callback path, and the scope requested when calling the Preservation API on a user's behalf. |
 | `IdentityService` | The Leeds Identity Service root, timeout and API key. |
 | `MvpCatalogueApi` | The catalogue API root, query template, timeout and API key. |
+| `SharedState` | Where sign-in state is kept. See below. |
 | `FeatureFlags` | See below. |
+
+#### Where the UI keeps sign-in state
+
+A signed-in user depends on two kinds of state in the UI:
+- **Data-protection keys.** They encrypt the sign-in cookie, the anti-forgery token on every form, and TempData.
+- **A distributed cache.** It holds the MSAL token cache (the user's tokens for calling the Preservation API) and session. The UI rejects a sign-in cookie whose account isn't in the token cache, so the keys alone aren't enough.
+
+If both stay in one task's memory, a redeploy signs every user out, and a form opened before it fails with a 400 when submitted. A second task couldn't read the first task's cookies at all. `SharedState` (issue #320) moves them somewhere shared:
+
+| Setting | Meaning |
+|---|---|
+| `Store` | `Memory` (the default): both stay in memory, as before. `Aws`: the settings below. |
+| `ApplicationName` | Data protection's application name, `dlip-preservation-ui`. Every task of one deployment must share it. |
+| `TimeoutMilliseconds` | How long one call to the store may take before the UI treats it as unavailable. Default 2000. |
+| `RetryAfterSeconds` | After a failure, how long the UI uses memory alone before trying the store again. Default 30. |
+| `Aws:KeySecretPrefix` | Secrets Manager name prefix for the keys, such as `/preservation/dev/ui/data-protection/`. The UI creates one secret per key, and never updates one, so two tasks can't overwrite each other. |
+| `Aws:KmsKeyId` | KMS key for those secrets: the platform's Secrets Manager key. |
+| `Aws:CacheTableName` | DynamoDB table for the cache: partition key `id` (string), with TTL on `expires`. |
+
+**The store is optional.** If it is unconfigured, unreachable, refuses permission or times out, the UI keeps the state in memory and carries on, exactly as before, logging one warning. Every cache write also goes to memory, so a task loses nothing it wrote itself during an outage. A key made while Secrets Manager was down is saved when it comes back. The startup log has a `Shared sign-in state:` line saying what was configured.
+
+**Encryption.** Cache entries are encrypted with the data-protection keys before they reach DynamoDB, since the token cache holds refresh tokens. The keys themselves are protected by Secrets Manager's KMS encryption. Data protection logs a warning that no XML encryptor is configured; that is expected.
+
+**Other installations.** Only `SharedStateServiceCollectionX` knows about AWS. The rest of the UI uses ASP.NET Core's `IDistributedCache` and data protection. A non-AWS installation adds another `Store` there: Redis, for example, can hold both the keys and the cache.
+
+The infrastructure is `preservation-ui-shared-state.tf` in preservation-ops. Neither store is reached through NAT: the VPC has a DynamoDB gateway endpoint and a Secrets Manager interface endpoint.
 
 ## Feature flags
 
