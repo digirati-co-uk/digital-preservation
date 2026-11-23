@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pins: the platform's own freshly-created skeleton (no files yet) is editable, with a NO_FILES note -->
+<mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:mods="http://www.loc.gov/mods/v3">
+  <mets:metsHdr>
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:dmdSec ID="DMD_PHYS_ROOT"/>
+  <mets:amdSec ID="ADM_objects">
+    <mets:techMD ID="TECH_objects">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object>
+            <premis:originalName>objects</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata">
+    <mets:techMD ID="TECH_metadata">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object>
+            <premis:originalName>metadata</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata_x002F_ad-hoc">
+    <mets:techMD ID="TECH_metadata_x002F_ad-hoc">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object>
+            <premis:originalName>metadata/ad-hoc</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="OBJECTS"/>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory" DMDID="DMD_PHYS_ROOT">
+      <mets:div ID="PHYS_metadata" LABEL="metadata" TYPE="Directory" DMDID="DMD_metadata" ADMID="ADM_metadata">
+        <mets:div ID="PHYS_metadata_x002F_ad-hoc" LABEL="ad-hoc" TYPE="Directory" DMDID="DMD_metadata_x002F_ad-hoc" ADMID="ADM_metadata_x002F_ad-hoc"/>
+      </mets:div>
+      <mets:div ID="PHYS_objects" LABEL="objects" TYPE="Directory" DMDID="DMD_objects" ADMID="ADM_objects"/>
+    </mets:div>
+  </mets:structMap>
+</mets:mets>

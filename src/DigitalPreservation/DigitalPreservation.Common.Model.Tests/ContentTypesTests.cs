@@ -20,6 +20,7 @@ public class ContentTypesTests
     [InlineData("audio/mp3", "audio/mpeg")]
     [InlineData("image/jpg", "image/jpeg")]
     [InlineData("application/x-pdf", "application/pdf")]
+    [InlineData("application/x-zip-compressed", "application/zip")]
     [InlineData("audio/mp4", "audio/mp4")]
     [InlineData("image/tiff", "image/tiff")]
     public void Normalise_Maps_Synonyms_To_The_Preferred_Name(string contentType, string expected)
@@ -56,11 +57,53 @@ public class ContentTypesTests
     [InlineData("application/msword", "application/rtf", "application/rtf")]
     [InlineData("text/xml", "application/octet-stream", "text/xml")]
     [InlineData("application/zip", "audio/wav", "audio/wav")]
+    [InlineData("application/vnd.ms-excel", "text/csv", "text/csv")]
+    [InlineData("application/x-zip-compressed", "application/zip", "application/zip")]
     public void Existing_Rules_Still_Pick_A_Winner(string browserContentType, string siegfriedContentType, string expected)
     {
         var file = DepositFile(browserContentType, siegfriedContentType);
 
         ContentTypes.GetBestContentType(file).Should().Be(expected);
+    }
+
+    [Fact]
+    public void A_Real_Excel_File_Stays_An_Excel_File()
+    {
+        // The csv rule must not catch a genuine .xls, which both sources call application/vnd.ms-excel.
+        var file = DepositFile("application/vnd.ms-excel", "application/vnd.ms-excel");
+        ContentTypes.GetBestContentType(file).Should().Be("application/vnd.ms-excel");
+    }
+
+    [Fact]
+    public void A_Csv_Uploaded_From_Windows_Has_No_Mismatch_And_Imports_As_Csv()
+    {
+        // Issue #484: uploaded as application/vnd.ms-excel, identified by Siegfried as text/csv,
+        // and written to the METS as text/csv. The diff must not refuse it.
+        var combined = new CombinedFile(
+            DepositFile("application/vnd.ms-excel", "text/csv"),
+            MetsFile("text/csv"));
+        combined.MisMatches.Should().BeEmpty();
+        combined.GetSingleContentTypeFromMetsAndDeposit().Should().Be("text/csv");
+    }
+
+    [Fact]
+    public void A_File_Whose_Types_Cannot_Be_Settled_Has_A_Warning_That_Names_Them()
+    {
+        // Issue #486: this used to surface only when the diff was built.
+        var warning = ContentTypes.WarningIfUnsettled(DepositFile("audio/mp4", "audio/mpeg"));
+
+        warning.Should().StartWith($"{LocalPath} has more than one content type and none could be chosen: ");
+        warning.Should().Contain("audio/mp4").And.Contain("audio/mpeg");
+    }
+
+    [Theory]
+    [InlineData("image/tiff", "image/tiff")]
+    [InlineData("audio/x-m4a", "audio/mp4")]
+    [InlineData("application/vnd.ms-excel", "text/csv")]
+    [InlineData("application/octet-stream", null)]
+    public void A_File_Whose_Type_Is_Settled_Has_No_Warning(string browserContentType, string? siegfriedContentType)
+    {
+        ContentTypes.WarningIfUnsettled(DepositFile(browserContentType, siegfriedContentType)).Should().BeNull();
     }
 
     [Fact]

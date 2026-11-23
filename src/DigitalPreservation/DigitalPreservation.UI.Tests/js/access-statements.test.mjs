@@ -234,14 +234,13 @@ test('the rights statement follows the chosen statement and goes when it is clea
 
 // ---- A logical range's inherited values (logical-structmap.js) -----------------------------------
 
-// The three functions that work out what a range inherits, taken from the editor's script alone:
-// the rest of it drives the page.
-function rangeInheritance() {
-    const source = read('DigitalPreservation.UI/wwwroot/js/logical-structmap.js');
+// Named functions taken from a page script alone, where the rest of the script drives the page.
+function functionsFrom(path, names, globals = {}) {
+    const source = read(path);
     // A function's source: from its declaration to the brace that closes its body.
     const take = name => {
         const start = source.indexOf(`function ${name}(`);
-        assert.ok(start >= 0, `${name} is in logical-structmap.js`);
+        assert.ok(start >= 0, `${name} is in ${path}`);
         let depth = 0;
         for (let i = source.indexOf('{', start); i < source.length; i++) {
             if (source[i] === '{') depth++;
@@ -249,10 +248,19 @@ function rangeInheritance() {
         }
         throw new Error(`${name} has no closing brace`);
     };
-    const context = vm.createContext({});
-    vm.runInContext(['findParentAndIndex', 'ancestorsOf', 'inheritedForRange'].map(take).join('\n'), context);
-    // Plain copies: objects made in the script's own realm don't deep-equal this module's.
-    return (root, id) => JSON.parse(JSON.stringify(context.inheritedForRange(root, id)));
+    const context = vm.createContext(globals);
+    vm.runInContext(names.map(take).join('\n'), context);
+    return context;
+}
+
+// Plain copies: objects made in a script's own realm don't deep-equal this module's.
+const plain = value => JSON.parse(JSON.stringify(value));
+
+const logicalStructMap = 'DigitalPreservation.UI/wwwroot/js/logical-structmap.js';
+
+function rangeInheritance() {
+    const context = functionsFrom(logicalStructMap, ['findParentAndIndex', 'ancestorsOf', 'inheritedForRange']);
+    return (root, id) => plain(context.inheritedForRange(root, id));
 }
 
 test('a range inherits from the ranges above it as they stand in the browser', () => {
@@ -265,15 +273,92 @@ test('a range inherits from the ranges above it as they stand in the browser', (
         inheritedAccessRestrictions: ['PA1'],
         inheritedOtherAccessConditions: { [statementType]: 'out-of-copyright' }
     };
-    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA1'], other: { [statementType]: 'out-of-copyright' } });
+    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA1'], rights: null, other: { [statementType]: 'out-of-copyright' } });
 
     // An unsaved edit to the middle range reaches the child at once.
     middle.accessRestrictions = ['PA4'];
     middle.otherAccessConditions = { [statementType]: 'inc-high-risk' };
-    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA4'], other: { [statementType]: 'inc-high-risk' } });
+    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA4'], rights: null, other: { [statementType]: 'inc-high-risk' } });
 
     // Per type: a range that sets only a restriction passes its parent's statement down.
     middle.otherAccessConditions = null;
-    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA4'], other: { [statementType]: 'out-of-copyright' } });
-    assert.deepEqual(inheritedForRange(root, 'r'), { access: ['PA1'], other: { [statementType]: 'out-of-copyright' } });
+    assert.deepEqual(inheritedForRange(root, 'c'), { access: ['PA4'], rights: null, other: { [statementType]: 'out-of-copyright' } });
+    assert.deepEqual(inheritedForRange(root, 'r'), { access: ['PA1'], rights: null, other: { [statementType]: 'out-of-copyright' } });
+});
+
+test('a range inherits the rights statement above it as it stands in the browser, not as last saved', () => {
+    const inheritedForRange = rangeInheritance();
+    const pdm = 'https://creativecommons.org/publicdomain/mark/1.0/';
+    const child = { id: 'c', rightsStatement: null, effectiveRightsStatement: pdm, ranges: [] };
+    const middle = { id: 'm', rightsStatement: pdm, effectiveRightsStatement: pdm, ranges: [child] };
+    const root = { id: 'r', rightsStatement: null, inheritedRightsStatement: null, ranges: [middle] };
+    assert.equal(inheritedForRange(root, 'c').rights, pdm);
+
+    // Clearing the middle range's statement clears its rights. The child's effective rights, as
+    // the server last gave them, still say otherwise.
+    middle.rightsStatement = null;
+    assert.equal(inheritedForRange(root, 'c').rights, null);
+
+    // What the root inherits from the physical root reaches every range below.
+    root.inheritedRightsStatement = pdm;
+    assert.equal(inheritedForRange(root, 'c').rights, pdm);
+    assert.equal(inheritedForRange(root, 'r').rights, pdm);
+});
+
+test('the root range inherits its effective rights statement only when it has none of its own', () => {
+    const { rememberInheritedRights } = functionsFrom(logicalStructMap, ['rememberInheritedRights']);
+    const pdm = 'https://creativecommons.org/publicdomain/mark/1.0/';
+    const inheriting = { rightsStatement: null, effectiveRightsStatement: pdm };
+    rememberInheritedRights(inheriting);
+    assert.equal(inheriting.inheritedRightsStatement, pdm);
+
+    const withItsOwn = { rightsStatement: pdm, effectiveRightsStatement: pdm };
+    rememberInheritedRights(withItsOwn);
+    assert.equal(withItsOwn.inheritedRightsStatement, null);
+});
+
+test('an edited range and the ranges below it lose their derived values until the next save', () => {
+    const { dropDerivedConditions } = functionsFrom(logicalStructMap, ['dropDerivedConditions']);
+    const child = { otherAccessConditions: { tier: '0' }, ranges: [] };
+    const edited = {
+        otherAccessConditions: { [statementType]: 'out-of-copyright', tier: '0', 'another type': 'kept' },
+        ranges: [child]
+    };
+    dropDerivedConditions(edited, ['tier']);
+    assert.deepEqual(plain(edited.otherAccessConditions), { [statementType]: 'out-of-copyright', 'another type': 'kept' });
+    assert.equal(child.otherAccessConditions, null, 'a range left with nothing has no conditions, as when it never had any');
+});
+
+// ---- The restriction dropdown (deposit.js) --------------------------------------------------------
+
+// A select as allowSeveralRestrictions sees it, with the single-select's "(inherit from parent)".
+function restrictionSelect(multiple) {
+    const inherit = { value: '', hidden: false, disabled: false };
+    const help = { hidden: !multiple };
+    const select = { multiple, dataset: {}, options: multiple ? [{ value: 'PA1' }] : [inherit, { value: 'PA1' }] };
+    const { allowSeveralRestrictions } = functionsFrom('DigitalPreservation.UI/wwwroot/js/deposit.js',
+        ['allowSeveralRestrictions'], { document: { getElementById: () => help } });
+    return { select, inherit, help, allowSeveralRestrictions };
+}
+
+test('a node with several restrictions keeps them all where the profile offers one at a time', () => {
+    const { select, inherit, help, allowSeveralRestrictions } = restrictionSelect(false);
+
+    allowSeveralRestrictions(select, true);
+    assert.equal(select.multiple, true, 'both of the node\'s restrictions can stay selected');
+    assert.equal(inherit.disabled && inherit.hidden, true, 'with several, clearing is deselecting them all');
+    assert.equal(help.hidden, false);
+
+    // The next node opened has one restriction, or none: back to the profile's single choice.
+    allowSeveralRestrictions(select, false);
+    assert.equal(select.multiple, false);
+    assert.equal(inherit.disabled || inherit.hidden, false);
+    assert.equal(help.hidden, true);
+});
+
+test('a profile that allows several restrictions is left as it is', () => {
+    const { select, help, allowSeveralRestrictions } = restrictionSelect(true);
+    allowSeveralRestrictions(select, false);
+    assert.equal(select.multiple, true);
+    assert.equal(help.hidden, false);
 });

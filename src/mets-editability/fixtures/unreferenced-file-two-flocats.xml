@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pins: C_ONE_FLOCAT: a file nothing in the physical map references, with two FLocats -->
+<mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:mods="http://www.loc.gov/mods/v3">
+  <mets:metsHdr>
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:amdSec ID="ADM_objects">
+    <mets:techMD ID="TECH_objects">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object>
+            <premis:originalName>objects</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_a">
+    <mets:techMD ID="TECH_a">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>509b0d4641a7c3ba088ffa28559d1f57207ea980447bc1773b1d406d788386ee</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>3</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/a.jpg</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="OBJECTS">
+      <mets:file ID="FILE_a" ADMID="ADM_a">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/a.jpg"/>
+      </mets:file>
+      <mets:file ID="FILE_z" ADMID="ADM_a">
+        <mets:FLocat xlink:href="objects/z.jpg"/>
+        <mets:FLocat xlink:href="objects/y.jpg"/>
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+      <mets:div ID="PHYS_objects" LABEL="objects" TYPE="Directory" ADMID="ADM_objects">
+        <mets:div ID="PHYS_a" LABEL="a.jpg" TYPE="Item">
+          <mets:fptr FILEID="FILE_a"/>
+        </mets:div>
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+</mets:mets>

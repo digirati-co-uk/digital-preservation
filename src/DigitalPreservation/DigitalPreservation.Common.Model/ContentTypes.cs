@@ -28,7 +28,8 @@ public static class ContentTypes
         ["audio/x-mpeg"] = "audio/mpeg",
         ["image/jpg"] = "image/jpeg",
         ["image/pjpeg"] = "image/jpeg",
-        ["application/x-pdf"] = "application/pdf"
+        ["application/x-pdf"] = "application/pdf",
+        ["application/x-zip-compressed"] = "application/zip"
     };
 
     /// <summary>
@@ -69,6 +70,23 @@ public static class ContentTypes
         // of EXIF and maybe FFProbe in future to determine what the file is.
         var contentTypeFromAdHocRules = GetContentTypeFromSpecificRules(distinctTypes);
         return contentTypeFromAdHocRules;
+    }
+
+    /// <summary>
+    /// What to tell a caller about a deposit file whose content types disagree and can't be
+    /// settled, or null if there is nothing to say. Such a file goes into the METS with no content
+    /// type, and the diff later refuses it (issue #486).
+    /// </summary>
+    public static string? WarningIfUnsettled(WorkingFile file)
+    {
+        var contentTypes = GetAllContentTypes(file);
+        if (contentTypes.Count < 2 || GetBestContentType(file) is not null)
+        {
+            return null;
+        }
+        return $"{file.LocalPath} has more than one content type and none could be chosen: "
+               + $"{string.Join(", ", contentTypes)}. It is in the METS without a content type, "
+               + "and can't be preserved until they agree.";
     }
 
     private static string? GetContentTypeFromSpecificRules(List<string> distinctTypes)
@@ -117,6 +135,13 @@ public static class ContentTypes
         if (applicationCount == 2 && distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
         {
             return "application/rtf";
+        }
+
+        // Windows calls a .csv file an Excel document, going by its extension. Siegfried has read
+        // the file. Not a synonym: a real .xls is application/vnd.ms-excel from both sources.
+        if (distinctTypes.Count == 2 && distinctTypes.Contains("text/csv") && distinctTypes.Contains("application/vnd.ms-excel"))
+        {
+            return "text/csv";
         }
 
         return null;

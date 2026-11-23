@@ -1,0 +1,99 @@
+@page
+@using DigitalPreservation.Common.Model.Download
+@using DigitalPreservation.UI.Infrastructure
+@using DigitalPreservation.Utils
+@model DigitalPreservation.UI.Pages.Downloads
+@{
+    ViewData["Title"] = "Downloads";
+    ViewData["section"] = "downloads";
+    var copying = Model.Requests.Any(request => request.Status == DownloadStatus.Copying);
+}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Downloads</h1>
+</div>
+
+<status-message key="@TempDataKeys.Error" variant="danger" />
+<status-message key="@TempDataKeys.Updated" variant="success" />
+
+<p>
+    To download a preserved file, find it in <a href="/browse">Browse</a> and choose <em>Request download</em>.
+    A copy of the file is made and listed here. The copy is removed when it expires, or when you delete it;
+    the record of the request stays.
+</p>
+
+@if (Model.ListError != null)
+{
+    <div class="alert alert-warning" role="alert">@Model.ListError</div>
+}
+else if (Model.Requests.Count == 0)
+{
+    <p>Nobody has requested a download yet.</p>
+}
+else
+{
+    if (copying)
+    {
+        <p><a href="/downloads">Refresh</a> to see whether the copies being made are ready.</p>
+    }
+    <table class="table table-striped small" aria-label="Download requests">
+        <thead>
+        <tr>
+            <th scope="col">File</th>
+            <th scope="col">Size</th>
+            <th scope="col">Requested</th>
+            <th scope="col">Reason</th>
+            <th scope="col">Status</th>
+            <th scope="col">Expires</th>
+            <th scope="col">Links issued</th>
+            <th scope="col"></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var request in Model.Requests)
+        {
+            <tr>
+                <td>
+                    @if (request.Status == DownloadStatus.Ready)
+                    {
+                        <a asp-page-handler="File" asp-route-id="@request.Id">@request.Name</a>
+                    }
+                    else
+                    {
+                        @request.Name
+                    }
+                    <br/><a class="text-muted" href="/browse/@request.Path">@request.Path</a>
+                    <br/><span class="text-muted">sha256: @request.Digest</span>
+                </td>
+                <td>@StringUtils.FormatFileSize(request.Size, withSpace: true)</td>
+                <td>@request.RequestedBy<br/>@request.Created.ToString("u")</td>
+                <td>@request.Reason</td>
+                <td>
+                    @request.Status
+                    @if (request.Error != null)
+                    {
+                        <br/><span class="text-danger">@request.Error</span>
+                    }
+                </td>
+                <td>
+                    @* Only a copy that is still there can expire. *@
+                    @if (request.Status is DownloadStatus.Ready or DownloadStatus.Copying)
+                    {
+                        <text>@request.Expires.ToString("u")</text>
+                    }
+                </td>
+                <td>@request.LinksIssued</td>
+                <td>
+                    @if (request.Status is DownloadStatus.Ready or DownloadStatus.Copying)
+                    {
+                        <form class="single-submit" method="post" asp-page-handler="Delete">
+                            <input type="hidden" name="id" value="@request.Id"/>
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete copy</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

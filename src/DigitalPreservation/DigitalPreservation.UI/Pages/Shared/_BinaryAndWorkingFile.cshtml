@@ -102,7 +102,17 @@
     {
         <tr>
             <th scope="row">Content</th>
-            <td>🚫 <a href="@binary.Content">Binary content (Storage API)</a></td>
+            <td>
+                <form class="single-submit row g-2" method="post" asp-page="/Downloads" asp-page-handler="Request">
+                    <input type="hidden" name="path" value="@binary.GetPathUnderRoot()"/>
+                    <div class="col-auto">
+                        <input type="text" class="form-control form-control-sm" name="reason" aria-label="Reason for the download" placeholder="Reason (optional)"/>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Request download</button>
+                    </div>
+                </form>
+            </td>
         </tr>
     }
     @if (workingFile != null)

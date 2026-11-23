@@ -18,6 +18,7 @@ public class PreservationContext : DbContext
     public DbSet<ArchivalGroupEvent> ArchivalGroupEvents { get; set; }
     public DbSet<PipelineRunJob> PipelineRunJobs { get; set; }
     public DbSet<DepositArchiveJob> DepositArchiveJobs { get; set; }
+    public DbSet<DownloadRequest> DownloadRequests { get; set; }
     public PreservationContext(DbContextOptions<PreservationContext> options) : base(options)
     {
     }

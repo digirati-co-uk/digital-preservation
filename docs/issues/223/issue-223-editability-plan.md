@@ -1,7 +1,9 @@
 # Issue 223: METS editability by conformance — the plan
 
 **Status:** agreed direction, 2026-08-21. Classification and mutate-on-save confirmed by Tom;
-awaiting Leeds' agreement on the parts marked for them below.
+Leeds have since signed off the editability criteria (November 2026). The judge's exact rules
+are in [`src/mets-editability/CONTRACT.md`](../../../src/mets-editability/CONTRACT.md), which
+supersedes the summaries below wherever they differ.
 **Progress (10 November 2026):** Phases 1 and 2 are written, and Phase 3's judges are built but
 still in draft PR #238. Phase 4 has not started: its first gate is met, its second is not. See
 the status block at the start of Phase 4.
@@ -77,9 +79,9 @@ remains in the document as provenance, nothing more.
 These are the "certain default assumptions" under which an EPrints-migrated METS is navigable and
 editable. Each is a reading rule; none changes a byte on disk until a save:
 
-1. **An untyped `structMap` is read as physical** when it is the only structMap (or the only
-   untyped one and no `TYPE="PHYSICAL"` exists). METS makes `TYPE` optional; absence is not
-   contradiction.
+1. **An untyped `structMap` is read as physical** when no structMap is typed physical and it is
+   the first one not typed logical - the map the platform's parser walks. METS makes `TYPE`
+   optional; absence is not contradiction.
 2. **`TYPE` comparison is case-insensitive** on both `structMap` and `div` (this tolerance also
    serves Archivematica's `TYPE="physical"` for read-only navigation).
 3. **An untyped `div` carrying an `fptr` is read as an Item.**
@@ -90,11 +92,11 @@ editable. Each is a reading rule; none changes a byte on disk until a save:
 5. **The file groups are mapped.** These documents carry fileGrps with USE values like
    `reference`/`original`/`DEFAULT` rather than our single `OBJECTS` — and EPrints writes **one
    fileGrp per file**, all `USE="reference"` (verified against the real `eprint_10315` sample), so
-   referencing several groups is the *normal* shape, not an ambiguity. All the groups the physical
-   structMap references are treated together as the OBJECTS-equivalent, consolidated into one
-   `USE="OBJECTS"` group on save. What fails the tier is genuine ambiguity: referenced files in
-   groups with *different* USE values, or two referenced entries resolving to the same
-   deposit-relative path.
+   referencing several groups is the *normal* shape, not an ambiguity. All the fileGrps are
+   treated together as the OBJECTS-equivalent, consolidated into one `USE="OBJECTS"` group on
+   save - every group, referenced or not, since every group is consolidated. What fails the tier
+   is genuine ambiguity: groups with *different* USE values, nested groups, or two referenced
+   entries resolving to the same deposit-relative path.
 6. **Every resolved path is deposit-relative** (the standing guard).
 
 Because these documents have no directory divs, nothing in them needs `premis:originalName` on
@@ -124,7 +126,8 @@ What makes this palatable, and what the Leeds document must say plainly:
 The save performs, concretely:
 
 1. `TYPE="PHYSICAL"` written onto the structMap; divs given their types (`Directory`/`Item` per our
-   conventions).
+   conventions), and the root div its `LABEL` (`__ROOT`) if it has none - the parser requires one
+   on every Directory.
 2. The implied `objects` div **materialised**: a real Directory div, with an `amdSec`/`techMD`
    carrying `premis:originalName` (`objects`), ADMID wired, IDs minted via `MetsIds.Adm`.
 3. The referenced fileGrp becomes (or is consolidated into) the single `USE="OBJECTS"` group.
@@ -155,9 +158,11 @@ Two runnable implementations, one behaviour. Given a METS document, the judge an
 
 Rule sources, layered:
 
-- **Schematron** (one shared rule set, XPath 2-ish, executable from both sides via XSLT) for
-  everything the XML can answer: structMap/div typing per tier, fileSec shape, header requirements,
-  ADMID/DMDID/FILEID referential integrity, SHA256 fixity presence.
+- **Schematron** (one shared rule set, XPath 1.0, compiled once to XSLT and run by both sides)
+  for everything the XML can answer: structMap/div typing per tier, fileSec shape, header
+  requirements, FILEID and smLink resolution, directory ADMID anchoring, SHA256 fixity. DMDID
+  resolution is deliberately not a rule (dangling DMDIDs are by design in the platform's own
+  skeleton).
 - **Native code each side** for what Schematron cannot see: path normalisation and uniqueness, the
   deposit-relative guard, implied-`objects` inference, fileGrp-reference ambiguity. Specified
   prose-first in 02e so both implementations are written *from the document*, not from each other.
@@ -165,7 +170,9 @@ Rule sources, layered:
 Acceptance is measured, not asserted: both judges must reproduce the table from #223's conformance
 survey over the held corpus — our fixtures, EPrints (4-file and 410-file), Archivematica, Goobi —
 via the #227 harness on the .NET side and equivalent fixtures on the Python side. Goobi asserting
-`not-editable` *for the right reasons* (deposit-relative guard) is itself a required test.
+`not-editable` *for the right reasons* (deposit-relative guard) is itself a required test. *As
+built, parity is tested too: both suites assert the same golden judgements over curated fixtures
+in `src/mets-editability/fixtures/`.*
 
 ## Phases
 
@@ -200,9 +207,11 @@ conversation is had.
   seed of the eventual PyPI METS library — its public surface designed as if already extracted,
   even while it lives in `src/mets-editability/` (or its own repo).
 - **.NET judge**: a new `DigitalPreservation.Mets.Conformance` project in a PR against `main`
-  (unblocked now #232 is merged). It reuses `MetsCache.Build`'s diagnosable pass and
-  `FullMets.PathDiagnostics` — written for exactly this purpose — rather than reimplementing; kept
-  free of reverse dependencies so it remains extractable.
+  (unblocked now #232 is merged). *As built, it does not use `MetsCache`: like its Python twin it
+  reads the document natively, mirroring how `MetsParser` reads it, so that anything the parser
+  cannot load is refused - the two judges are written function for function.* (The original plan
+  was that it would reuse `MetsCache.Build`'s diagnosable pass and `FullMets.PathDiagnostics`
+  rather than reimplementing.) Kept free of reverse dependencies so it remains extractable.
 - Shared acceptance corpus and the verdict contract above.
 
 ### Phase 4 — platform changes (later, gated)
@@ -269,8 +278,8 @@ independently; each was found by measuring the judge against the real machinery:
    "judge this document" endpoint/UI panel #223 originally asked for — nearly free once the
    library is wired in.
 3. **The restructure-on-first-save** in `MetsManager`, implemented against the judge's own
-   mutation dry-run list (the seven steps in CONTRACT.md: type the structMap, root and item
-   divs; materialise the `objects` div and re-parent; consolidate fileGrps into OBJECTS; wrap
+   mutation dry-run list (the eight steps in CONTRACT.md: type the structMap; type and label the
+   root div; type the item divs; materialise the `objects` div and re-parent; consolidate fileGrps into OBJECTS; wrap
    bare mdWrap payloads in `mets:xmlData` — the payload-preserved-verbatim promise needs its own
    tests, since a naive typed round trip silently drops exactly that content; append the
    platform agent), plus the foreign-dmdSec append rule.
