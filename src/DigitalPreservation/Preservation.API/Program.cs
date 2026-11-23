@@ -7,6 +7,7 @@ using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Features.Activity.Readers;
+using Preservation.API.Features.Downloads;
 using Preservation.API.Features.Deposits.PipelineCleanup;
 using Preservation.API.Features.Deposits.PipelineDelivery;
 using Preservation.API.Infrastructure;
@@ -120,6 +121,9 @@ try
         .AddStorageClient(builder.Configuration, "Preservation-API")
         .AddIdentityServiceClient(builder.Configuration)
         .AddSingleton<IIdentityMinter, IdentityMinter>()
+        .Configure<DownloadOptions>(builder.Configuration.GetSection(DownloadOptions.Downloads))
+        .AddScoped<Downloads>()
+        .AddScoped<DownloadGate>()
         .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
         .AddAccessConditionProfile(builder.Configuration) // before AddDepositWorkspace: supplies the profile the METS writer derives from
