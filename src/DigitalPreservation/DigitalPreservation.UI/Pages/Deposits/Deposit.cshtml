@@ -795,10 +795,8 @@
                                     <!option value="@accessRestriction.Value">@accessRestriction.Label</!option>
                                 }
                             </select>
-                            @if (profile.AllowMultipleRestrictions)
-                            {
-                                <div id="accessRestrictionsHelp" class="form-text small">Ctrl+click to deselect</div>
-                            }
+                            @* Also shown for a node that already has several restrictions (deposit.js). *@
+                            <div id="accessRestrictionsHelp" class="form-text small" hidden="@(!profile.AllowMultipleRestrictions)">Ctrl+click to deselect</div>
                         }
                         else
                         {

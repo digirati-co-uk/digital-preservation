@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (const lsm of logicalStructMapsData) {
         logicalStructMapState[lsm.id] = structuredClone(lsm);
+        rememberInheritedRights(logicalStructMapState[lsm.id]);
         renderLogicalStructMap(lsm.id);
     }
 
@@ -312,13 +313,29 @@ function accessSummaryParts(range) {
     // With a statement of its own (issue #433) the range's rights are written from it: not repeated.
     const rights = statement === undefined ? getRightsShortLabel(range.rightsStatement) : null;
     if (rights) parts.push(rights);
-    // The chosen statement and the derived conditions (issue #433), the latter as last saved; the
-    // server recomputes them when the structMap is saved.
+    // The chosen statement and the derived conditions (issue #433). The server computes the derived
+    // ones when the structMap is saved; an edit removes them until then (setRangeMetadata).
     if (statement !== undefined) parts.push(shortLabelOf(statements.values, statement));
     for (const derived of statements?.derived ?? []) {
         if (other[derived.type] !== undefined) parts.push(shortLabelOf(derived.values, other[derived.type]));
     }
     return parts;
+}
+
+// Removes the derived conditions from a range and every range below it.
+function dropDerivedConditions(range, derivedTypes) {
+    const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => !derivedTypes.includes(type));
+    range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
+    for (const child of range.ranges || []) {
+        dropDerivedConditions(child, derivedTypes);
+    }
+}
+
+// The rights statement the root range inherits from the physical root, which only the server
+// knows: the root's effective one when it has none of its own. When it has its own, what lies
+// above it is not known here, and is taken to be nothing.
+function rememberInheritedRights(root) {
+    root.inheritedRightsStatement = root.rightsStatement ? null : (root.effectiveRightsStatement ?? null);
 }
 
 // ----------------------------------------------------------------
@@ -470,6 +487,10 @@ function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatem
         const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => type !== axis.type);
         if (accessStatement) kept.push([axis.type, accessStatement]);
         range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
+        // The derived values here and below were computed from what this range had when it was
+        // last saved. They are shown again once the structMap is saved and the server has
+        // recomputed them.
+        dropDerivedConditions(range, axis.derived.map(d => d.type));
         // The range's rights were written from its statement: clearing one clears both. A new
         // statement's rights are written by the server when the structMap is saved.
         if (hadStatement && !accessStatement) range.rightsStatement = null;
@@ -644,12 +665,12 @@ function openModsModalForRange(structmapId, rangeId) {
 // A stand-in for the tree's launcher element: the range's metadata as data attributes.
 function rangeLauncher(root, rangeId) {
     const range = (root ? findRange(root, rangeId) : null) ?? {};
-    const inherited = root ? inheritedForRange(root, rangeId) : { access: [], other: {} };
+    const inherited = root ? inheritedForRange(root, rangeId) : { access: [], rights: null, other: {} };
     const launcher = document.createElement('span');
     launcher.dataset.access = (range.accessRestrictions ?? []).join(',');
     launcher.dataset.effAccess = (range.effectiveAccessRestrictions ?? []).join(',');
     launcher.dataset.rights = getRightsShortLabel(range.rightsStatement) ?? '';
-    launcher.dataset.effRights = getRightsShortLabel(range.effectiveRightsStatement) ?? '';
+    launcher.dataset.effRights = getRightsShortLabel(range.rightsStatement ?? inherited.rights) ?? '';
     launcher.dataset.other = JSON.stringify(range.otherAccessConditions ?? {});
     launcher.dataset.effOther = JSON.stringify(range.effectiveOtherAccessConditions ?? {});
     launcher.dataset.inhAccess = inherited.access.join(',');
@@ -666,11 +687,13 @@ function rangeLauncher(root, rangeId) {
 function inheritedForRange(root, rangeId) {
     let inherited = {
         access: root.inheritedAccessRestrictions ?? [],
+        rights: root.inheritedRightsStatement ?? null,
         other: { ...(root.inheritedOtherAccessConditions ?? {}) }
     };
     for (const ancestor of ancestorsOf(root, rangeId)) {
         inherited = {
             access: ancestor.accessRestrictions?.length > 0 ? ancestor.accessRestrictions : inherited.access,
+            rights: ancestor.rightsStatement ?? inherited.rights,
             other: { ...inherited.other, ...(ancestor.otherAccessConditions ?? {}) }
         };
     }
