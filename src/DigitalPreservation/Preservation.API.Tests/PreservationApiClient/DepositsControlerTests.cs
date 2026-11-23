@@ -1,5 +1,6 @@
 using System.Text;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Workspace;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Preservation.API.Features.Deposits;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
@@ -138,6 +140,53 @@ public class DepositsControllerTests
         var body = Assert.IsType<DepositQueryPage>(objectResult.Value);
         body.Page.Should().Be(1);
         body.PageSize.Should().Be(100);
+    }
+
+    // ---- POST deposits/{id}/mets/access: refused before the METS is touched ------------------
+
+    private static readonly IOptions<AccessConditionProfile> StandardProfile = Options.Create(
+        AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }]));
+
+    private void ADepositWithMets(string id, Uri? lockedBy = null) =>
+        A.CallTo(() => mediator.Send(A<GetDeposit>.That.Matches(r => r.Id == id), A<CancellationToken>._))
+            .Returns(Result.Ok<Deposit?>(new Deposit { MetsETag = "\"etag-1\"", LockedBy = lockedBy }));
+
+    private static AccessChange Open(string path = "objects") =>
+        new() { Path = path, AccessRestrictions = ["Open"] };
+
+    [Fact]
+    public async Task SetAccess_Without_The_METS_ETag_Is_A_Conflict()
+    {
+        ADepositWithMets("dep-access-1");
+
+        var result = await controller.SetAccess("dep-access-1", Open(), StandardProfile);
+
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task SetAccess_With_A_Value_Outside_The_Vocabulary_Is_A_Bad_Request_That_Says_Why()
+    {
+        ADepositWithMets("dep-access-2");
+        controller.Request.Headers.IfMatch = "\"etag-1\"";
+
+        var result = await controller.SetAccess("dep-access-2",
+            new AccessChange { Path = "objects", AccessRestrictions = ["Secret"] }, StandardProfile);
+
+        var problem = Assert.IsType<ProblemDetails>(Assert.IsType<ObjectResult>(result).Value);
+        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Detail.Should().Contain("'Secret' is not an access restriction here");
+    }
+
+    [Fact]
+    public async Task SetAccess_On_A_Deposit_Someone_Else_Has_Locked_Is_A_Conflict()
+    {
+        ADepositWithMets("dep-access-3", lockedBy: new Uri("https://preservation.test/agents/someone-else"));
+        controller.Request.Headers.IfMatch = "\"etag-1\"";
+
+        var result = await controller.SetAccess("dep-access-3", Open(), StandardProfile);
+
+        Assert.IsType<ObjectResult>(result).StatusCode.Should().Be(StatusCodes.Status409Conflict);
     }
 }
 

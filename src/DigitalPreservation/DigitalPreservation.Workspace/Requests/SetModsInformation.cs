@@ -16,23 +16,25 @@ public class SetModsInformation(Uri depositFiles, string localPath, string depos
 }
 
 /// <summary>What the metadata dialogue sets on one node.</summary>
-/// <param name="AccessRestrictions">The node's own restrictions; empty clears them so it inherits.</param>
+/// <param name="AccessRestrictions">
+/// The node's own restrictions; empty clears them so it inherits; null leaves them as they are.
+/// </param>
 /// <param name="Rights">What to do with the node's rights statement.</param>
 /// <param name="AccessStatement">
 /// The chosen statement on an installation with a statement profile (issue #433); null clears the
 /// node's own so it inherits. Without a statement profile only null is accepted.
 /// </param>
-/// <param name="RecordIdentifiers">The node's record identifiers.</param>
+/// <param name="RecordIdentifiers">The node's record identifiers; null leaves them as they are.</param>
 /// <param name="FileLinks">A file's links to other files; null leaves them as they are.</param>
 /// <param name="StatementInForm">
 /// False when the form had no statement dropdown (it was rendered without the statement profile):
 /// the node's statement, and the rights written from it, are then left as they are.
 /// </param>
 public record ModsChanges(
-    List<string> AccessRestrictions,
+    List<string>? AccessRestrictions,
     RightsChoice Rights,
     string? AccessStatement,
-    IEnumerable<RecordIdentifier> RecordIdentifiers,
+    IEnumerable<RecordIdentifier>? RecordIdentifiers,
     List<FileLink>? FileLinks,
     bool StatementInForm = true);
 
@@ -81,15 +83,19 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
     {
         var statementType = await metsManager.GetAccessStatementTypeAsync();
         if (statementType.Failure) return statementType;
-        var recordInfo = new RecordInfo { RecordIdentifiers = changes.RecordIdentifiers.ToList() };
         Func<Result>[] steps =
         [
-            () => metsManager.SetAccessRestrictionsByPath(mets, path, changes.AccessRestrictions),
+            () => changes.AccessRestrictions is null
+                ? Result.Ok()
+                : metsManager.SetAccessRestrictionsByPath(mets, path, changes.AccessRestrictions),
             () => changes.StatementInForm
                 ? metsManager.SetAccessStatementByPath(mets, path, statementType.Value, changes.AccessStatement)
                 : Result.Ok(),
             () => SetRights(mets, path, changes.Rights),
-            () => metsManager.SetRecordInfoByPath(mets, path, recordInfo)
+            () => changes.RecordIdentifiers is null
+                ? Result.Ok()
+                : metsManager.SetRecordInfoByPath(mets, path,
+                    new RecordInfo { RecordIdentifiers = changes.RecordIdentifiers.ToList() })
         ];
         foreach (var step in steps)
         {

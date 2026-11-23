@@ -559,6 +559,22 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
+    public async Task A_change_that_names_only_the_statement_leaves_the_restrictions_as_they_are()
+    {
+        // The API's access route (POST deposits/{id}/mets/access) sends only what the caller
+        // sent: restrictions and record identifiers left out are null, meaning leave them alone.
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-api-partial-change.xml");
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
+        await metsManager.WriteMets(fullMets);
+
+        var changes = new ModsChanges(null, RightsChoice.LeaveUnchanged, TestProfiles.LowRisk, null, null);
+        (await SaveDialogue(metsUri, "objects", changes)).Success.Should().BeTrue();
+
+        TypedConditions(metsUri, "DMD_objects", "restriction on access").Should().Equal("PA1");
+        TypedConditions(metsUri, "DMD_objects", Statement).Should().Equal(TestProfiles.LowRisk);
+    }
+
+    [Fact]
     public async Task An_unavailable_profile_refuses_both_save_paths_with_its_reason()
     {
         var (metsUri, _) = await CreateMets("Outputs/derived-profile-unavailable-handlers.xml");
