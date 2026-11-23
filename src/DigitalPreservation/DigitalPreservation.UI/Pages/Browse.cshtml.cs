@@ -1,5 +1,6 @@
 ﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -39,6 +40,12 @@ public class BrowseModel(
     public WorkingFile? WorkingFile { get; set; }
     public WorkingDirectory? WorkingDirectory { get; set; }
     public WorkingDirectory? MetsWorkingDirectory { get; set; }
+    /// <summary>
+    /// The installation's access condition profile (issue #433), so the metadata column labels
+    /// statements and derived values as the deposit page does. Null when it can't be fetched: the
+    /// column then shows them by METS type and value.
+    /// </summary>
+    public AccessConditionProfile? AccessConditionProfile { get; private set; }
     
     
     // When we are on an archival group
@@ -50,6 +57,8 @@ public class BrowseModel(
     {
         string? version = null;
         PathUnderRoot = pathUnderRoot;
+        var profileResult = await preservationApiClient.GetAccessConditions(cancellationToken);
+        if (profileResult.Success) AccessConditionProfile = profileResult.Value;
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
         Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot, cancellationToken);
         if (Resource != null && CachedArchivalGroup != null)

@@ -8,6 +8,8 @@ public static class Constants
     public const string MetsCreatorAgent = "University of Leeds Digital Library Infrastructure Project";
     public const string RestrictionOnAccess = "restriction on access";
     public const string UseAndReproduction = "use and reproduction";
+    /// <summary>Goobi's access-condition type; read as a restriction, like <see cref="RestrictionOnAccess"/>.</summary>
+    public const string GoobiStatus = "status";
     public const string Mets = "METS";
     public const string ModsMdWrapType = "MODS";
     public const string PhysIdPrefix = "PHYS_";

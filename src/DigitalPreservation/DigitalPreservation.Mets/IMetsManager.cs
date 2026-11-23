@@ -66,6 +66,15 @@ public interface IMetsManager
     Result SuppressRightsInheritanceByPath(FullMets mets, string localPath);
     Result SuppressRightsInheritanceByDivId(FullMets mets, string divId);
     Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
+
+    /// <summary>
+    /// The <c>@type</c> of the installation's chosen statement axis (issue #433), or null without
+    /// one; a failure when the profile cannot be fetched.
+    /// </summary>
+    Task<Result<string?>> GetAccessStatementTypeAsync();
+
+    /// <summary>Set, or with null clear, a node's chosen statement; see <see cref="GetAccessStatementTypeAsync"/>.</summary>
+    Result SetAccessStatementByPath(FullMets mets, string localPath, string? statementType, string? statement);
     Result SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions);
 
 
@@ -73,7 +82,8 @@ public interface IMetsManager
     // address by ID? There will almost always be only one so we don't want to complicate the UI
     // Sets a logical struct map (never a physical one). Returns BadRequest, writing nothing, if
     // any range ID in the supplied tree could not be used as an XML ID.
-    Result SetStructMap(FullMets mets, LogicalRange logSm);
+    /// <param name="statementType">From <see cref="GetAccessStatementTypeAsync"/>: with one, a range's chosen statement is written from its OtherAccessConditions entry of that type (issue #433).</param>
+    Result SetStructMap(FullMets mets, LogicalRange logSm, string? statementType = null);
     // This will overwrite a structMap with the same ID, and append one if the ID is different to any currently existing.
 
     // maybe this rarely used operation, if we need to change the order:

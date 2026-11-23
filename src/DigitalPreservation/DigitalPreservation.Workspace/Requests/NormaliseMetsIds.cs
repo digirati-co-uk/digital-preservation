@@ -54,7 +54,7 @@ public class NormaliseMetsIdsHandler(IMetsManager metsManager, ILogger<Normalise
         if (writeResult.Failure)
         {
             return Result.FailNotNull<MetsIdNormalisationReport>(
-                writeResult.ErrorCode ?? ErrorCodes.UnknownError, "Unable to write METS file.");
+                writeResult.ErrorCode ?? ErrorCodes.UnknownError, writeResult.ErrorMessage ?? "Unable to write METS file.");
         }
 
         logger.LogInformation(

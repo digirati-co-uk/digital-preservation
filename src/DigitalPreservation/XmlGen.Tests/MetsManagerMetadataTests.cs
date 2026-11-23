@@ -419,4 +419,26 @@ public class MetsManagerMetadataTests
         file.RecordInfo.Should().NotBeNull("record info must survive clearing of an unrelated field");
         file.RecordInfo!.RecordIdentifiers[0].Value.Should().Be("REF/1");
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task A_Blank_Access_Restriction_Is_Treated_As_Inherit(string blank)
+    {
+        // The single-select access level posts "" for "(inherit from parent)". That must clear the
+        // node's own restriction rather than write an empty mods:accessCondition, which read back
+        // with null Text and threw in ApplyDerivedAccessConditions on WriteMets.
+        var (metsUri, fullMets) = await CreateMetsWithFile("Outputs/meta-blank-restriction.xml");
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/file.tif", ["Closed"]);
+
+        var setResult = metsManager.SetAccessRestrictionsByPath(fullMets, "objects/file.tif", [blank]);
+        var writeResult = await metsManager.WriteMets(fullMets);
+
+        setResult.Success.Should().BeTrue();
+        writeResult.Success.Should().BeTrue();
+        var doc = XDocument.Load(metsUri.LocalPath);
+        doc.Descendants(ModsNs + "accessCondition").Should().NotContain(
+            e => (string?)e.Attribute("type") == "restriction on access",
+            "a blank choice means inherit, so the file has no restriction of its own");
+    }
 }

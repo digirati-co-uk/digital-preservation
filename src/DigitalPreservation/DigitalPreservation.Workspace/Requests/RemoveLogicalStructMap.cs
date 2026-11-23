@@ -24,7 +24,7 @@ public class RemoveLogicalStructMapHandler(IMetsManager metsManager) : IRequestH
             var writeMetsResult = await metsManager.WriteMets(fullMets);
             if (writeMetsResult.Failure)
             {
-                return Result.Fail(writeMetsResult.ErrorCode!, "Unable to write METS file.");
+                return Result.Fail(writeMetsResult.ErrorCode!, writeMetsResult.ErrorMessage ?? "Unable to write METS file.");
             }
             return Result.Ok();
         }

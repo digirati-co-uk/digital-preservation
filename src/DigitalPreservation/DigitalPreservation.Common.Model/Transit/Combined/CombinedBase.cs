@@ -11,9 +11,13 @@ public abstract class CombinedBase(string? relativePath = null)
 
     public List<string> AccessRestrictions => InMetsBase?.AccessRestrictions ?? [];
     public List<string> EffectiveAccessRestrictions => InMetsBase?.EffectiveAccessRestrictions ?? [];
+    public List<string> InheritedAccessRestrictions => InMetsBase?.InheritedAccessRestrictions ?? [];
     public Uri? RightsStatement => InMetsBase?.RightsStatement;
     public Uri? EffectiveRightsStatement => InMetsBase?.EffectiveRightsStatement;
     public bool RightsStatementSuppressed => InMetsBase?.RightsStatementSuppressed ?? false;
+    public Dictionary<string, string> OtherAccessConditions => InMetsBase?.OtherAccessConditions ?? [];
+    public Dictionary<string, string> EffectiveOtherAccessConditions => InMetsBase?.EffectiveOtherAccessConditions ?? [];
+    public Dictionary<string, string> InheritedOtherAccessConditions => InMetsBase?.InheritedOtherAccessConditions ?? [];
     public RecordInfo? RecordInfo => InMetsBase?.RecordInfo;
     public RecordInfo? EffectiveRecordInfo => InMetsBase?.EffectiveRecordInfo;
 }

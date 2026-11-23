@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (const lsm of logicalStructMapsData) {
         logicalStructMapState[lsm.id] = structuredClone(lsm);
+        rememberInheritedRights(logicalStructMapState[lsm.id]);
         renderLogicalStructMap(lsm.id);
     }
 
@@ -286,19 +287,55 @@ function makeActionLink(icon, title, onClick, linkClass = 'link-primary') {
     return btn;
 }
 
+// A profile value's short label, else its label, else the value itself.
+function shortLabelOf(values, value) {
+    const found = values?.find(v => v.value === value);
+    return found?.shortLabel ?? found?.label ?? value;
+}
+
 function buildMetadataSummaryText(range) {
+    const parts = accessSummaryParts(range);
+    const ids = range.recordInfo?.recordIdentifiers ?? [];
+    if (ids.length === 1) parts.push(`${ids[0].value} (${ids[0].source})`);
+    else if (ids.length > 1) parts.push(`${ids.length} IDs`);
+    return parts.length ? parts.join(' · ') : null;
+}
+
+// The range's own access values, by their short labels.
+function accessSummaryParts(range) {
+    const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
+    const statements = profile?.statements;
+    const other = range.otherAccessConditions ?? {};
+    const statement = statements ? other[statements.type] : undefined;
     const parts = [];
     if (range.accessRestrictions?.length > 0)
-        parts.push(range.accessRestrictions.join(', '));
-    if (range.rightsStatement) {
-        const label = getRightsShortLabel(range.rightsStatement);
-        if (label) parts.push(label);
+        parts.push(range.accessRestrictions.map(v => shortLabelOf(profile?.restrictionAxis?.values, v)).join(', '));
+    // With a statement of its own (issue #433) the range's rights are written from it: not repeated.
+    const rights = statement === undefined ? getRightsShortLabel(range.rightsStatement) : null;
+    if (rights) parts.push(rights);
+    // The chosen statement and the derived conditions (issue #433). The server computes the derived
+    // ones when the structMap is saved; an edit removes them until then (setRangeMetadata).
+    if (statement !== undefined) parts.push(shortLabelOf(statements.values, statement));
+    for (const derived of statements?.derived ?? []) {
+        if (other[derived.type] !== undefined) parts.push(shortLabelOf(derived.values, other[derived.type]));
     }
-    if (range.recordInfo?.recordIdentifiers?.length > 0) {
-        const ri = range.recordInfo.recordIdentifiers;
-        parts.push(ri.length === 1 ? `${ri[0].value} (${ri[0].source})` : `${ri.length} IDs`);
+    return parts;
+}
+
+// Removes the derived conditions from a range and every range below it.
+function dropDerivedConditions(range, derivedTypes) {
+    const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => !derivedTypes.includes(type));
+    range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
+    for (const child of range.ranges || []) {
+        dropDerivedConditions(child, derivedTypes);
     }
-    return parts.length ? parts.join(' · ') : null;
+}
+
+// The rights statement the root range inherits from the physical root, which only the server
+// knows: the root's effective one when it has none of its own. When it has its own, what lies
+// above it is not known here, and is taken to be nothing.
+function rememberInheritedRights(root) {
+    root.inheritedRightsStatement = root.rightsStatement ? null : (root.effectiveRightsStatement ?? null);
 }
 
 // ----------------------------------------------------------------
@@ -438,12 +475,28 @@ function removeFileFromRange(structmapId, rangeId, fp) {
     renderLogicalStructMap(structmapId);
 }
 
-function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers) {
+function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers, accessStatement) {
     const root = logicalStructMapState[structmapId];
     const range = findRange(root, rangeId);
     if (!range) return;
     range.accessRestrictions = accessRestrictions.length > 0 ? accessRestrictions : null;
-    range.rightsStatement = rightsStatementUri || null;
+    // The chosen statement rides in otherAccessConditions under the profile's type (issue #433).
+    const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.statements : null;
+    if (axis) {
+        const hadStatement = range.otherAccessConditions?.[axis.type] !== undefined;
+        const kept = Object.entries(range.otherAccessConditions ?? {}).filter(([type]) => type !== axis.type);
+        if (accessStatement) kept.push([axis.type, accessStatement]);
+        range.otherAccessConditions = kept.length > 0 ? Object.fromEntries(kept) : null;
+        // The derived values here and below were computed from what this range had when it was
+        // last saved. They are shown again once the structMap is saved and the server has
+        // recomputed them.
+        dropDerivedConditions(range, axis.derived.map(d => d.type));
+        // The range's rights were written from its statement: clearing one clears both. A new
+        // statement's rights are written by the server when the structMap is saved.
+        if (hadStatement && !accessStatement) range.rightsStatement = null;
+    }
+    // With statements there is no rights dropdown (issue #433): otherwise the range's rights stay as they are.
+    if (rightsStatementUri !== undefined) range.rightsStatement = rightsStatementUri || null;
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }
         : null;
@@ -568,8 +621,9 @@ function wireModsModalIntercept() {
         const accessRestrictions = readAccessRestrictionsFromForm();
         const rightsStatementUri = readRightsStatementUriFromForm();
         const recordIdentifiers = readRecordIdentifiersFromForm();
+        const accessStatement = readAccessStatementFromForm();
 
-        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers);
+        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers, accessStatement);
         hideModsModal(modsModal);
     }, { capture: true });
 }
@@ -600,20 +654,61 @@ function openModsModalForRange(structmapId, rangeId) {
     modsContextEl.value = rangeId;
     if (modsContextIsFileEl) modsContextIsFileEl.value = 'false';
 
-    // Build a fake launcher element with the range's metadata as data attributes
-    const root = logicalStructMapState[structmapId];
-    const range = root ? findRange(root, rangeId) : null;
-    const launcher = document.createElement('span');
-    launcher.dataset.access = (range?.accessRestrictions ?? []).join(',');
-    launcher.dataset.rights = getRightsShortLabel(range?.rightsStatement) ?? '';
-    launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
-    launcher.dataset.toolOutput = '';
-
+    const launcher = rangeLauncher(logicalStructMapState[structmapId], rangeId);
     if (typeof populateModsModalFromAttributes === 'function') {
         populateModsModalFromAttributes(launcher);
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modsModal')).show();
+}
+
+// A stand-in for the tree's launcher element: the range's metadata as data attributes.
+function rangeLauncher(root, rangeId) {
+    const range = (root ? findRange(root, rangeId) : null) ?? {};
+    const inherited = root ? inheritedForRange(root, rangeId) : { access: [], rights: null, other: {} };
+    const launcher = document.createElement('span');
+    launcher.dataset.access = (range.accessRestrictions ?? []).join(',');
+    launcher.dataset.effAccess = (range.effectiveAccessRestrictions ?? []).join(',');
+    launcher.dataset.rights = getRightsShortLabel(range.rightsStatement) ?? '';
+    launcher.dataset.effRights = getRightsShortLabel(range.rightsStatement ?? inherited.rights) ?? '';
+    launcher.dataset.other = JSON.stringify(range.otherAccessConditions ?? {});
+    launcher.dataset.effOther = JSON.stringify(range.effectiveOtherAccessConditions ?? {});
+    launcher.dataset.inhAccess = inherited.access.join(',');
+    launcher.dataset.inhOther = JSON.stringify(inherited.other);
+    launcher.dataset.recordinfo = toRecordInfoCompact(range.recordInfo) ?? '';
+    launcher.dataset.toolOutput = '';
+    return launcher;
+}
+
+// What a range would have without its own values, from the ranges above it as they stand in the
+// browser, so an unsaved change to an ancestor shows. The root range inherits from the physical
+// root, which only the server knows (MetsParser: ranges inherit from the physical root, not the
+// folders). Per type for the other access conditions, as the parser does.
+function inheritedForRange(root, rangeId) {
+    let inherited = {
+        access: root.inheritedAccessRestrictions ?? [],
+        rights: root.inheritedRightsStatement ?? null,
+        other: { ...(root.inheritedOtherAccessConditions ?? {}) }
+    };
+    for (const ancestor of ancestorsOf(root, rangeId)) {
+        inherited = {
+            access: ancestor.accessRestrictions?.length > 0 ? ancestor.accessRestrictions : inherited.access,
+            rights: ancestor.rightsStatement ?? inherited.rights,
+            other: { ...inherited.other, ...(ancestor.otherAccessConditions ?? {}) }
+        };
+    }
+    return inherited;
+}
+
+// The ranges above rangeId, from the root down; empty for the root itself.
+function ancestorsOf(root, rangeId) {
+    const ancestors = [];
+    let parent = findParentAndIndex(root, rangeId)?.parent;
+    while (parent) {
+        ancestors.unshift(parent);
+        parent = findParentAndIndex(root, parent.id)?.parent;
+    }
+    return ancestors;
 }
 
 // ----------------------------------------------------------------
@@ -623,12 +718,20 @@ function openModsModalForRange(structmapId, rangeId) {
 function readAccessRestrictionsFromForm() {
     const sel = document.getElementById('accessRestrictionsSelect');
     if (!sel) return [];
-    return Array.from(sel.selectedOptions).map(o => o.value);
+    // A single-select's "(inherit from parent)" option has an empty value (issue #433).
+    return Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
+function readAccessStatementFromForm() {
+    const sel = document.getElementById('accessStatementSelect');
+    return sel?.value || null;
+}
+
+// undefined when the form has no rights dropdown (a profile with statements): leave rights alone.
 function readRightsStatementUriFromForm() {
     const sel = document.getElementById('rightsStatementSelect');
-    return sel?.value || null;
+    if (!sel) return undefined;
+    return sel.value || null;
 }
 
 function readRecordIdentifiersFromForm() {

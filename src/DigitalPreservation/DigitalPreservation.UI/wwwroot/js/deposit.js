@@ -14,12 +14,35 @@ function populateModsModalFromAttributes(launcher){
     applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
+    // An installation with a statement profile (issue #433) also loads access-statements.js.
+    if (typeof applyAccessStatementFields === 'function') {
+        applyAccessStatementFields(launcher);
+    }
+}
+
+// A node that already has several restrictions keeps them all: for that node the select allows
+// several, even where the profile offers one at a time (issue #433). Otherwise saving a change to
+// another field would post one of them and drop the rest.
+function allowSeveralRestrictions(select, nodeHasSeveral){
+    select.dataset.single ??= String(!select.multiple);
+    if(select.dataset.single !== "true") return;
+    select.multiple = nodeHasSeveral;
+    // "(inherit from parent)" is a single-select's way to clear: with several, deselect them all.
+    const inherit = Array.from(select.options).find(o => o.value === "");
+    if(inherit) inherit.hidden = inherit.disabled = nodeHasSeveral;
+    const help = document.getElementById("accessRestrictionsHelp");
+    if(help) help.hidden = !nodeHasSeveral;
 }
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
     if(accessRestrictionsSelect){
+        allowSeveralRestrictions(accessRestrictionsSelect, accessConditionList.split(",").length > 1);
         accessRestrictionsSelect.selectedIndex = -1;
+        if(accessConditionList.length === 0 && !accessRestrictionsSelect.multiple){
+            // Single-select (issue #433): no explicit value is the "(inherit from parent)" option.
+            selectOptionByValue(accessRestrictionsSelect, "");
+        }
         if(accessConditionList.length > 0){
             const accessConditions = new Set(accessConditionList.split(","));
             const existingValues = new Set(Array.from(accessRestrictionsSelect.options).map(o => o.value));
@@ -59,7 +82,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
         if(rightsSuppressed){
-            // Explicit "no rights — do not inherit": select the sentinel option.
+            // Explicit "not chosen — do not inherit": select the sentinel option.
             selectOptionByValue(rightsStatementSelect, rightsDoNotInheritSentinel);
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
@@ -78,7 +101,7 @@ function applyRightsStatement(rightsStatement, rightsSuppressed){
         }
     } else if (nonEditableRightsStatement){
         if(rightsSuppressed){
-            nonEditableRightsStatement.innerHTML = "<ul><li><em>no rights (not inherited)</em></li></ul>";
+            nonEditableRightsStatement.innerHTML = "<ul><li><em>not chosen (not inherited)</em></li></ul>";
         } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
             const rsUri = rsEntry ? rsEntry.value : rightsStatement;

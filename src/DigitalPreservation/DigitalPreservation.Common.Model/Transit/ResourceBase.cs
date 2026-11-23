@@ -27,6 +27,15 @@ public abstract class ResourceBase
     [JsonPropertyOrder(6)]
     public List<string> EffectiveAccessRestrictions { get; set; } = [];
 
+    /// <summary>
+    /// The restrictions this resource would have if it set none of its own: what it inherits from
+    /// its parent (or, for a file the physical tree is silent about, its logical range). Lets an
+    /// editor show what clearing the resource's own value would leave.
+    /// </summary>
+    [JsonPropertyName("inheritedAccessRestrictions")]
+    [JsonPropertyOrder(7)]
+    public List<string> InheritedAccessRestrictions { get; set; } = [];
+
     [JsonPropertyName("rightsStatement")]
     [JsonPropertyOrder(10)]
     public Uri? RightsStatement { get; set; }
@@ -46,6 +55,36 @@ public abstract class ResourceBase
     [JsonPropertyName("rightsStatementSuppressed")]
     [JsonPropertyOrder(12)]
     public bool RightsStatementSuppressed { get; set; }
+
+    /// <summary>
+    /// Every <c>mods:accessCondition</c> on this resource of a type OTHER than <c>restriction on
+    /// access</c> and <c>use and reproduction</c>, keyed by <c>@type</c>, first value per type. On an
+    /// installation with a statement profile this holds its chosen statement (for Leeds the
+    /// copyright statement, under the profile's configured type) and its derived conditions (the
+    /// access tier); the profile says which is which. The parser cannot know a configuration's types, so a
+    /// third-party document's other typed conditions appear here too. Derived values are recomputed
+    /// from the chosen ones on every write (issue #433).
+    /// </summary>
+    [JsonPropertyName("otherAccessConditions")]
+    [JsonPropertyOrder(13)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? OtherAccessConditions { get; set; }
+
+    /// <summary>
+    /// <see cref="OtherAccessConditions"/> after inheritance, per type: a type set here overrides
+    /// the ancestor's value for that type and inherits the rest.
+    /// </summary>
+    [JsonPropertyName("effectiveOtherAccessConditions")]
+    [JsonPropertyOrder(14)]
+    public Dictionary<string, string> EffectiveOtherAccessConditions { get; set; } = [];
+
+    /// <summary>
+    /// The other typed conditions this resource would have if it set none of its own, per type
+    /// (see <see cref="InheritedAccessRestrictions"/>).
+    /// </summary>
+    [JsonPropertyName("inheritedOtherAccessConditions")]
+    [JsonPropertyOrder(14)]
+    public Dictionary<string, string> InheritedOtherAccessConditions { get; set; } = [];
 
     [JsonPropertyName("recordInfo")]
     [JsonPropertyOrder(15)]

@@ -34,7 +34,8 @@ public static class ModsManager
         var result = new List<string>();
         foreach (var accessCondition in modsDefinition.AccessCondition)
         {
-            if (type == null || accessCondition.Type == type && accessCondition.Text.Length > 0)
+            // An empty <mods:accessCondition/> deserialises with null Text.
+            if ((type == null || accessCondition.Type == type) && accessCondition.Text is { Length: > 0 })
             {
                 result.Add(accessCondition.Text[0]);
             }

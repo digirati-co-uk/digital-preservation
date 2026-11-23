@@ -101,4 +101,9 @@
       </None>
     </ItemGroup>
 
+    <ItemGroup>
+      <!-- The deployed Leeds access condition profile (issue #433): tests read the real document. -->
+      <None Include="..\Preservation.API\AccessConditionProfiles\leeds.json" Link="AccessConditionProfiles\leeds.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

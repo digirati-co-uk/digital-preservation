@@ -42,4 +42,10 @@
         <None Update="Samples/**/*.xml" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
+  <ItemGroup>
+    <!-- The API's settings, so a test can check what each environment's layered settings give (issue #433). -->
+    <None Include="..\Preservation.API\appsettings.json;..\Preservation.API\appsettings.DEV.json;..\Preservation.API\appsettings.TEST.json;..\Preservation.API\appsettings.PROD.json"
+          LinkBase="PreservationApiSettings" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
