@@ -72,6 +72,23 @@ public static class ContentTypes
         return contentTypeFromAdHocRules;
     }
 
+    /// <summary>
+    /// What to tell a caller about a deposit file whose content types disagree and can't be
+    /// settled, or null if there is nothing to say. Such a file goes into the METS with no content
+    /// type, and the diff later refuses it (issue #486).
+    /// </summary>
+    public static string? WarningIfUnsettled(WorkingFile file)
+    {
+        var contentTypes = GetAllContentTypes(file);
+        if (contentTypes.Count < 2 || GetBestContentType(file) is not null)
+        {
+            return null;
+        }
+        return $"{file.LocalPath} has more than one content type and none could be chosen: "
+               + $"{string.Join(", ", contentTypes)}. It is in the METS without a content type, "
+               + "and can't be preserved until they agree.";
+    }
+
     private static string? GetContentTypeFromSpecificRules(List<string> distinctTypes)
     {
         var applicationCount = distinctTypes.Count(ct => ct.StartsWith("application/"));

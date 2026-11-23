@@ -87,6 +87,26 @@ public class ContentTypesTests
     }
 
     [Fact]
+    public void A_File_Whose_Types_Cannot_Be_Settled_Has_A_Warning_That_Names_Them()
+    {
+        // Issue #486: this used to surface only when the diff was built.
+        var warning = ContentTypes.WarningIfUnsettled(DepositFile("audio/mp4", "audio/mpeg"));
+
+        warning.Should().StartWith($"{LocalPath} has more than one content type and none could be chosen: ");
+        warning.Should().Contain("audio/mp4").And.Contain("audio/mpeg");
+    }
+
+    [Theory]
+    [InlineData("image/tiff", "image/tiff")]
+    [InlineData("audio/x-m4a", "audio/mp4")]
+    [InlineData("application/vnd.ms-excel", "text/csv")]
+    [InlineData("application/octet-stream", null)]
+    public void A_File_Whose_Type_Is_Settled_Has_No_Warning(string browserContentType, string? siegfriedContentType)
+    {
+        ContentTypes.WarningIfUnsettled(DepositFile(browserContentType, siegfriedContentType)).Should().BeNull();
+    }
+
+    [Fact]
     public void Genuinely_Different_Types_Have_No_Winner()
     {
         var file = DepositFile("audio/mp4", "audio/mpeg");
