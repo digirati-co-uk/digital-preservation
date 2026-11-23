@@ -24,6 +24,50 @@ runs:
   steps:
     - id: checkout
       uses: actions/checkout@v4
+      with:
+        # Full history and tags, so the build can say which release it follows (git describe).
+        fetch-depth: 0
+
+    # What the image is built from, for the UI's Status page. Dockerfile.UI takes these build
+    # arguments; the other Dockerfiles don't declare them, and Docker ignores them there.
+    - id: build-info
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        # On a pull request the checkout is GitHub's merge of the branch into main, so name the
+        # branch's own head commit, not that merge.
+        export commit=${PR_HEAD_SHA:-$GITHUB_SHA}
+
+        # Otherwise look for the pull request this commit merged, or an open one with this commit
+        # at its head. gh prints the error body on stdout when the call fails, so keep the output
+        # only on success.
+        if [ -z "$PR_NUMBER" ]; then
+          if pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$commit/pulls" \
+              --jq '(map(select(.merge_commit_sha == env.commit)) + .)[0] // empty | "\(.number) \(.title)"'); then
+            PR_NUMBER=${pr%% *}
+            PR_TITLE=${pr#* }
+          fi
+        fi
+
+        {
+          echo "args<<BUILD_ARGS_END"
+          echo "BUILD_COMMIT=$commit"
+          echo "BUILD_REF=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          echo "BUILD_DESCRIBE=$(git describe --tags --always "$commit")"
+          echo "BUILD_COMMIT_SUBJECT=$(git log -1 --format=%s "$commit")"
+          echo "BUILD_COMMIT_AUTHOR=$(git log -1 --format=%an "$commit")"
+          echo "BUILD_COMMIT_DATE=$(git log -1 --format=%cI "$commit")"
+          echo "BUILD_PULL_REQUEST=$PR_NUMBER"
+          echo "BUILD_PULL_REQUEST_TITLE=$PR_TITLE"
+          echo "BUILD_REPOSITORY=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          echo "BUILD_RUN=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          echo "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "BUILD_ARGS_END"
+        } >> "$GITHUB_OUTPUT"
 
     # Runs triggered by Dependabot (re-runs included) get no repository secrets, so the IAM role is
     # empty and the AWS login fails before anything is built. For them, build the image without
@@ -64,6 +108,7 @@ runs:
         builder: ${{ steps.docker-setup-buildx.outputs.name }}
         tags: ${{ steps.docker-meta.outputs.tags }}
         labels: ${{ steps.docker-meta.outputs.labels }}
+        build-args: ${{ steps.build-info.outputs.args }}
         push: ${{ github.actor != 'dependabot[bot]' }}
         # No attestations: push a plain image manifest, not a manifest list with an attestation in
         # it. Lambda rejects a list ("image manifest, config or layer media type ... is not
