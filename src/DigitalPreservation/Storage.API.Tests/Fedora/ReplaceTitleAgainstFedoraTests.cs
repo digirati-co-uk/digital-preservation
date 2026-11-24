@@ -13,9 +13,8 @@ namespace Storage.API.Tests.Fedora;
 /// variable was bound through OPTIONAL. An Archival Group renamed by an import job then reported
 /// its old name in otherNames (digital-preservation-e2e-tests#131). These pin what Fedora stores.
 /// </summary>
-[Collection(FedoraCollection.CollectionName)]
 [Trait("Category", "Integration")]
-public partial class ReplaceTitleAgainstFedoraTests(FedoraFixture fedora)
+public abstract partial class ReplaceTitleAgainstFedoraTests(FedoraFixture fedora)
 {
     private const string Title = "http://purl.org/dc/elements/1.1/title";
 
@@ -126,3 +125,10 @@ public partial class ReplaceTitleAgainstFedoraTests(FedoraFixture fedora)
         (await Titles(metadata)).Should().Equal("New name");
     }
 }
+
+[Collection(Fedora651Collection.Name)]
+public class ReplaceTitleAgainstFedora651Tests(Fedora651Fixture fedora) : ReplaceTitleAgainstFedoraTests(fedora);
+
+[Collection(Fedora700Collection.Name)]
+[Trait("Category", "Manual")] // See Fedora700Collection
+public class ReplaceTitleAgainstFedora700Tests(Fedora700Fixture fedora) : ReplaceTitleAgainstFedoraTests(fedora);
