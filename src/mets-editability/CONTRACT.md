@@ -115,10 +115,9 @@ Where pinning down exactly which value the parser reads would take more code tha
 the check covers more (every `area`, every referenced dmdSec) — a stricter judge is safe, a more
 tolerant one is not.
 
-**Known gaps**, deliberately not checked: the date of a virus-scan event, which the parser
-converts with the *server's* culture (`Convert.ToDateTime`) — the platform itself writes dates
-like `Wednesday, 18 March 2026`, so no culture-independent rule can mirror it; and an unrecognised
-`area` carrying two attributes with the same local name in different namespaces.
+**Known gap**, deliberately not checked: an unrecognised `area` carrying two attributes with the
+same local name in different namespaces. (The date of a virus-scan event used to be a second gap.
+Since #482 the parser no longer throws on one it cannot read, so there is nothing to mirror.)
 
 Navigable ⇔ no blocker occurred. `fileCount` counts distinct files, not references. A document
 whose structMap references no files is navigable, with the note `NO_FILES` — the platform's own

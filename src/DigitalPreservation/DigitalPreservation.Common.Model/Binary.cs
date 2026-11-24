@@ -20,8 +20,13 @@ public class Binary : PreservedResource
     [JsonPropertyOrder(320)]
     public string? Digest { get; set; }
 
+    /// <summary>
+    /// Where the Storage API serves this file. The Preservation API has no content route and
+    /// removes this, so it is left out of the JSON when it is not set (#300).
+    /// </summary>
     [JsonPropertyName("content")]
     [JsonPropertyOrder(500)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Uri? Content { get; set; }
     
     [JsonIgnore]
