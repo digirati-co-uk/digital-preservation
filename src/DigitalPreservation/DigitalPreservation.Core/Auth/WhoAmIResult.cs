@@ -23,12 +23,21 @@ public sealed class WhoAmIResult
     /// <summary>
     /// Bucket where this caller's deposits would be created — the caller's profile bucket if one is
     /// configured, otherwise the API's default working bucket. Callers may interact with it directly.
+    /// Null for an <c>unknown</c> caller: it can't create deposits, and has no business learning
+    /// the bucket's name.
     /// </summary>
-    public required string DepositBucket { get; init; }
+    public required string? DepositBucket { get; init; }
 
     /// <summary>
     /// Whether deposits in <see cref="DepositBucket"/> may run the pipeline (issue #410). Set by the
     /// Preservation API, which owns that policy; null where it was not determined.
     /// </summary>
     public bool? PipelineAllowed { get; set; }
+
+    /// <summary>
+    /// Whether the token carries the <c>Preservation.Call</c> app role or the <c>access_as_user</c>
+    /// delegated scope - what <c>FeatureFlags:RequireCallerRole</c> would demand (issue #293). Check
+    /// it reads <c>true</c> for every caller before turning that flag on.
+    /// </summary>
+    public bool HasCallerPermission { get; init; }
 }

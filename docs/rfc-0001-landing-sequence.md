@@ -22,7 +22,7 @@ environment (there is no apply pipeline — it is a manual, local step).
 | Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed 2026-09-22 (ops PR #75) **and applied**: both APIs' live task definitions carry all four entries | committed 2026-09-22 (ops PR #76) **and applied**: likewise |
 | Rung 3: `KnownClients` (Goobi, Phase 1) | **applied 2026-11-10.** Leeds created the Goobi dev registration, `Library-Preservation-Goobi-Dev` (`33e27ba5-b5d6-4453-9223-0cc5b591688e`), with [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md). Both API task definitions now carry its `KnownClients` entry (`Name` `goobi`, `DepositBucket` `dlip-pres-dev-goobi-deposits`; preservation-api:16, storage-api:21; ops PR #83, merged 2026-11-12). The Goobi deposit bucket and intranda's scoped IAM user were already in place (ops PR #78). **Verified 2026-11-11** with `check_caller.py --deposit`, run by Leeds from the Goobi test server: `/whoami` returned `source: token`, name `goobi` and the Goobi bucket, and a new deposit was created in `dlip-pres-dev-goobi-deposits`. Not yet run: stage E, an export landing in that bucket. Goobi itself (intranda) is switching to the new credentials | not started: needs its own Goobi bucket and IAM first | not started: likewise |
 | Rung 4: `TokenProvider__ResourceUri` repoints | not started | not started | not started |
-| Phase 4 flags (`RequireKnownCaller`, `RequireCallerRole`) | not built yet: PR #438 (issue #293), off by default once merged | likewise | likewise |
+| Phase 4 flags (`RequireKnownCaller`, `RequireCallerRole`) | built (PR #438, issue #293), **off**: not set, so both default to `false` | not in the deployed build yet: it arrives with the first release after PR #438, off | likewise |
 | Deployed build | `main` (auto-deploys) | `v1.3.2` (its image was pushed by the `v1.3.2` build on 2026-10-14) | `v1.3.4` (its image was pushed by the `v1.3.4` build on 2026-10-27). Every build from `v1.3.0` on is the complete dual-mode build, so rungs 1-4 need no further release, except to run the pipeline on a caller's own bucket (#410, PR #458), which needs a release after `v1.3.4` |
 
 Three facts a newcomer cannot otherwise infer. First: **audit enterprise-app assignment lists
@@ -255,10 +255,36 @@ against `V1.0.1`'s binding as well as `v1.2.1`'s (both pin Microsoft.Identity.We
 identical `AddMicrosoftIdentityWebApi` call).
 
 **Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
-enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
-off by default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293); the
-flag-gated code is PR #438, not yet merged, and is needed only before the first environment
-enforces). That is the
+enforcing `Preservation.Call`-role-or-delegated-scope — are **configuration flags, off by default**
+([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293)):
+`FeatureFlags__RequireKnownCaller` and `FeatureFlags__RequireCallerRole`, read by both the
+Preservation API and the Storage API. They are independent, and each is turned on per environment,
+on both APIs, only when `/whoami` shows its precondition for **every** caller, people through the UI
+and the e2e suite's machine caller included:
+- `RequireKnownCaller`: every machine caller shows `source: token`. Turning it on refuses (403) any
+  machine whose signed `azp`/`appid` isn't in `KnownClients`, and stops reading `X-Client-Identity`
+  for identity.
+- `RequireCallerRole`: every caller shows `hasCallerPermission: true` (the `Preservation.Call` app role,
+  or the `access_as_user` delegated scope). Turning it on refuses (403) a token carrying neither.
+
+**Callers nobody can run `/whoami` as.** The platform's own background work has no person behind it
+to make the check: the Pipeline API and the Deposit Archiver call the Preservation API with an app
+token and `X-Client-Identity: api-call`, and the Preservation API calls the Storage API the same
+way. For these the precondition is read from the logs instead. Each API logs one Warning per app ID
+that falls back to the header ("not resolved from KnownClients; falling back to self-asserted
+X-Client-Identity"). Before `RequireKnownCaller` goes on, restart both APIs so that warning is
+logged afresh, let a pipeline run, an import and an archive job go through, and confirm the warning
+does not appear. That is rung 4 done: those services mint as a registration that `KnownClients` names.
+
+**`/whoami` still answers a caller the flags refuse**, so the caller can see why. With a valid
+token, a machine that `KnownClients` doesn't name gets `source: unknown` and no `depositBucket`, and
+a caller without the role or scope gets `hasCallerPermission: false`. Every other endpoint gives
+them 403.
+
+**Turning a flag off again needs no code change and no release, but it is not instant.** In dev,
+test and production the flags are ECS environment variables set in Terraform, and environment
+variables are read once at startup. So it is a `terraform apply` and new tasks: minutes, on both
+APIs. Plan the production switch-on with that rollback time in mind. That is the
 standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
 flags on and one that has not started the ladder, so no future release can strand production behind
 the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after

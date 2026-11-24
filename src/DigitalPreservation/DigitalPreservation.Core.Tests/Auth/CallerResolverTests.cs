@@ -78,7 +78,7 @@ public class CallerResolverTests
         result.Source.Should().Be(CallerResolver.SourceUnknown);
         result.Name.Should().Be("unknown");
         result.AppId.Should().BeNull();
-        result.DepositBucket.Should().Be(DefaultBucket);
+        result.DepositBucket.Should().BeNull("an unknown caller can't create deposits, so it isn't told the bucket's name");
     }
 
     [Fact]

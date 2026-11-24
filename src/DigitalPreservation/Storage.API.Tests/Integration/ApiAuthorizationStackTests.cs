@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Core.Configuration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -40,8 +41,10 @@ namespace Storage.API.Tests.Integration;
 public class ApiAuthorizationStackTests
 {
     private const string SecurePath = "/secure";
+    private const string DiagnosticPath = "/diagnostic";
 
-    private static async Task<IHost> BuildServer(IClientDirectory? clients = null, CapturingLoggerProvider? logs = null)
+    private static async Task<IHost> BuildServer(
+        IClientDirectory? clients = null, CapturingLoggerProvider? logs = null, FeatureFlagOptions? flags = null)
     {
         // IHostBuilder + UseTestServer(), not the obsolete WebHostBuilder/TestServer(IWebHostBuilder)
         // pair (ASPDEPR004/008): disposing the returned IHost disposes the TestServer along with it,
@@ -60,6 +63,16 @@ public class ApiAuthorizationStackTests
                         {
                             logging.SetMinimumLevel(LogLevel.Debug);
                             logging.AddProvider(logs);
+                        });
+                    }
+                    if (flags != null)
+                    {
+                        // RFC-0001 Phase 4 (issue #293): AuthFilterIdentifier reads the enforcement flags
+                        // per request, as the real hosts bind them from FeatureFlags.
+                        services.Configure<FeatureFlagOptions>(o =>
+                        {
+                            o.RequireKnownCaller = flags.RequireKnownCaller;
+                            o.RequireCallerRole = flags.RequireCallerRole;
                         });
                     }
                     if (clients != null)
@@ -242,6 +255,195 @@ public class ApiAuthorizationStackTests
         var attributedIdentity = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         attributedIdentity.Should().Be("iiif-builder");
     }
+
+    // ---- RFC-0001 Phase 4 enforcement flags (issue #293) ----
+
+    private static ClientDirectory KnownIiifBuilder() => new(new Dictionary<string, ClientProfile>
+    {
+        [StubAuthHandler.KnownMachineAppId] = new() { Name = "iiif-builder" }
+    });
+
+    private static async Task<HttpResponseMessage> Send(IHost server, string authHeader, string? clientIdentity = null,
+        string path = SecurePath)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add(authHeader, "true");
+        if (clientIdentity != null)
+        {
+            request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, clientIdentity);
+        }
+        return await server.GetTestClient().SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private static Task<string> Body(HttpResponseMessage response) =>
+        response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+    [Fact]
+    public async Task FlagsOff_UnknownMachineWithHeader_IsStillAttributedToTheHeader()
+    {
+        // The default: both flags off is dual mode, exactly as before #293.
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions());
+
+        var response = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader, "legacy-caller");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Body(response)).Should().Be("legacy-caller");
+    }
+
+    [Fact]
+    public async Task RequireKnownCaller_UnknownMachineWithHeader_IsForbidden()
+    {
+        // The header no longer identifies anyone: an authenticated machine that KnownClients does not
+        // name is refused, however it labels itself.
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireKnownCaller = true });
+
+        var response = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader, "iiif-builder");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await Body(response)).Should().Contain("99999999-9999-9999-9999-999999999999");
+    }
+
+    [Fact]
+    public async Task RequireKnownCaller_KnownMachine_IsAttributedToItsProfile_NotTheHeader()
+    {
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireKnownCaller = true });
+
+        var response = await Send(server, StubAuthHandler.AuthenticateMachineHeader, "spoofed");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Body(response)).Should().Be("iiif-builder");
+    }
+
+    [Fact]
+    public async Task RequireKnownCaller_DoesNotAffectPeople()
+    {
+        // A person is recognised by their user claims; the UI sign-in app needs no KnownClients entry.
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireKnownCaller = true });
+
+        var response = await Send(server, StubAuthHandler.AuthenticateUserHeader);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task RequireKnownCaller_WithNoKnownClientsAtAll_RefusesEveryMachine()
+    {
+        // Turning the flag on before KnownClients is populated locks every machine out - the reason
+        // the landing sequence makes /whoami showing source: token for every caller the precondition.
+        using var server = await BuildServer(new ClientDirectory(new Dictionary<string, ClientProfile>()),
+            flags: new FeatureFlagOptions { RequireKnownCaller = true });
+
+        var response = await Send(server, StubAuthHandler.AuthenticateMachineHeader, "iiif-builder");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Theory]
+    [InlineData(StubAuthHandler.AuthenticateMachineHeader, HttpStatusCode.Forbidden)]
+    [InlineData(StubAuthHandler.AuthenticateMachineWithRoleHeader, HttpStatusCode.OK)]
+    [InlineData(StubAuthHandler.AuthenticateMachineWithMappedRoleHeader, HttpStatusCode.OK)]
+    [InlineData(StubAuthHandler.AuthenticateUserHeader, HttpStatusCode.Forbidden)]
+    [InlineData(StubAuthHandler.AuthenticateUserWithScopeHeader, HttpStatusCode.OK)]
+    public async Task RequireCallerRole_AcceptsTheRoleOrTheDelegatedScope(string authHeader, HttpStatusCode expected)
+    {
+        // Role OR scope: a person's delegated token carries scp, never roles, so checking the role
+        // alone would refuse everyone using the UI (RFC-0001 section 5.3).
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireCallerRole = true });
+
+        var response = await Send(server, authHeader);
+
+        response.StatusCode.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task RequireCallerRole_WithoutRequireKnownCaller_KeepsTheHeaderFallback()
+    {
+        // The flags are independent: role enforcement alone does not end dual-mode attribution.
+        using var server = await BuildServer(new ClientDirectory(new Dictionary<string, ClientProfile>()),
+            flags: new FeatureFlagOptions { RequireCallerRole = true });
+
+        var response = await Send(server, StubAuthHandler.AuthenticateMachineWithRoleHeader, "legacy-caller");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Body(response)).Should().Be("legacy-caller");
+    }
+
+    [Fact]
+    public async Task Refusals_AreLoggedOncePerCallerAndReason_ThenAtDebug()
+    {
+        var logs = new CapturingLoggerProvider();
+        using var server = await BuildServer(KnownIiifBuilder(), logs, new FeatureFlagOptions { RequireKnownCaller = true });
+
+        await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader);
+        await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader);
+
+        logs.Entries.Count(e => e.Level == LogLevel.Warning && e.Message.Contains("Refused caller")).Should().Be(1);
+        logs.Entries.Count(e => e.Level == LogLevel.Debug && e.Message.Contains("Refused caller")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_Refused_Person_Is_Named_In_The_Log()
+    {
+        // Every person arrives with the UI's app ID (or none), so the app ID alone would give one
+        // Warning for the first person refused and Debug for everyone after, never saying who.
+        var logs = new CapturingLoggerProvider();
+        using var server = await BuildServer(KnownIiifBuilder(), logs, new FeatureFlagOptions { RequireCallerRole = true });
+
+        (await Send(server, StubAuthHandler.AuthenticateUserHeader)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        logs.Entries.Should().Contain(e => e.Level == LogLevel.Warning
+                                           && e.Message.Contains("Refused caller")
+                                           && e.Message.Contains("real-user@leeds.ac.uk"));
+    }
+
+    // The endpoint that tells a caller why it is refused has to answer the callers that are refused:
+    // /whoami carries [ExemptFromCallerEnforcement], as DiagnosticTestController does here.
+
+    [Fact]
+    public async Task RequireKnownCaller_UnknownMachine_StillReachesTheDiagnosticEndpoint()
+    {
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireKnownCaller = true });
+
+        var diagnostic = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader, path: DiagnosticPath);
+        var secure = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader);
+
+        diagnostic.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Body(diagnostic)).Should().Be("no-name", "an unknown caller is let through unattributed, not under its header");
+        secure.StatusCode.Should().Be(HttpStatusCode.Forbidden, "the exemption is for the diagnostic endpoint only");
+    }
+
+    [Theory]
+    [InlineData(StubAuthHandler.AuthenticateMachineHeader)]
+    [InlineData(StubAuthHandler.AuthenticateUserHeader)]
+    public async Task RequireCallerRole_CallerWithoutThePermission_StillReachesTheDiagnosticEndpoint(string authHeader)
+    {
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireCallerRole = true });
+
+        (await Send(server, authHeader, path: DiagnosticPath)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Send(server, authHeader)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task TheDiagnosticEndpoint_StillNeedsAToken()
+    {
+        using var server = await BuildServer(KnownIiifBuilder(),
+            flags: new FeatureFlagOptions { RequireKnownCaller = true, RequireCallerRole = true });
+
+        var response = await server.GetTestClient().GetAsync(DiagnosticPath, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task FlagsOff_TheDiagnosticEndpoint_BehavesAsAnyOther()
+    {
+        // With both flags off nothing changes: an unknown machine with no header is still a 401.
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions());
+
+        var response = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader, path: DiagnosticPath);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
 }
 
 /// <summary>
@@ -254,11 +456,26 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
     /// <summary>Authenticate as a human user that carries a display name.</summary>
     public const string AuthenticateUserHeader = "Test-Authenticate-User";
 
+    /// <summary>The azp the machine headers authenticate as; the tests' KnownClients entries name it.</summary>
+    public const string KnownMachineAppId = "11111111-1111-1111-1111-111111111111";
+
     /// <summary>Authenticate as a human user with a v1.0-format token (upn, no preferred_username).</summary>
     public const string AuthenticateV1UserHeader = "Test-Authenticate-V1-User";
 
     /// <summary>Authenticate as a client-credentials machine caller with NO display name.</summary>
     public const string AuthenticateMachineHeader = "Test-Authenticate-Machine";
+
+    /// <summary>A machine caller (azp 1111...) whose token carries the Preservation.Call app role.</summary>
+    public const string AuthenticateMachineWithRoleHeader = "Test-Authenticate-Machine-With-Role";
+
+    /// <summary>The same machine with the role under the .NET-mapped claim type, as inbound mapping would leave it.</summary>
+    public const string AuthenticateMachineWithMappedRoleHeader = "Test-Authenticate-Machine-With-Mapped-Role";
+
+    /// <summary>A human through the UI whose delegated token carries access_as_user among other scopes.</summary>
+    public const string AuthenticateUserWithScopeHeader = "Test-Authenticate-User-With-Scope";
+
+    /// <summary>A machine (azp 9999...) that no KnownClients entry names.</summary>
+    public const string AuthenticateUnknownMachineHeader = "Test-Authenticate-Unknown-Machine";
 
     public StubAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -270,6 +487,27 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (Request.Headers.ContainsKey(AuthenticateMachineWithRoleHeader))
+        {
+            return Authenticated(new Claim("azp", KnownMachineAppId), new Claim("roles", CallerPermissions.AppRole));
+        }
+
+        if (Request.Headers.ContainsKey(AuthenticateMachineWithMappedRoleHeader))
+        {
+            return Authenticated(new Claim("azp", KnownMachineAppId), new Claim(ClaimTypes.Role, CallerPermissions.AppRole));
+        }
+
+        if (Request.Headers.ContainsKey(AuthenticateUserWithScopeHeader))
+        {
+            return Authenticated(new Claim("preferred_username", "real-user@leeds.ac.uk"),
+                new Claim("scp", "User.Read " + CallerPermissions.DelegatedScope));
+        }
+
+        if (Request.Headers.ContainsKey(AuthenticateUnknownMachineHeader))
+        {
+            return Authenticated(new Claim("azp", "99999999-9999-9999-9999-999999999999"));
+        }
+
         if (Request.Headers.ContainsKey(AuthenticateUserHeader))
         {
             // preferred_username is what Microsoft.Identity.Web's GetDisplayName() reads first.
@@ -285,7 +523,7 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         if (Request.Headers.ContainsKey(AuthenticateMachineHeader))
         {
             // A client-credentials token: valid, but no display-name claim.
-            return Authenticated(new Claim("azp", "11111111-1111-1111-1111-111111111111"));
+            return Authenticated(new Claim("azp", KnownMachineAppId));
         }
 
         return Task.FromResult(AuthenticateResult.NoResult());
@@ -338,4 +576,14 @@ public class SecureTestController : ControllerBase
     // claim that AuthFilterIdentifier synthesises straight from the X-Client-Identity header.
     [HttpGet]
     public IActionResult Get() => Ok(User.FindFirst("Name")?.Value ?? "authenticated-user");
+}
+
+[ApiController]
+[Route("diagnostic")]
+[ExemptFromCallerEnforcement]
+public class DiagnosticTestController : ControllerBase
+{
+    // Stands in for /whoami: exempt from the two Phase 4 flags, still behind authentication.
+    [HttpGet]
+    public IActionResult Get() => Ok(User.FindFirst("Name")?.Value ?? "no-name");
 }
