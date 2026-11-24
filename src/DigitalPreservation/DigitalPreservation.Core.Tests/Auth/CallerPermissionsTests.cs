@@ -68,6 +68,7 @@ public class CallerPermissionsTests
 
         result.Source.Should().Be(CallerResolver.SourceUnknown);
         result.Name.Should().Be("unknown");
+        result.DepositBucket.Should().BeNull("/whoami answers a refused caller, and doesn't tell it the default bucket's name");
     }
 
     [Fact]

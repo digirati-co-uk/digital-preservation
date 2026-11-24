@@ -44,7 +44,7 @@ public class PipelinePolicyTests
         PipelinePolicy.ForBucket(bucket, DefaultBucket, allowCallerBuckets, Clients).Should().Be(expected);
     }
 
-    private static WhoAmIResult WhoAmI(ClaimsPrincipal user, bool allowCallerBuckets)
+    private static WhoAmIResult WhoAmI(ClaimsPrincipal user, bool allowCallerBuckets, string? header = null)
     {
         var controller = new WhoAmIController(
             Clients,
@@ -54,7 +54,7 @@ public class PipelinePolicyTests
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } }
         };
-        var ok = controller.Get(header: null).Should().BeOfType<OkObjectResult>().Subject;
+        var ok = controller.Get(header).Should().BeOfType<OkObjectResult>().Subject;
         return ok.Value.Should().BeOfType<WhoAmIResult>().Subject;
     }
 
@@ -84,9 +84,22 @@ public class PipelinePolicyTests
     [Fact]
     public void WhoAmI_Reports_The_Pipeline_Allowed_For_A_Caller_In_The_Default_Bucket()
     {
-        var result = WhoAmI(Machine("55555555-5555-5555-5555-555555555555"), allowCallerBuckets: false);
+        // A machine with no KnownClients entry, still identified by its header (dual mode).
+        var result = WhoAmI(Machine("55555555-5555-5555-5555-555555555555"), allowCallerBuckets: false,
+            header: "legacy-caller");
 
         result.DepositBucket.Should().Be(DefaultBucket);
         result.PipelineAllowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public void WhoAmI_Gives_An_Unknown_Caller_No_Bucket_And_No_Pipeline()
+    {
+        // No KnownClients entry and no header: nothing identifies it, so it can't create deposits.
+        var result = WhoAmI(Machine("55555555-5555-5555-5555-555555555555"), allowCallerBuckets: false);
+
+        result.Source.Should().Be(CallerResolver.SourceUnknown);
+        result.DepositBucket.Should().BeNull();
+        result.PipelineAllowed.Should().BeFalse();
     }
 }

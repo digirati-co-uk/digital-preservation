@@ -13,6 +13,7 @@ namespace Storage.API.Features.Identity;
 /// </summary>
 [ApiController]
 [Route("whoami")]
+[ExemptFromCallerEnforcement]
 public class WhoAmIController(
     IClientDirectory clients,
     IOptions<AwsStorageOptions> storageOptions,

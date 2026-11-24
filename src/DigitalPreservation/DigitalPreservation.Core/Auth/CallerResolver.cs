@@ -79,7 +79,7 @@ public static class CallerResolver
             Name = "unknown",
             Source = SourceUnknown,
             AppId = appId,
-            DepositBucket = depositBucket,
+            DepositBucket = null,
             HasCallerPermission = hasCallerPermission
         };
     }

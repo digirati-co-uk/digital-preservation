@@ -41,6 +41,7 @@ namespace Storage.API.Tests.Integration;
 public class ApiAuthorizationStackTests
 {
     private const string SecurePath = "/secure";
+    private const string DiagnosticPath = "/diagnostic";
 
     private static async Task<IHost> BuildServer(
         IClientDirectory? clients = null, CapturingLoggerProvider? logs = null, FeatureFlagOptions? flags = null)
@@ -262,9 +263,10 @@ public class ApiAuthorizationStackTests
         [StubAuthHandler.KnownMachineAppId] = new() { Name = "iiif-builder" }
     });
 
-    private static async Task<HttpResponseMessage> Send(IHost server, string authHeader, string? clientIdentity = null)
+    private static async Task<HttpResponseMessage> Send(IHost server, string authHeader, string? clientIdentity = null,
+        string path = SecurePath)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.Add(authHeader, "true");
         if (clientIdentity != null)
         {
@@ -377,6 +379,70 @@ public class ApiAuthorizationStackTests
 
         logs.Entries.Count(e => e.Level == LogLevel.Warning && e.Message.Contains("Refused caller")).Should().Be(1);
         logs.Entries.Count(e => e.Level == LogLevel.Debug && e.Message.Contains("Refused caller")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_Refused_Person_Is_Named_In_The_Log()
+    {
+        // Every person arrives with the UI's app ID (or none), so the app ID alone would give one
+        // Warning for the first person refused and Debug for everyone after, never saying who.
+        var logs = new CapturingLoggerProvider();
+        using var server = await BuildServer(KnownIiifBuilder(), logs, new FeatureFlagOptions { RequireCallerRole = true });
+
+        (await Send(server, StubAuthHandler.AuthenticateUserHeader)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        logs.Entries.Should().Contain(e => e.Level == LogLevel.Warning
+                                           && e.Message.Contains("Refused caller")
+                                           && e.Message.Contains("real-user@leeds.ac.uk"));
+    }
+
+    // The endpoint that tells a caller why it is refused has to answer the callers that are refused:
+    // /whoami carries [ExemptFromCallerEnforcement], as DiagnosticTestController does here.
+
+    [Fact]
+    public async Task RequireKnownCaller_UnknownMachine_StillReachesTheDiagnosticEndpoint()
+    {
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireKnownCaller = true });
+
+        var diagnostic = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader, path: DiagnosticPath);
+        var secure = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader);
+
+        diagnostic.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Body(diagnostic)).Should().Be("no-name", "an unknown caller is let through unattributed, not under its header");
+        secure.StatusCode.Should().Be(HttpStatusCode.Forbidden, "the exemption is for the diagnostic endpoint only");
+    }
+
+    [Theory]
+    [InlineData(StubAuthHandler.AuthenticateMachineHeader)]
+    [InlineData(StubAuthHandler.AuthenticateUserHeader)]
+    public async Task RequireCallerRole_CallerWithoutThePermission_StillReachesTheDiagnosticEndpoint(string authHeader)
+    {
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions { RequireCallerRole = true });
+
+        (await Send(server, authHeader, path: DiagnosticPath)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Send(server, authHeader)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task TheDiagnosticEndpoint_StillNeedsAToken()
+    {
+        using var server = await BuildServer(KnownIiifBuilder(),
+            flags: new FeatureFlagOptions { RequireKnownCaller = true, RequireCallerRole = true });
+
+        var response = await server.GetTestClient().GetAsync(DiagnosticPath, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task FlagsOff_TheDiagnosticEndpoint_BehavesAsAnyOther()
+    {
+        // With both flags off nothing changes: an unknown machine with no header is still a 401.
+        using var server = await BuildServer(KnownIiifBuilder(), flags: new FeatureFlagOptions());
+
+        var response = await Send(server, StubAuthHandler.AuthenticateUnknownMachineHeader, path: DiagnosticPath);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 }
 
@@ -510,4 +576,14 @@ public class SecureTestController : ControllerBase
     // claim that AuthFilterIdentifier synthesises straight from the X-Client-Identity header.
     [HttpGet]
     public IActionResult Get() => Ok(User.FindFirst("Name")?.Value ?? "authenticated-user");
+}
+
+[ApiController]
+[Route("diagnostic")]
+[ExemptFromCallerEnforcement]
+public class DiagnosticTestController : ControllerBase
+{
+    // Stands in for /whoami: exempt from the two Phase 4 flags, still behind authentication.
+    [HttpGet]
+    public IActionResult Get() => Ok(User.FindFirst("Name")?.Value ?? "no-name");
 }

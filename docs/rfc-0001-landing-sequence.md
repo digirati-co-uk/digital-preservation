@@ -267,7 +267,24 @@ and the e2e suite's machine caller included:
 - `RequireCallerRole`: every caller shows `hasCallerPermission: true` (the `Preservation.Call` app role,
   or the `access_as_user` delegated scope). Turning it on refuses (403) a token carrying neither.
 
-Turning a flag off again restores the previous behaviour at once, with no deploy. That is the
+**Callers nobody can run `/whoami` as.** The platform's own background work has no person behind it
+to make the check: the Pipeline API and the Deposit Archiver call the Preservation API with an app
+token and `X-Client-Identity: api-call`, and the Preservation API calls the Storage API the same
+way. For these the precondition is read from the logs instead. Each API logs one Warning per app ID
+that falls back to the header ("not resolved from KnownClients; falling back to self-asserted
+X-Client-Identity"). Before `RequireKnownCaller` goes on, restart both APIs so that warning is
+logged afresh, let a pipeline run, an import and an archive job go through, and confirm the warning
+does not appear. That is rung 4 done: those services mint as a registration that `KnownClients` names.
+
+**`/whoami` still answers a caller the flags refuse**, so the caller can see why. With a valid
+token, a machine that `KnownClients` doesn't name gets `source: unknown` and no `depositBucket`, and
+a caller without the role or scope gets `hasCallerPermission: false`. Every other endpoint gives
+them 403.
+
+**Turning a flag off again needs no code change and no release, but it is not instant.** In dev,
+test and production the flags are ECS environment variables set in Terraform, and environment
+variables are read once at startup. So it is a `terraform apply` and new tasks: minutes, on both
+APIs. Plan the production switch-on with that rollback time in mind. That is the
 standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
 flags on and one that has not started the ladder, so no future release can strand production behind
 the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after

@@ -23,8 +23,10 @@ public sealed class WhoAmIResult
     /// <summary>
     /// Bucket where this caller's deposits would be created — the caller's profile bucket if one is
     /// configured, otherwise the API's default working bucket. Callers may interact with it directly.
+    /// Null for an <c>unknown</c> caller: it can't create deposits, and has no business learning
+    /// the bucket's name.
     /// </summary>
-    public required string DepositBucket { get; init; }
+    public required string? DepositBucket { get; init; }
 
     /// <summary>
     /// Whether deposits in <see cref="DepositBucket"/> may run the pipeline (issue #410). Set by the
