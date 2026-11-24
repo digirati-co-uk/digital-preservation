@@ -32,6 +32,13 @@ public class ResourceMutator(
         
         MutateStorageBaseUris(storageResource);
 
+        if (storageResource is Binary binary)
+        {
+            // The Storage API's content URI is on a host that callers of this API can't reach,
+            // and this API has no content route. Files are fetched by requesting a download (#300, #456).
+            binary.Content = null;
+        }
+
         if (storageResource is Container container)
         {
             foreach (var childContainer in container.Containers)

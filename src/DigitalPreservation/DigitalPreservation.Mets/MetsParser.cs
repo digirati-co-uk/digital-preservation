@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
@@ -152,6 +153,19 @@ public class MetsParser(
 
         return latest;
     }
+
+    /// <summary>
+    /// The time a virus-check event says it happened, read the same way on every server: the
+    /// invariant culture, and UTC when the value names no zone. That covers what the platform has
+    /// written ("2026-03-18T12:00:00Z" since #221, "Wednesday, 18 March 2026" before it).
+    /// A date that is missing, blank or unreadable is not a reason to refuse the whole document
+    /// (#482), so it is treated as a missing one always was: the time of reading.
+    /// </summary>
+    internal static DateTime ReadEventDateTime(string? value) =>
+        DateTime.TryParse(value, CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var when)
+            ? when
+            : DateTime.UtcNow;
 
     /// <summary>
     /// Whether a digiprovMD holds one of our virus-scan events, judged by its premis:eventType.
@@ -732,8 +746,7 @@ public class MetsParser(
                         NotScanned = string.Equals(eventOutcome?.Value, Constants.VirusCheckNotScannedOutcome,
                             StringComparison.OrdinalIgnoreCase),
                         VirusFound = eventOutcomeDetailNote != null ? eventOutcomeDetailNote.Value : string.Empty,
-                        Timestamp = Convert.ToDateTime(
-                            eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow),
+                        Timestamp = ReadEventDateTime(eventDatetime?.Value),
                         VirusDefinition = eventDetail != null ? eventDetail.Value : string.Empty
                     };
                 }

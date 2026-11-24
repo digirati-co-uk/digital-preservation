@@ -233,6 +233,97 @@ public class FileMetadataTests : MetsParserTestBase
         virus.VirusDefinition.Should().Be("ClamAV 1.4.3/27944");
     }
 
+    private static string VirusEventWithDate(string eventDateTime) => $"""
+        <mets:amdSec ID="ADM_EXTRA">
+          <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/safe.docx">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+              <mets:xmlData>
+                <premis:event>
+                  <premis:eventDateTime>{eventDateTime}</premis:eventDateTime>
+                  <premis:eventDetailInformation>
+                    <premis:eventDetail>ClamAV 1.4.3/27944</premis:eventDetail>
+                  </premis:eventDetailInformation>
+                  <premis:eventOutcomeInformation>
+                    <premis:eventOutcome>pass</premis:eventOutcome>
+                  </premis:eventOutcomeInformation>
+                </premis:event>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:digiprovMD>
+        </mets:amdSec>
+        """;
+
+    private VirusScanMetadata ParseVirusEventWithDate(string eventDateTime)
+    {
+        var xml = FullMets("ADM_objects/safe.docx", "objects/safe.docx", "application/msword", """
+            <premis:fixity>
+              <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+              <premis:messageDigest>safeFile</premis:messageDigest>
+            </premis:fixity>
+            """, VirusEventWithDate(eventDateTime));
+        return Parse(xml).Files[0].Metadata.OfType<VirusScanMetadata>().Single();
+    }
+
+    /// <summary>
+    /// A virus-check date the parser can't read used to throw, and the throw stopped the whole
+    /// METS loading (#482). The rest of the scan result is still worth having.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("not a date")]
+    public void Virus_scan_event_with_a_blank_or_unreadable_date_still_loads(string eventDateTime)
+    {
+        var before = DateTime.UtcNow;
+
+        var virus = ParseVirusEventWithDate(eventDateTime);
+
+        virus.HasVirus.Should().BeFalse();
+        virus.VirusDefinition.Should().Be("ClamAV 1.4.3/27944");
+        virus.Timestamp.Kind.Should().Be(DateTimeKind.Utc);
+        virus.Timestamp.Should().BeOnOrAfter(before, "an unreadable date is treated like a missing one");
+    }
+
+    [Fact]
+    public void Virus_scan_event_ISO_date_is_read_as_UTC()
+    {
+        var virus = ParseVirusEventWithDate("2026-03-18T12:00:00Z");
+
+        virus.Timestamp.Should().Be(new DateTime(2026, 3, 18, 12, 0, 0, DateTimeKind.Utc));
+        virus.Timestamp.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Fact]
+    public void Virus_scan_event_long_date_from_the_older_writer_is_read_as_that_day_in_UTC()
+    {
+        var virus = ParseVirusEventWithDate("Wednesday, 18 March 2026");
+
+        virus.Timestamp.Should().Be(new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc));
+        virus.Timestamp.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Theory]
+    [InlineData("en-GB")]
+    [InlineData("en-US")]
+    [InlineData("de-DE")]
+    public void Virus_scan_event_numeric_date_reads_the_same_under_every_server_culture(string culture)
+    {
+        var original = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo(culture);
+
+            var virus = ParseVirusEventWithDate("03/04/2026");
+
+            virus.Timestamp.Should().Be(new DateTime(2026, 3, 4, 0, 0, 0, DateTimeKind.Utc),
+                "the invariant culture reads month first, whatever the server is set to");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = original;
+        }
+    }
+
     [Fact]
     public void Virus_scan_fail_event_produces_metadata_with_HasVirus_true()
     {
