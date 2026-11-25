@@ -159,51 +159,9 @@ public class DepositsController(
         var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, manifestUrl, iiifBaseUrl, mediaServerBaseUrl));
         if (manifestResult is { Success: true, Value: not null })
         {
-            Response.Headers["X-IIIF-Post-Url"] = manifestUrl;
             return Content(manifestResult.Value.AsJson(), "application/json");
         }
         return this.StatusResponseFromResult(manifestResult);
-    }
-
-    [AllowAnonymous]
-    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
-    [EnableCors("AllowAll")]
-    [HttpPost("{id}/iiif-token/{token}", Name = "PostIIIFManifestToDepositWithToken")]
-    public async Task<IActionResult> PostIIIFManifestToDepositWithToken([FromRoute] string id, [FromRoute] string token)
-    {
-        if (!tokenService.IsValidForDeposit(token, id))
-            return this.IiifSessionExpiredResult();
-
-        string rawJson;
-        using (var reader = new System.IO.StreamReader(Request.Body))
-            rawJson = await reader.ReadToEndAsync();
-
-        Manifest? manifest;
-        try
-        {
-            manifest = IIIFSerialiserX.FromJson<Manifest>(rawJson);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {Id}", id);
-            return this.ProblemFor(ErrorCodes.BadRequest, ex.Message, "Invalid IIIF Manifest");
-        }
-
-        if (manifest is null)
-        {
-            logger.LogWarning("POSTed IIIF manifest for deposit {Id} deserialised to null", id);
-            return this.ProblemFor(ErrorCodes.BadRequest, "The request body did not contain a manifest.", "Invalid IIIF Manifest");
-        }
-
-        var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-        var iiifBaseUrl = $"{root}/deposits/{id}/iiif/";
-
-        var result = await mediator.Send(
-            new UpdateLogicalStructMapsFromManifest(id, manifest, iiifBaseUrl, rawJson));
-
-        if (result.Success)
-            return NoContent();
-        return this.StatusResponseFromResult(result);
     }
 
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]

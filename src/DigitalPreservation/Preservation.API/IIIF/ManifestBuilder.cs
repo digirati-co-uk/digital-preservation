@@ -3,7 +3,6 @@ using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
-using IIIF;
 using IIIF.Presentation;
 using IIIF.Presentation.V3;
 using IIIF.Presentation.V3.Annotation;
@@ -99,8 +98,15 @@ public class ManifestBuilder
         return canvas;
     }
 
-    // One branch per media type; a file whose extents don't support its type falls through to the
-    // placeholder, whose rendering link still reaches the binary.
+    // Every canvas is a placeholder (issue #261). The platform holds only the originals - a master
+    // TIFF, an archival video - and nothing web-friendly is made from them until a downstream
+    // builder registers them with IIIF-CS, so there is nothing to paint but a stand-in image. The
+    // rendering link reaches the original.
+    //
+    // The canvas keeps the file's own extents when it has them, so that range fragments (xywh, t=)
+    // stay in the file's coordinates and the real asset can later be painted on the same canvas.
+    // The placeholder image is painted over the whole canvas; without extents, the canvas takes
+    // the placeholder's size.
     private static void SetPaintingBody(
         Canvas canvas,
         PaintingAnnotation paintingAnno,
@@ -109,100 +115,43 @@ public class ManifestBuilder
         string? mediaServerBaseUrl,
         Func<WorkingFile, string>? originUriResolver)
     {
-        var contentType = file.ContentType!; // the caller has already skipped files with no content type
-
-        // Image in Deposit: IIIF image service for mediaServer, scaled JPEG + thumbnail
-        if (contentType.StartsWith("image/") && canvas is { Width: > 0, Height: > 0 } && originUriResolver == null)
+        if (canvas is not { Width: > 0, Height: > 0 })
         {
-            var size = new Size(canvas.Width.Value, canvas.Height.Value);
-            var mainSize = Size.Confine(1200, size);
-            var thumbSize = Size.Confine(100, size);
-            paintingAnno.Body = new Image
-            {
-                Id = $"{mediaServerBaseUrl}imagesvc/{escapedLocal}/full/{mainSize.Width},{mainSize.Height}/0/default.jpg",
-                Width = mainSize.Width,
-                Height = mainSize.Height,
-                Format = "image/jpeg"
-            };
-            canvas.Thumbnail =
-            [
-                new Image
-                {
-                    Id = $"{mediaServerBaseUrl}imagesvc/{escapedLocal}/full/{thumbSize.Width},{thumbSize.Height}/0/default.jpg",
-                    Width = thumbSize.Width,
-                    Height = thumbSize.Height,
-                    Format = "image/jpeg"
-                }
-            ];
+            canvas.Width = PlaceholderWidth;
+            canvas.Height = PlaceholderHeight;
         }
-        else if (contentType.StartsWith("image/") && originUriResolver != null)
+        canvas.Behavior = ["placeholder"];
+        paintingAnno.Body = new Image
         {
-            paintingAnno.Body = new Image
+            Id = $"{mediaServerBaseUrl}placeholder/canvas.png",
+            Width = PlaceholderWidth,
+            Height = PlaceholderHeight,
+            Format = "image/png"
+        };
+        canvas.Thumbnail =
+        [
+            new Image
             {
-                Id = originUriResolver(file),
-                Width = canvas.Width,
-                Height = canvas.Height,
-                Format = file.ContentType
-            };
-        }
-        // Video/audio: body type, structure, and rendering are the same in both modes — only the ID differs.
-        else if (contentType.StartsWith("video/") && canvas is { Width: > 0, Height: > 0, Duration: > 0 })
-        {
-            var id = originUriResolver?.Invoke(file) ?? $"{mediaServerBaseUrl}video/{escapedLocal}";
-            paintingAnno.Body = new Video
-            {
-                Id = id,
-                Width = canvas.Width,
-                Height = canvas.Height,
-                Duration = canvas.Duration,
-                Format = file.ContentType
-            };
-        }
-        else if (contentType.StartsWith("audio/") && canvas is { Duration: > 0 })
-        {
-            var id = originUriResolver?.Invoke(file) ?? $"{mediaServerBaseUrl}audio/{escapedLocal}";
-            paintingAnno.Body = new Sound
-            {
-                Id = id,
-                Duration = canvas.Duration,
-                Format = file.ContentType
-            };
-        }
-        // Placeholder: ExternalResource has no extents, there is no painting body. —
-        // the canvas carries only a rendering link pointing to the binary.
-        else
-        {
-            canvas.Behavior = ["placeholder"];
-            var id = originUriResolver?.Invoke(file) ?? $"{mediaServerBaseUrl}file/{escapedLocal}";
-            paintingAnno.Body = new Image
-            {
-                Id = $"{mediaServerBaseUrl}placeholder/canvas.png",
-                Width = 1000,
-                Height = 800,
+                Id = $"{mediaServerBaseUrl}placeholder/thumb.png",
+                Width = 100,
+                Height = 80,
                 Format = "image/png"
-            };
-            canvas.Thumbnail =
-            [
-                new Image
-                {
-                    Id = $"{mediaServerBaseUrl}placeholder/thumb.png",
-                    Width = 100,
-                    Height = 80,
-                    Format = "image/png"
-                }
-            ];
-            canvas.Rendering =
-            [
-                new ExternalResource("Text")
-                {
-                    Id = id,
-                    Format = file.ContentType,
-                    Behavior = ["original"],
-                    Label = canvas.Label
-                }
-            ];
-        }
+            }
+        ];
+        canvas.Rendering =
+        [
+            new ExternalResource(GetDcType(file.ContentType))
+            {
+                Id = originUriResolver?.Invoke(file) ?? $"{mediaServerBaseUrl}file/{escapedLocal}",
+                Format = file.ContentType,
+                Behavior = ["original"],
+                Label = canvas.Label
+            }
+        ];
     }
+
+    private const int PlaceholderWidth = 1000;
+    private const int PlaceholderHeight = 800;
 
     // Collect all links into a single AnnotationPage
     private static void AddLinkAnnotations(
@@ -270,6 +219,11 @@ public class ManifestBuilder
         if (targetContentType.StartsWith("audio/", StringComparison.InvariantCultureIgnoreCase))
         {
             return "Sound";
+        }
+        if (targetContentType.StartsWith("text/", StringComparison.InvariantCultureIgnoreCase)
+            || targetContentType.Equals("application/pdf", StringComparison.InvariantCultureIgnoreCase))
+        {
+            return "Text";
         }
         return "Dataset";
     }

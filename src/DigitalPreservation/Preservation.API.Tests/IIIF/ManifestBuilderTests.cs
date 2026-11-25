@@ -59,100 +59,69 @@ public class ManifestBuilderTests
     private static global::IIIF.Presentation.V3.ResourceBase GetBody(Canvas canvas) =>
         (global::IIIF.Presentation.V3.ResourceBase)GetPainting(canvas).Body!;
 
-    // ─── deposit IIIF: image ─────────────────────────────────────────────────────
+    // ─── deposit IIIF: every canvas is a placeholder (issue #261) ───────────────
 
-    [Fact]
-    public void Image_WithDimensions_HasImageServicePaintingBody()
+    public static IEnumerable<object[]> EveryKindOfFile()
     {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/img.tif", "image/tiff", 2000, 3000)));
-        var body = GetBody(SingleCanvas(manifest));
-        body.Should().BeOfType<Image>();
-        body.Id.Should().StartWith($"{MediaUrl}imagesvc/objects/img.tif/full/");
-        ((Image)body).Format.Should().Be("image/jpeg");
+        yield return [MakeFile("objects/img.tif", "image/tiff", 2000, 3000)];
+        yield return [MakeFile("objects/img-no-extents.tif", "image/tiff")];
+        yield return [MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0)];
+        yield return [MakeFile("objects/track.mp3", "audio/mpeg", duration: 300.0)];
+        yield return [MakeFile("objects/doc.pdf", "application/pdf")];
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryKindOfFile))]
+    public void Every_Kind_Of_File_Is_A_Placeholder_With_The_Original_As_Rendering(WorkingFile file)
+    {
+        var canvas = SingleCanvas(BuildDeposit(Wrapper(file)));
+
+        canvas.Behavior.Should().Equal("placeholder");
+        var body = GetBody(canvas).Should().BeOfType<Image>().Subject;
+        body.Id.Should().Be($"{MediaUrl}placeholder/canvas.png");
+        body.Format.Should().Be("image/png");
+        canvas.Thumbnail!.Single().Id.Should().Be($"{MediaUrl}placeholder/thumb.png");
+
+        var rendering = canvas.Rendering!.Single();
+        rendering.Id.Should().Be($"{MediaUrl}file/{file.LocalPath}");
+        rendering.Format.Should().Be(file.ContentType);
+        rendering.Behavior.Should().Equal("original");
     }
 
     [Fact]
-    public void Image_WithDimensions_HasThumbnail()
+    public void A_Canvas_Keeps_The_Files_Own_Extents()
     {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/img.tif", "image/tiff", 2000, 3000)));
-        var canvas = SingleCanvas(manifest);
-        canvas.Thumbnail.Should().NotBeNullOrEmpty();
-        canvas.Thumbnail![0].Id.Should().StartWith($"{MediaUrl}imagesvc/objects/img.tif/full/");
+        // So range fragments stay in the file's coordinates, and the real asset can later be
+        // painted on the same canvas.
+        var video = SingleCanvas(BuildDeposit(Wrapper(MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0))));
+
+        video.Width.Should().Be(1920);
+        video.Height.Should().Be(1080);
+        video.Duration.Should().Be(120.0);
     }
 
     [Fact]
-    public void Image_WithoutDimensions_UsesPlaceholderBody()
+    public void A_Canvas_Without_Extents_Takes_The_Placeholders_Size()
     {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/img.tif", "image/tiff")));
-        var canvas = SingleCanvas(manifest);
-        canvas.Behavior.Should().Contain("placeholder");
-        GetBody(canvas).Id.Should().Be($"{MediaUrl}placeholder/canvas.png");
+        var canvas = SingleCanvas(BuildDeposit(Wrapper(MakeFile("objects/doc.pdf", "application/pdf"))));
+
+        canvas.Width.Should().Be(1000);
+        canvas.Height.Should().Be(800);
+        canvas.Duration.Should().BeNull();
     }
 
-    // ─── deposit IIIF: video ─────────────────────────────────────────────────────
-
-    [Fact]
-    public void Video_WithExtents_HasVideoBody()
+    [Theory]
+    [InlineData("image/tiff", "Image")]
+    [InlineData("video/mp4", "Video")]
+    [InlineData("audio/mpeg", "Sound")]
+    [InlineData("application/pdf", "Text")]
+    [InlineData("text/plain", "Text")]
+    [InlineData("application/zip", "Dataset")]
+    public void The_Rendering_Has_The_Files_Own_Type(string contentType, string expectedType)
     {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0)));
-        var body = GetBody(SingleCanvas(manifest));
-        body.Should().BeOfType<Video>();
-        body.Id.Should().Be($"{MediaUrl}video/objects/clip.mp4");
-        ((Video)body).Format.Should().Be("video/mp4");
-        ((Video)body).Duration.Should().Be(120.0);
-    }
+        var canvas = SingleCanvas(BuildDeposit(Wrapper(MakeFile("objects/f", contentType))));
 
-    [Fact]
-    public void Video_WithExtents_HasNoRendering()
-    {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0)));
-        SingleCanvas(manifest).Rendering.Should().BeNull();
-    }
-
-    
-    [Fact]
-    public void Video_WithoutExtents_HasRendering()
-    {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/clip.mp4", "video/mp4")));
-        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be($"{MediaUrl}file/objects/clip.mp4");
-    }
-    
-    // ─── deposit IIIF: audio ─────────────────────────────────────────────────────
-
-    [Fact]
-    public void Audio_WithDuration_HasSoundBody()
-    {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/track.mp3", "audio/mpeg", duration: 300.0)));
-        var body = GetBody(SingleCanvas(manifest));
-        body.Should().BeOfType<Sound>();
-        body.Id.Should().Be($"{MediaUrl}audio/objects/track.mp3");
-        ((Sound)body).Format.Should().Be("audio/mpeg");
-    }
-
-    [Fact]
-    public void Audio_WithDuration_HasNoRendering()
-    {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/track.mp3", "audio/mpeg", duration: 300.0)));
-        SingleCanvas(manifest).Rendering.Should().BeNull();
-    }
-
-    [Fact]
-    public void Audio_WithoutDuration_HasRendering()
-    {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/track.mp3", "audio/mpeg")));
-        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be($"{MediaUrl}file/objects/track.mp3");
-    }
-    
-    // ─── deposit IIIF: unknown type ──────────────────────────────────────────────
-
-    [Fact]
-    public void UnknownContentType_UsesPlaceholderBody_AndFileRendering()
-    {
-        var manifest = BuildDeposit(Wrapper(MakeFile("objects/doc.pdf", "application/pdf")));
-        var canvas = SingleCanvas(manifest);
-        canvas.Behavior.Should().Contain("placeholder");
-        GetBody(canvas).Id.Should().Be($"{MediaUrl}placeholder/canvas.png");
-        canvas.Rendering!.Single().Id.Should().Be($"{MediaUrl}file/objects/doc.pdf");
+        canvas.Rendering!.Single().Type.Should().Be(expectedType);
     }
 
     // ─── deposit IIIF: filtering ─────────────────────────────────────────────────
@@ -284,81 +253,17 @@ public class ManifestBuilderTests
 
     // ─── AG IIIF: origin URI resolver ────────────────────────────────────────────
 
-    [Fact]
-    public void OriginUri_Image_UsesResolvedUriAsBody()
+    [Theory]
+    [MemberData(nameof(EveryKindOfFile))]
+    public void OriginUri_Is_The_Rendering_And_The_Canvas_Is_Still_A_Placeholder(WorkingFile file)
     {
-        var file = MakeFile("objects/img.tif", "image/tiff", 2000, 3000);
-        const string origin = "https://host/repository/ag/objects/img.tif";
+        const string origin = "https://host/repository/ag/objects/the-file";
 
-        var manifest = BuildWithOriginUris(Wrapper(file), _ => origin);
+        var canvas = SingleCanvas(BuildWithOriginUris(Wrapper(file), _ => origin));
 
-        var body = GetBody(SingleCanvas(manifest));
-        body.Should().BeOfType<Image>();
-        body.Id.Should().Be(origin);
-        ((Image)body).Format.Should().Be("image/tiff");
-    }
-
-    [Fact]
-    public void OriginUri_Image_HasNoDimensionBasedThumbnail()
-    {
-        var file = MakeFile("objects/img.tif", "image/tiff", 2000, 3000);
-
-        var manifest = BuildWithOriginUris(Wrapper(file), _ => "https://host/img.tif");
-
-        SingleCanvas(manifest).Thumbnail.Should().BeNullOrEmpty();
-    }
-
-    [Fact]
-    public void OriginUri_Video_UsesResolvedUriAsBody_NoRendering()
-    {
-        var file = MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0);
-        const string origin = "https://host/repository/ag/objects/clip.mp4";
-
-        var manifest = BuildWithOriginUris(Wrapper(file), _ => origin);
-
-        var body = GetBody(SingleCanvas(manifest));
-        body.Should().BeOfType<Video>();
-        body.Id.Should().Be(origin);
-        SingleCanvas(manifest).Rendering.Should().BeNull();
-    }
-
-    [Fact]
-    public void OriginUri_Audio_UsesResolvedUriAsBody()
-    {
-        var file = MakeFile("objects/track.mp3", "audio/mpeg", duration: 60.0);
-        const string origin = "https://host/repository/ag/objects/track.mp3";
-
-        var manifest = BuildWithOriginUris(Wrapper(file), _ => origin);
-
-        var body = GetBody(SingleCanvas(manifest));
-        body.Should().BeOfType<Sound>();
-        body.Id.Should().Be(origin);
-    }
-
-    [Fact]
-    public void OriginUri_OtherType_HasPlaceholderBehavior()
-    {
-        var file = MakeFile("objects/doc.pdf", "application/pdf");
-        const string origin = "https://host/repository/ag/objects/doc.pdf";
-
-        var manifest = BuildWithOriginUris(Wrapper(file), _ => origin);
-
-        var canvas = SingleCanvas(manifest);
-        canvas.Behavior.Should().Contain("placeholder");
-        GetBody(canvas).Id.Should().Be("placeholder/canvas.png");
+        canvas.Behavior.Should().Equal("placeholder");
+        GetBody(canvas).Id.Should().NotBe(origin, "the original is never painted");
         canvas.Rendering!.Single().Id.Should().Be(origin);
-    }
-
-    [Fact]
-    public void OriginUri_Image_WithoutDimensions_StillUsesImageBody()
-    {
-        var file = MakeFile("objects/img.tif", "image/tiff");  // no extents
-        const string origin = "https://host/repository/ag/objects/img.tif";
-
-        var manifest = BuildWithOriginUris(Wrapper(file), _ => origin);
-
-        GetBody(SingleCanvas(manifest)).Should().BeOfType<Image>();
-        GetBody(SingleCanvas(manifest)).Id.Should().Be(origin);
     }
 
     [Fact]

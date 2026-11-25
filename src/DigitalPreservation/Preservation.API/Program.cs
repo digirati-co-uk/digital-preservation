@@ -103,8 +103,7 @@ try
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()
-                  .WithExposedHeaders("X-IIIF-Post-Url"));
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
     });
 
     builder.Services
