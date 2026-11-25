@@ -209,14 +209,14 @@ The importer and both APIs reach Fedora, and the importer and the UI reach Stora
 
 ### Fedora and importer task retirements
 
-AWS retires Fargate tasks for patching about once a week, at a time it chooses, and starts each replacement before it stops the old task. For Fedora that means two Fedoras on one OCFL store for a while; for the importer, a running import is killed, and the heartbeat reap above eventually fails it. It happened to production Fedora on 9, 17 and 29 October 2026, and to the production importer on 10 November 2026, with no deploy (#464).
+AWS retires Fargate tasks for patching about once a week, at a time it chooses. Fedora's service stops the old task before starting the new one (#441), so for Fedora a retirement is an outage of a few minutes that fails any import in flight. For the importer, a running import is killed, and the heartbeat reap above eventually fails it. Before #441, ECS started the replacement first: production ran two Fedoras on one OCFL store on 9, 17 and 29 October 2026, and the production importer was replaced on 10 November 2026, with no deploy (#464).
 
 preservation-ops (#464) sends these to the ops Slack channel:
 
 | Alert | Means |
 |---|---|
 | **ECS task retirement scheduled** | AWS has scheduled tasks for retirement. The message gives the start of the window and the affected tasks, for every environment. AWS gives 14 days' notice. |
-| `{env}-fedora-more-than-one-healthy` | Two Fedora tasks are healthy at once. Expected briefly during a Fedora deploy; otherwise a retirement is under way, or an old task hasn't stopped. |
+| `{env}-fedora-more-than-one-healthy` | Two Fedora tasks are healthy at once. Since #441 this shouldn't happen, even during a deploy: an old task hasn't stopped, or the service has lost its deployment settings. Stop the older task. |
 | `{env}-fedora-unhealthy` | A Fedora task has failed its health check for 3 minutes. |
 | `{env}-fedora-not-running` | No Fedora task has run for 3 minutes. |
 | `{env}-fedora-staging-disk-filling` | Fedora's EBS volume, where it stages transactions before committing them to S3, is over 80% full. |
@@ -226,7 +226,7 @@ preservation-ops (#464) sends these to the ops Slack channel:
 1. Pick a quiet time, before the window's start, when nobody is depositing.
 2. Check no import is running. On the Storage API database, `select id, archival_group from import_jobs where active and last_heartbeat > now() - interval '2 minutes'` should return nothing; wait for any job it returns to finish. An active job with no recent heartbeat is still queued, and survives a restart in SQS.
 3. Restart the service: `aws ecs update-service --cluster <cluster> --service <service> --force-new-deployment`. The new task runs on patched infrastructure, so AWS won't retire it.
-4. For Fedora, expect the more-than-one-healthy alarm while the new task starts, and its recovery once the old task stops. If it doesn't recover within a few minutes, stop the old task by hand.
+4. For Fedora, expect it to be unavailable while the old task stops and the new one starts on a new EBS volume. If that takes more than 3 minutes, the not-running alarm fires, and recovers once the new task is running. The more-than-one-healthy alarm should stay OK; if it fires, stop the older task by hand.
 
 A notice for any other service needs no action beyond a restart at a convenient time: the APIs and the UI hold no long-running work.
 
