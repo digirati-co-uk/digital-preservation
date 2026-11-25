@@ -130,7 +130,7 @@ The same sections as the Storage API, minus everything to do with serving HTTP: 
 | `DisableAuth` | Preservation API, Storage API, Importer | Removes authentication entirely. Local development only. |
 | `UseLocalHostedServiceForImport` | Storage API | `true` runs imports in the Storage API process; `false` publishes them to SNS for the Importer. |
 | `UseLocalHostedServiceForExport` | Storage API | Must be `true`. See [Import processing](#import-processing). |
-| `EnableIiifMediaEndpoints` | Preservation API | Enables the anonymous IIIF Manifest and media routes for a Deposit. |
+| `EnableIiifMediaEndpoints` | Preservation API | Enables the anonymous, tokenised IIIF Manifest of a Deposit. The name is historical: the media routes it once also enabled were removed (#261). The placeholder images the manifest paints are always on. |
 | `EnableMetsIdNormalisation` | Preservation API | Enables the METS identifier normalisation endpoint and the activity-suppression it needs. |
 | `NormaliseMetsIdsOnWrite` | Anything that writes METS | Normalises identifiers every time a METS file is written, rather than only on request. |
 | `ShowPipeline`, `ShowNormaliseMetsIds` | Preservation UI | Show or hide those actions in the interface. |

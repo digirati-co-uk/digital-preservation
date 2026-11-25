@@ -72,4 +72,11 @@
     <Content Update="AccessConditionProfiles\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The typeface of the IIIF placeholder images (issue #261): Public Sans, SIL OFL 1.1 (see the
+         licence beside it). Under Resources/, not wwwroot/, so it is copied to the output without being
+         served as a static file. -->
+    <None Include="Resources\placeholders\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

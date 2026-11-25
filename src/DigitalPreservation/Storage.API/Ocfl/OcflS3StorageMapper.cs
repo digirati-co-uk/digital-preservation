@@ -99,7 +99,8 @@ public class OcflS3StorageMapper(
                 ObjectPath = agOrigin!,
                 AllVersions = inventoryVersions.ToArray(),
                 Files = mapFiles,
-                Hashes = hashes
+                Hashes = hashes,
+                FormerFiles = FormerFiles.Of(inventory, objectVersion.OcflVersion!, IsFedoraMetadata)
             };
         }
         else

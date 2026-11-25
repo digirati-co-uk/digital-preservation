@@ -155,8 +155,7 @@ public class DepositsController(
         var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var manifestUrl = Request.GetDisplayUrl();
         var iiifBaseUrl = $"{root}/deposits/{id}/iiif/";
-        var mediaServerBaseUrl = $"{root}/media/{token}/deposit/{id}/";
-        var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, manifestUrl, iiifBaseUrl, mediaServerBaseUrl));
+        var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, manifestUrl, iiifBaseUrl, root));
         if (manifestResult is { Success: true, Value: not null })
         {
             return Content(manifestResult.Value.AsJson(), "application/json");

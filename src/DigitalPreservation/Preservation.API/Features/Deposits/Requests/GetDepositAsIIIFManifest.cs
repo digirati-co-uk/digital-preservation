@@ -1,9 +1,12 @@
-﻿using DigitalPreservation.Common.Model.PreservationApi;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Mets;
+using DigitalPreservation.Mets.AccessConditions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using IIIF.Presentation.V3;
+using IIIF.Presentation.V3.Content;
 using IIIF.Presentation.V3.Strings;
 using MediatR;
 using Preservation.API.Data;
@@ -13,13 +16,20 @@ using Storage.Client;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class GetDepositAsIIIFManifest(string id, string tokenBaseUrl, string plainBaseUrl, string mediaServerBaseUrl) : IRequest<Result<Manifest>>
+/// <summary>
+/// A Deposit projected as a vanilla IIIF Manifest (issue #261). Every canvas is a placeholder, and
+/// no canvas links to its file: a Deposit's files are reachable only through the UI and the API.
+/// </summary>
+/// <param name="id">The Deposit.</param>
+/// <param name="tokenBaseUrl">The manifest's id: the tokenised URL it is served from.</param>
+/// <param name="plainBaseUrl">Base (trailing slash) of canvas and range ids.</param>
+/// <param name="root">The API's own base URI, no trailing slash.</param>
+public class GetDepositAsIIIFManifest(string id, string tokenBaseUrl, string plainBaseUrl, string root) : IRequest<Result<Manifest>>
 {
     public string Id { get; } = id;
     public string TokenBaseUrl { get; } = tokenBaseUrl;
     public string PlainBaseUrl { get; } = plainBaseUrl;
-
-    public string MediaServerBaseUrl { get; } = mediaServerBaseUrl;
+    public string Root { get; } = root;
 }
 
 public class GetDepositAsIIIFManifestHandler(
@@ -29,7 +39,8 @@ public class GetDepositAsIIIFManifestHandler(
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
     WorkspaceManagerFactory workspaceManagerFactory,
-    ManifestBuilder manifestBuilder) : 
+    IDerivedAccessConditionResolver derivedResolver,
+    ManifestProjection projection) : 
     GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory, metsParser), IRequestHandler<GetDepositAsIIIFManifest, Result<Manifest>>
 {
     public async Task<Result<Manifest>> Handle(GetDepositAsIIIFManifest request, CancellationToken cancellationToken)
@@ -47,7 +58,31 @@ public class GetDepositAsIIIFManifestHandler(
         var deposit = getDepositResult.Value;
         var wrapper = wrapperResult.Value!;
         var manifest = MakeDepositManifest(deposit, wrapper, request.TokenBaseUrl);
-        manifestBuilder.MakeCanvasesAndRanges(manifest, wrapper, request.PlainBaseUrl, request.MediaServerBaseUrl);
+        manifest.SeeAlso =
+        [
+            new ExternalResource("Dataset")
+            {
+                Id = $"{request.Root}/deposits/{request.Id}/mets",
+                Format = "application/xml",
+                Profile = "http://www.loc.gov/METS/",
+                Label = new LanguageMap("en", "METS")
+            },
+            new ExternalResource("Dataset")
+            {
+                Id = $"{request.Root}/deposits/{request.Id}",
+                Format = "application/json",
+                Label = new LanguageMap("en", "Deposit")
+            }
+        ];
+        projection.Project(manifest, wrapper, new ProjectionContext
+        {
+            Kind = ManifestKind.Vanilla,
+            IdBase = request.PlainBaseUrl,
+            PlaceholderBase = $"{request.Root}/placeholders/",
+            // Ids as the files will have them once preserved, when the Deposit names its Archival Group.
+            PathPrefix = deposit.ArchivalGroup?.GetPathUnderRoot() is { } agPath ? Uri.UnescapeDataString(agPath) : null,
+            DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken)
+        });
         return Result.OkNotNull(manifest);
     }
 

@@ -47,6 +47,17 @@ public class StorageMap
     [JsonPropertyName("archivalGroup")]
     [JsonPropertyOrder(8)]
     public required Uri ArchivalGroup { get; set; }
+
+    /// <summary>
+    /// Every file that some earlier version had and this version does not, keyed by its relative
+    /// path, with where its content was the last time it was there. A rename shows here under its
+    /// old path. Lets a consumer that registered files elsewhere (a IIIF builder, issue #261) find
+    /// what to remove without knowing which versions it has already processed.
+    /// </summary>
+    [JsonPropertyName("formerFiles")]
+    [JsonPropertyOrder(9)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, FormerOriginFile>? FormerFiles { get; set; }
 }
 
 public class OriginFile
@@ -63,4 +74,12 @@ public class OriginFile
     {
         return FullPath;
     }
+}
+
+public class FormerOriginFile : OriginFile
+{
+    /// <summary>The last version the file was in, e.g. <c>v3</c>.</summary>
+    [JsonPropertyName("lastVersion")]
+    [JsonPropertyOrder(3)]
+    public required string LastVersion { get; set; }
 }
