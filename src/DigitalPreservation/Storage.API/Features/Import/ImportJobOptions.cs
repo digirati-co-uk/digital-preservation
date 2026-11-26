@@ -1,4 +1,4 @@
-namespace Storage.API.Features.Import;
+﻿namespace Storage.API.Features.Import;
 
 /// <summary>
 /// Configuration for import job execution, bound once (in Storage.API.Infrastructure.ServiceCollectionX.AddStorageCore)
@@ -30,6 +30,13 @@ public class ImportJobOptions
     /// Archival Group, not just one a caller happens to be touching right now.
     /// </summary>
     public int ReapSweepIntervalMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// How long <see cref="ImportJobCommitReconciler"/> waits for Fedora to finish an interrupted
+    /// commit before recording that its outcome couldn't be confirmed (issue #444). Long: our largest
+    /// measured commit took 22 minutes, and nothing in Fedora aborts a slow one.
+    /// </summary>
+    public int CommitReconcileGiveUpMinutes { get; set; } = 12 * 60;
 
     /// <summary>
     /// If the interval were ever configured at or above the window, a live job's own gaps between

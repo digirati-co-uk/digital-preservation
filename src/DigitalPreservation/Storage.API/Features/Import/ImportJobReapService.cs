@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 
 namespace Storage.API.Features.Import;
 
@@ -37,6 +37,15 @@ public class ImportJobReapService(
                 else if (result.Value > 0)
                 {
                     logger.LogWarning("Import job reap sweep reaped {Count} stale job(s)", result.Value);
+                }
+
+                // Stale jobs whose commit had started aren't reaped above: their outcome is decided
+                // from Fedora and S3 instead (issue #444).
+                var reconciler = scope.ServiceProvider.GetRequiredService<ImportJobCommitReconciler>();
+                var reconciled = await reconciler.ReconcileStaleCommits(stoppingToken);
+                if (reconciled.Failure)
+                {
+                    logger.LogError("Import job commit reconciliation failed: {Message}", reconciled.ErrorMessage);
                 }
             }
         }

@@ -71,6 +71,14 @@ namespace Storage.API.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("archival_group");
 
+                    b.Property<DateTime?>("CommitStarted")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("commit_started");
+
+                    b.Property<string>("CommitTransaction")
+                        .HasColumnType("text")
+                        .HasColumnName("commit_transaction");
+
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("end_time");
@@ -98,6 +106,11 @@ namespace Storage.API.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_import_jobs");
+
+                    b.HasIndex("ArchivalGroup")
+                        .IsUnique()
+                        .HasDatabaseName("ix_import_jobs_archival_group_one_active")
+                        .HasFilter("active");
 
                     b.ToTable("import_jobs", (string)null);
                 });

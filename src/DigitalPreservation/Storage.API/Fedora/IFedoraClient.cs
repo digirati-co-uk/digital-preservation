@@ -33,7 +33,14 @@ public interface IFedoraClient
     Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
     Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null);
     Task<Result<ObjectVersion>> GetArchivalGroupVersion(string? pathUnderFedoraRoot, Transaction? transaction = null);
-    
+
+    /// <summary>
+    /// How many versions Fedora itself lists for a resource (its fcr:versions), as opposed to
+    /// <see cref="GetArchivalGroupVersion"/>, which reads the OCFL inventory in S3. The two disagree
+    /// when Fedora died between OCFL committing a version and its own database committing (issue #459).
+    /// </summary>
+    Task<Result<int>> GetFedoraVersionCount(string? pathUnderFedoraRoot);
+
     // This is the only operation that takes a version
     Task<Result<PreservedResource?>> GetResourceLightweight(string? pathUnderFedoraRoot, string? version, Transaction? transaction = null);
     

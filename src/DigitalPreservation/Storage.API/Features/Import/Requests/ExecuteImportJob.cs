@@ -1,7 +1,6 @@
 ﻿using Storage.API.Fedora.Model;
 using System.Diagnostics;
 using System.Net;
-using Amazon.S3;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -29,14 +28,6 @@ public class ExecuteImportJobHandler(
     private readonly Func<TimeSpan, CancellationToken, Task> delay = delayOverride ?? Task.Delay;
 
     /// <summary>
-    /// How many times <see cref="Handle"/>'s commit-outcome verification re-reads the Archival
-    /// Group's version before giving up (issue #383 review point 1d). Exponential backoff between
-    /// attempts (2s, 4s, 8s, 16s - about 30s total) gives Fedora time to actually finish a commit
-    /// that was still running when the PUT's own response became untrustworthy.
-    /// </summary>
-    private const int CommitVerificationMaxAttempts = 5;
-
-    /// <summary>
     /// Upper bound for how long to poll the transaction itself, waiting for it to stop reporting as
     /// mid-commit, before giving up on verifying a commit whose own response couldn't be trusted (a
     /// connection error, or an ALB 502/503/504 - issue #383's second review). Generous because
@@ -47,19 +38,6 @@ public class ExecuteImportJobHandler(
     private static readonly TimeSpan TransactionFinishMaxWait = TimeSpan.FromHours(1);
 
     private static readonly TimeSpan TransactionFinishPollInterval = TimeSpan.FromSeconds(30);
-
-    /// <summary>
-    /// Distinguishes "the Archival Group's version genuinely never moved" from "the check itself
-    /// never got a trustworthy read" (issue #383 review point 1d) - collapsing these into one bool,
-    /// as the pre-review version did, reported a transient read failure exactly the same way as a
-    /// real, checked non-commit.
-    /// </summary>
-    private enum CommitVerification
-    {
-        Confirmed,
-        ConfirmedNotCommitted,
-        CouldNotConfirm
-    }
 
     private static bool IsTransientGatewayStatus(HttpStatusCode statusCode) =>
         statusCode is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
@@ -74,6 +52,7 @@ public class ExecuteImportJobHandler(
         var start = DateTime.UtcNow;
         
         var importJobResult = request.InitialImportJobResult;
+        var commitOutcomeVerifier = new CommitOutcomeVerifier(fedoraClient, logger, delay);
         importJobResult.Status = ImportJobStates.Running;
         importJobResult.DateBegun = start;
         importJobResult.LastModified = start;
@@ -393,6 +372,22 @@ public class ExecuteImportJobHandler(
                 return lostBeforeCommit;
             }
 
+            // Issue #444: from the commit PUT on, Fedora may finish the commit even if this process
+            // dies, so record that it started - with the transaction, and the source version and lists
+            // in the result - before sending it. A stale job with this record is reconciled from
+            // Fedora and S3 (ImportJobCommitReconciler) rather than reaped as failed. If the row is no
+            // longer Active it was reaped before this point: nothing is committed yet, so roll back.
+            var recordedCommit = await importJobResultStore.RecordCommitStarted(
+                request.JobIdentifier, importJobResult, transaction.Location, cancellationToken);
+            if (recordedCommit.Failure || !recordedCommit.Value)
+            {
+                return await FailEarly(
+                    recordedCommit.Failure
+                        ? "Could not record the commit as started, so it was not attempted: " + recordedCommit.ErrorMessage
+                        : "Import job was already reaped as abandoned (stale heartbeat) before its commit",
+                    ErrorCodes.Conflict);
+            }
+
             logger.LogInformation("(TX) Committing Fedora transaction {TransactionLocation}", transaction.Location);
             var startCommitTime = DateTime.UtcNow;
             try
@@ -429,8 +424,8 @@ public class ExecuteImportJobHandler(
                 var finishedBeforeVerifying = await WaitForTransactionToFinish();
                 var outcome = finishedBeforeVerifying
                     ? await VerifyCommitOutcome(sourceVersion)
-                    : CommitVerification.CouldNotConfirm;
-                if (outcome == CommitVerification.Confirmed)
+                    : new CommitVerificationResult(CommitVerification.CouldNotConfirm);
+                if (outcome.Outcome == CommitVerification.Confirmed)
                 {
                     if (logger.IsEnabled(LogLevel.Information))
                     {
@@ -442,7 +437,11 @@ public class ExecuteImportJobHandler(
                     importJobResult.Status = ImportJobStates.Completed;
                     return Result.OkNotNull(importJobResult);
                 }
-                var confirmation = outcome == CommitVerification.ConfirmedNotCommitted
+                if (outcome.Outcome == CommitVerification.FedoraDisagrees)
+                {
+                    return await FailEarly(outcome.Message, rollback: false);
+                }
+                var confirmation = outcome.Outcome == CommitVerification.ConfirmedNotCommitted
                     ? "confirmed not committed"
                     : "could not be confirmed";
                 var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message} (commit outcome {confirmation})";
@@ -463,9 +462,13 @@ public class ExecuteImportJobHandler(
                 // rolled back, by Fedora's own session expiry during a stall. Confirm which with a
                 // cheap version check rather than a full read of the group (issue #244).
                 var outcome = await VerifyCommitOutcome(sourceVersion);
-                if (outcome != CommitVerification.Confirmed)
+                if (outcome.Outcome == CommitVerification.FedoraDisagrees)
                 {
-                    var confirmation = outcome == CommitVerification.ConfirmedNotCommitted
+                    return await FailEarly(outcome.Message, rollback: false);
+                }
+                if (outcome.Outcome != CommitVerification.Confirmed)
+                {
+                    var confirmation = outcome.Outcome == CommitVerification.ConfirmedNotCommitted
                         ? "confirmed not committed"
                         : "could not be confirmed";
                     return await FailEarly(
@@ -492,8 +495,8 @@ public class ExecuteImportJobHandler(
                     var finishedBeforeVerifying = await WaitForTransactionToFinish();
                     var gatewayOutcome = finishedBeforeVerifying
                         ? await VerifyCommitOutcome(sourceVersion)
-                        : CommitVerification.CouldNotConfirm;
-                    if (gatewayOutcome == CommitVerification.Confirmed)
+                        : new CommitVerificationResult(CommitVerification.CouldNotConfirm);
+                    if (gatewayOutcome.Outcome == CommitVerification.Confirmed)
                     {
                         if (logger.IsEnabled(LogLevel.Information))
                         {
@@ -505,7 +508,11 @@ public class ExecuteImportJobHandler(
                         importJobResult.Status = ImportJobStates.Completed;
                         return Result.OkNotNull(importJobResult);
                     }
-                    var gatewayConfirmation = gatewayOutcome == CommitVerification.ConfirmedNotCommitted
+                    if (gatewayOutcome.Outcome == CommitVerification.FedoraDisagrees)
+                    {
+                        return await FailEarly(gatewayOutcome.Message, rollback: false);
+                    }
+                    var gatewayConfirmation = gatewayOutcome.Outcome == CommitVerification.ConfirmedNotCommitted
                         ? "confirmed not committed"
                         : "could not be confirmed";
                     return await FailEarly(
@@ -637,84 +644,12 @@ public class ExecuteImportJobHandler(
         }
 
         /// <summary>
-        /// Whether the Archival Group's own state confirms the commit actually happened, for the
-        /// two cases where the commit PUT's own response can't be trusted: the monitor cancelled it
-        /// after finding the transaction gone, or the PUT itself threw a connection error (issue
-        /// #383 review points 1 and 2). Polls with backoff rather than checking once - in both
-        /// cases Fedora may still be finishing the commit when this runs, and the October test's
-        /// 22-minute commit is not far under the monitor's own 30-minute cancel threshold. A cheap
-        /// version check each time (issue #244: a full read of a wide group can take 10-30 minutes),
-        /// never a cache of anything read before the commit - this has to be the real post-commit
-        /// state. A new group existing at all, with a version, is success; an update needs its
-        /// version to have actually moved past where it started - unchanged means the transaction
-        /// never committed, the same as the group being missing entirely would.
-        ///
-        /// Any exception from the read itself - including a brand-new group that doesn't exist in
-        /// S3 yet, which GetArchivalGroupVersion throws for rather than returning NotFound (issue
-        /// #383 review point 3) - is caught here and treated as an unconfirmed attempt, not a
-        /// reason to let the whole import job fail with a misleading rollback of an already-acted-on
-        /// transaction. The one exception: for a create (never an update, whose Archival Group
-        /// already existed before the job started), that same "doesn't exist in S3" throw is
-        /// genuine evidence the create never committed, not just an unreadable attempt - but only
-        /// because every caller of VerifyCommitOutcome has already waited for the transaction
-        /// itself to finish (WaitForTransactionToFinish above, or the monitor-cancelled path's own
-        /// equivalent guarantee), so there's nothing left for a retry to wait out (issue #383's
-        /// second review, second nit).
+        /// Whether the commit actually happened, for the cases where the commit PUT's own response can't
+        /// be trusted (issue #383). Every caller has already waited for the transaction to finish. S3
+        /// first, then Fedora too (issue #459): see <see cref="CommitOutcomeVerifier"/>.
         /// </summary>
-        async Task<CommitVerification> VerifyCommitOutcome(string? sourceVersion)
-        {
-            var everReadSuccessfully = false;
-            for (var attempt = 1; attempt <= CommitVerificationMaxAttempts; attempt++)
-            {
-                try
-                {
-                    var versionResult = await fedoraClient.GetArchivalGroupVersion(archivalGroupPathUnderRoot);
-                    if (versionResult is { Success: true, Value: not null })
-                    {
-                        everReadSuccessfully = true;
-                        var newVersion = versionResult.Value.OcflVersion;
-                        var committed = importJob.IsUpdate
-                            ? newVersion.HasText() && newVersion != sourceVersion
-                            : newVersion.HasText();
-                        if (committed)
-                        {
-                            return CommitVerification.Confirmed;
-                        }
-                    }
-                    else
-                    {
-                        logger.LogWarning(
-                            "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath}: {CodeAndMessage}",
-                            attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot, versionResult.CodeAndMessage());
-                    }
-                }
-                catch (AmazonS3Exception ex) when (!importJob.IsUpdate && ex.StatusCode == HttpStatusCode.NotFound)
-                {
-                    if (logger.IsEnabled(LogLevel.Information))
-                    {
-                        logger.LogInformation(ex,
-                            "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath}: the Archival Group still doesn't exist in S3, and the transaction has already finished, so the create never committed",
-                            attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot);
-                    }
-                    return CommitVerification.ConfirmedNotCommitted;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex,
-                        "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath} threw",
-                        attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot);
-                }
-
-                if (attempt < CommitVerificationMaxAttempts)
-                {
-                    // CancellationToken.None, not the job's own token - see WaitForTransactionToFinish's
-                    // remarks above (issue #383's second review, first nit).
-                    await delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), CancellationToken.None);
-                }
-            }
-
-            return everReadSuccessfully ? CommitVerification.ConfirmedNotCommitted : CommitVerification.CouldNotConfirm;
-        }
+        Task<CommitVerificationResult> VerifyCommitOutcome(string? sourceVersion) =>
+            commitOutcomeVerifier.Verify(archivalGroupPathUnderRoot, importJob.IsUpdate, sourceVersion, importJobResult);
     }
 
     /// <summary>

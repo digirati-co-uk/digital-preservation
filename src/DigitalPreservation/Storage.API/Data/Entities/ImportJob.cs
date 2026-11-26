@@ -26,4 +26,17 @@ public class ImportJob
     /// is gone, and the job is reaped.
     /// </summary>
     public DateTime? LastHeartbeat { get; set; }
+
+    /// <summary>
+    /// Written by <see cref="Storage.API.Features.Import.Requests.ExecuteImportJobHandler"/>, using the
+    /// database's own clock, immediately before it sends the commit (issue #444). From then on Fedora may
+    /// finish the commit even if the importer dies, so a stale job with this set is reconciled
+    /// (<see cref="Storage.API.Features.Import.ImportJobCommitReconciler"/>) rather than reaped as failed.
+    /// The job's result JSON, saved in the same write, carries the source version and the lists of what
+    /// was added, patched, renamed and deleted.
+    /// </summary>
+    public DateTime? CommitStarted { get; set; }
+
+    /// <summary>The Fedora transaction being committed, saved with <see cref="CommitStarted"/>.</summary>
+    public Uri? CommitTransaction { get; set; }
 }

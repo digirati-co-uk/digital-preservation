@@ -13,6 +13,7 @@ What is here answers a different question, for a different reader, and changes o
 | [overview.md](./overview.md) | The six running services, how work reaches them, where the code lives. |
 | [pipeline-api.md](./pipeline-api.md) | SNS and SQS, the job claim, the tool chain, how a run proceeds and how it fails. |
 | [deployment.md](./deployment.md) | Images, build and deploy workflows, configuration sections, feature flags, databases, running locally. |
+| [wedged-archival-group.md](./wedged-archival-group.md) | Runbook: recognising and repairing an Archival Group left half-written by a failed commit. |
 | [access-condition-profile.md](./access-condition-profile.md) | The Preservation API's access-conditions configuration: the standard `AccessConditions` list, the statement profile document (statements with IIIF text, and values derived from restriction x category), and the Leeds Access Tier as a worked example. |
 
 ## Where the boundaries are

@@ -1,4 +1,4 @@
-using DigitalPreservation.Core.Configuration;
+﻿using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -104,7 +104,9 @@ try
     // separate SQS Importer): this is the one host that is always running, and the sweep's reap is
     // idempotent (a conditional UPDATE), so it is safe even if more than one Storage API instance
     // runs it at the same tick.
-    builder.Services.AddHostedService<ImportJobReapService>();
+    builder.Services
+        .AddScoped<ImportJobCommitReconciler>()
+        .AddHostedService<ImportJobReapService>();
 
 
     var app = builder.Build();
