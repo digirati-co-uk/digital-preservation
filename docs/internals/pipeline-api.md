@@ -139,6 +139,8 @@ Two environment variables in the image exist because of how .NET behaves in a co
 | Section | Key | What it is |
 |---|---|---|
 | `StorageOptions` | `FileMountPath` | Where the working bucket is mounted. Everything else is relative to this. |
+| `StorageOptions` | `ScratchCopyPath`, `ScratchCopyMaxBytes` | Where a deposit is copied when it can't be read through the mount, and the largest one that will be copied (issue #410). |
+| `StorageOptions` | `CopyEveryDepositToScratch` | **Local development only.** See [Running the pipeline locally](#running-the-pipeline-locally). |
 | `PipelineOptions` | `PipelineJobTopicArn` | SNS topic jobs are published to. Preservation API needs the same value. |
 | `PipelineOptions` | `PipelineJobQueue` | SQS queue name (not URL) the consumer reads. |
 | `PipelineToolOptions` | `PathToPython`, `PathToBrunnhilde` | How Brunnhilde is invoked. In the deployed image `PathToPython` is `brunnhilde.py` itself and `PathToBrunnhilde` is empty. |
@@ -156,6 +158,22 @@ Two environment variables in the image exist because of how .NET behaves in a co
 >
 > `FeatureFlags:DisableAuth` is also present and also read by nothing here. Pipeline API's only gate is the API key, unconditionally. (Preservation API, Storage API and the Importer do honour that flag.)
 
+
+## Running the pipeline locally
+
+A laptop has no S3 mount, so `FileMountPath` points at an ordinary folder that stands in for one, and a deposit's files have to be in it, at `{FileMountPath}/{deposit id}`, before the pipeline can run on that deposit. Copying them there by hand is tedious. Instead, set in your untracked `appsettings.Development.json`:
+
+```json
+"StorageOptions": {
+  "FileMountPath": "C:\\dlip-pipeline-working\\MountTest",
+  "ScratchCopyPath": "C:\\dlip-pipeline-working\\Scratch",
+  "CopyEveryDepositToScratch": true
+}
+```
+
+The pipeline then copies each deposit from S3 into `ScratchCopyPath` when the job starts, the way it copies a deposit in a caller's own bucket (issue #410), and deletes the copy when the job ends. `ScratchCopyMaxBytes` still caps what it will copy (2 GB by default); raise it locally for a bigger deposit. Results are written back through the S3 API as always.
+
+This is only for running on your own machine. It is honoured only when the environment is `Development`, which is what running from an IDE or `dotnet run` gives. Anywhere else, including the deployed DEV, TEST and PROD environments, it is ignored with a warning: they have the mount, and copying would only cost time and disk.
 
 ## Endpoints
 

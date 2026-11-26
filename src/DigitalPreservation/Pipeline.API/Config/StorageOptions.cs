@@ -19,6 +19,17 @@ public class StorageOptions
     /// one is refused before anything is downloaded, rather than sizing the disk for the worst case.
     /// </summary>
     public long ScratchCopyMaxBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// <b>For running the pipeline on a developer's own machine only.</b> Copy every deposit from S3
+    /// to <see cref="ScratchCopyPath"/>, as for a caller's bucket, instead of reading the default
+    /// working bucket through <see cref="FileMountPath"/>: there is no S3 mount on a laptop, and
+    /// copying a deposit into a folder standing in for one by hand is tedious. Honoured only when
+    /// the environment is <c>Development</c>, which is what running from an IDE or <c>dotnet run</c>
+    /// gives; anywhere else (the deployed DEV, TEST and PROD environments included) it is ignored
+    /// with a warning, since they have the mount and copying would only cost time and disk.
+    /// </summary>
+    public bool CopyEveryDepositToScratch { get; set; }
 }
 
 /// <summary>
