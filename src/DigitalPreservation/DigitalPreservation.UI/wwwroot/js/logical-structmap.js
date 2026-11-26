@@ -525,7 +525,7 @@ function createEditRangeModal() {
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="editRangeName" class="form-label">Name</label>
-                        <input type="text" class="form-control" id="editRangeName" placeholder="Range name">
+                        <input type="text" class="form-control" id="editRangeName" placeholder="Range name" data-autofocus>
                     </div>
                     <div class="mb-3">
                         <label for="editRangeType" class="form-label">Type</label>

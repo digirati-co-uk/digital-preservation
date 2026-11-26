@@ -120,6 +120,7 @@
 <div>
     <status-message key="@TempDataKeys.ContainerError" variant="danger" dismissible="false" />
     <status-message key="@TempDataKeys.ContainerSuccess" variant="success" dismissible="false" />
+    <status-message key="@TempDataKeys.ContainerCreated" variant="success" dismissible="false" raw="true" />
     
     @{
         var modelBinary = Model.Resource as Binary;
@@ -532,7 +533,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="containerTitle" class="form-label">Folder title</label>
-                        <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
+                        <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp" data-autofocus>
                         <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
                     </div>
                     <div class="mb-3">
@@ -567,7 +568,7 @@
                             <code>@Model.ArchivalGroupPath</code></p>
                         </div>
                         <div class="mb-3 form-check">
-                            <input type="checkbox" name="export" value="true" class="form-check-input" id="exportCheck" aria-describedby="exportHelp">
+                            <input type="checkbox" name="export" value="true" class="form-check-input" id="exportCheck" aria-describedby="exportHelp" data-autofocus>
                             <label class="form-check-label" for="exportCheck">Export to S3</label>
                             <div id="exportHelp" class="form-text">
                                 The content of the preserved object will be copied to the S3 working location. This is useful when verifying differences between versions but is not required for making updates.<br/>
@@ -594,7 +595,7 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
-                            <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
+                            <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp" data-autofocus>
                             <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
                         </div>
                         <div class="mb-3">
@@ -653,6 +654,7 @@
         containerTitleInput.value = "";
         containerSlugInput.value = "";
         containerSlugError.textContent = "";
+        touchStatus.containerSlugTouched = false; // a fresh folder's path follows its title again
     });
     document.getElementById("newDepositModal").addEventListener("show.bs.modal", () => {
         depositNameInput.value = "";
