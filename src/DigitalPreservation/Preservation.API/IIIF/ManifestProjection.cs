@@ -447,7 +447,13 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             if (value.HasText()) pairs.Add(Pair(label, value));
         }
 
-        Add("Original name", storage?.OriginalName ?? format?.OriginalName);
+        // The platform records a file's path as its original name; only a name that differs (from
+        // Archivematica, say, or a renamed file) says anything the path doesn't.
+        var originalName = storage?.OriginalName ?? format?.OriginalName;
+        if (originalName != file.LocalPath)
+        {
+            Add("Original name", originalName);
+        }
         Add("Path", file.LocalPath);
         var size = file.Size ?? format?.Size;
         if (size.HasValue)
@@ -559,6 +565,17 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         manifest.Context = new List<object> { terms, Context.Presentation3Context };
     }
 
+    // Documents a person reads, as opposed to data: a transcript is as likely to be Word as PDF.
+    private static readonly HashSet<string> TextDocumentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.oasis.opendocument.text",
+        "application/rtf",
+        "application/epub+zip"
+    };
+
     private static string GetDcType(string? contentType)
     {
         if (contentType.IsNullOrWhiteSpace()) return "Dataset";
@@ -566,7 +583,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         if (contentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)) return "Video";
         if (contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)) return "Sound";
         if (contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
-            || contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)) return "Text";
+            || TextDocumentTypes.Contains(contentType.Split(';')[0].Trim())) return "Text";
         return "Dataset";
     }
 }

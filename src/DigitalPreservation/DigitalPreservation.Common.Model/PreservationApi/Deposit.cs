@@ -21,6 +21,16 @@ public class Deposit : Resource
     [JsonPropertyName("files")] 
     public Uri? Files { get; set; }
 
+    /// <summary>
+    /// The Deposit as a IIIF Manifest (issue #261): an authenticated address that redirects to a
+    /// tokenised one a IIIF viewer can load. Absent when the instance has the Deposit IIIF view
+    /// switched off (<c>EnableIiifMediaEndpoints</c>).
+    /// </summary>
+    [JsonPropertyOrder(125)]
+    [JsonPropertyName("iiif")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Uri? Iiif { get; set; }
+
     [JsonPropertyOrder(130)]
     [JsonPropertyName("status")]
     public string Status { get; set; } = DepositStates.New;

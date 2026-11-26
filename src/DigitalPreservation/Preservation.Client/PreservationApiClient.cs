@@ -323,6 +323,27 @@ public class PreservationApiClient(
         return await ProxyStringFromPreservationApi(cancellationToken, relPath);
     }
 
+    public async Task<Result<Uri>> GetIIIFManifestUri(string depositId, CancellationToken cancellationToken)
+    {
+        var relPath = $"/deposits/{depositId}/iiif";
+        try
+        {
+            // The client follows the redirect to the tokenised URL; the request it ended on says where that was.
+            var response = await preservationHttpClient.GetAsync(new Uri(relPath, UriKind.Relative),
+                HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.IsSuccessStatusCode && response.RequestMessage?.RequestUri is { IsAbsoluteUri: true } manifestUri)
+            {
+                return Result.OkNotNull(manifestUri);
+            }
+            return await response.ToFailNotNullResult<Uri>("Unable to GET " + relPath);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not GET {RelPath}", relPath);
+            return Result.FailNotNull<Uri>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     private async Task<Result<string>> ProxyStringFromPreservationApi(CancellationToken cancellationToken, string relPath)
     {
         try

@@ -186,6 +186,36 @@ public class ManifestProjectionTests
         json["items"]!.Should().HaveCount(1);
     }
 
+    [Fact]
+    public void The_Original_Name_Is_Shown_Only_When_It_Differs_From_The_Path()
+    {
+        var same = File("objects/a.tif", "image/tiff");
+        same.Metadata.Add(new StorageMetadata { Source = "METS", OriginalName = "objects/a.tif" });
+        var different = File("objects/b.tif", "image/tiff");
+        different.Metadata.Add(new StorageMetadata { Source = "METS", OriginalName = "Scans/B 001.TIF" });
+
+        var json = Project(Mets([same, different]), Vanilla());
+
+        Value(json["items"]![0]!, "Preservation: Original name").Should().BeNull();
+        Value(json["items"]![1]!, "Preservation: Original name").Should().Be("Scans/B 001.TIF");
+    }
+
+    [Theory]
+    [InlineData("image/tiff", "Image")]
+    [InlineData("video/mp4", "Video")]
+    [InlineData("audio/mp4", "Sound")]
+    [InlineData("text/plain", "Text")]
+    [InlineData("application/pdf", "Text")]
+    [InlineData("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Text")]
+    [InlineData("application/msword", "Text")]
+    [InlineData("application/zip", "Dataset")]
+    public void The_Rendering_Has_The_Files_Own_Type(string contentType, string expected)
+    {
+        var json = Project(Mets([File("objects/f", contentType)]), Vanilla(f => $"{Root}/repository/{AgPath}/{f.LocalPath}"));
+
+        json["items"]![0]!["rendering"]![0]!["type"]!.ToString().Should().Be(expected);
+    }
+
     // ─── access conditions ──────────────────────────────────────────────────────
 
     [Fact]
