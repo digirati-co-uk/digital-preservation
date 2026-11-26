@@ -75,6 +75,11 @@ public class GetArchivalGroupAsIIIFManifestHandler(
             Origin = request.Kind == ManifestKind.IiifCs && storageMap != null
                 ? file => storageMap.Files.TryGetValue(file.LocalPath, out var origin) ? S3Uri(storageMap, origin.FullPath) : null
                 : null,
+            // OCFL content paths start with the version they were written in: v1/content/...
+            ContentVersion = request.Kind == ManifestKind.IiifCs && storageMap != null
+                ? file => storageMap.Files.TryGetValue(file.LocalPath, out var origin) ? origin.FullPath.Split('/')[0] : null
+                : null,
+            ObjectVersion = request.Kind == ManifestKind.IiifCs ? storageMap?.Version.OcflVersion : null,
             DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken),
             Statements = (await profileProvider.GetProfileAsync(cancellationToken))?.Statements
         };

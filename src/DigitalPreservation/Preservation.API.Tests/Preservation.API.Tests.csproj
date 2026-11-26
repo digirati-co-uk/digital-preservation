@@ -48,4 +48,9 @@
           LinkBase="PreservationApiSettings" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The Liddle tapes METS (time-based ranges over audio), shared with XmlGen.Tests rather than copied. -->
+    <None Include="..\XmlGen.Tests\Samples\liddle.mets.xml" Link="Samples\liddle.mets.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

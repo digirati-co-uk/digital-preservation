@@ -1146,7 +1146,8 @@ public class MetsParser(
                 && fileByPath.TryGetValue(objectsPath, out var objectsFile)
                 && !objectsFile.Links.Any(l => l.To == altoPath))
             {
-                objectsFile.Links.Add(new FileLink { To = altoPath, Role = transcript });
+                // The fileGrp is the only thing that says this is ALTO: its media type is just XML.
+                objectsFile.Links.Add(new FileLink { To = altoPath, Role = transcript, Profile = FileLinkProfiles.Alto });
             }
         }
     }

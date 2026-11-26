@@ -61,6 +61,15 @@ public sealed class ProjectionContext
     /// <summary>The <c>origin</c> of a file's asset in the IIIF-CS manifest.</summary>
     public Func<WorkingFile, string?>? Origin { get; init; }
 
+    /// <summary>
+    /// The OCFL version a file's content was written in (the version in its <c>origin</c> path), for
+    /// the IIIF-CS manifest's <c>contentVersion</c>.
+    /// </summary>
+    public Func<WorkingFile, string?>? ContentVersion { get; init; }
+
+    /// <summary>The Archival Group's current version, the IIIF-CS manifest's <c>objectVersion</c>.</summary>
+    public string? ObjectVersion { get; init; }
+
     /// <summary>The access condition types the installation derives (the Leeds Access Tier).</summary>
     public IReadOnlyCollection<string> DerivedTypes { get; init; } = [];
 
@@ -104,6 +113,8 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     public const string NoConditionsRoleToken = RoleTokenPrefix + "none";
 
     public const string AccessDiffersFromAssetProperty = "accessDiffersFromAsset";
+    public const string ContentVersionProperty = "contentVersion";
+    public const string ObjectVersionTerm = "objectVersion";
 
     private const string En = "en";
     private const string None = "none";
@@ -158,6 +169,10 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         if (context.Kind == ManifestKind.IiifCs)
         {
             manifest.AdditionalProperties[PaintedResourcesProperty] = paintedResources;
+            if (context.ObjectVersion.HasText())
+            {
+                manifest.AdditionalProperties[ObjectVersionTerm] = context.ObjectVersion;
+            }
         }
         SetContext(manifest, context.Kind);
     }
@@ -264,6 +279,16 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             }
             // A Deposit's files are not reachable from its manifest, so the body is identified, not linked.
             var bodyId = context.Rendering?.Invoke(target) ?? $"{context.IdBase}files/{IdFor(target.LocalPath, context)}";
+            if (IsAlto(link, target))
+            {
+                // OCR is not a transcript to show beside the page but text to index and search:
+                // a seeAlso with the ALTO profile, which is what text services look for.
+                var seeAlso = LinkedFileBody(target, bodyId, context);
+                seeAlso.Profile = FileLinkProfiles.Alto;
+                canvas.SeeAlso ??= [];
+                canvas.SeeAlso.Add(seeAlso);
+                continue;
+            }
             var provides = FileLinkRoles.ToIiifProvides(link.Role);
             var annotation = new GeneralAnnotation("supplementing")
             {
@@ -330,6 +355,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             asset[AccessConditionsTerm] = conditions;
         }
         asset["roles"] = RoleTokens(conditions, context);
+        SetContentVersion(asset, file, context);
         var adjuncts = new JArray();
         foreach (var link in file.Links)
         {
@@ -368,20 +394,31 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             ["id"] = IdFor(target.LocalPath, context),
             ["@type"] = GetDcType(target.ContentType),
             ["mediaType"] = target.ContentType ?? "application/octet-stream",
-            ["label"] = new JObject { [None] = new JArray(target.Name ?? target.LocalPath.GetSlug() ?? target.LocalPath) },
-            ["iiifLink"] = "inlineAnnotation",
-            ["motivation"] = "supplementing"
+            ["label"] = new JObject { [None] = new JArray(target.Name ?? target.LocalPath.GetSlug() ?? target.LocalPath) }
         };
+        var alto = IsAlto(link, target);
+        if (alto)
+        {
+            // IIIF-CS publishes it as a seeAlso with this profile, which its text pipeline indexes.
+            adjunct["iiifLink"] = "seeAlso";
+            adjunct["profile"] = FileLinkProfiles.Alto;
+        }
+        else
+        {
+            adjunct["iiifLink"] = "inlineAnnotation";
+            adjunct["motivation"] = "supplementing";
+        }
         var origin = context.Origin?.Invoke(target);
         if (origin.HasText())
         {
             adjunct["origin"] = origin;
         }
         var provides = FileLinkRoles.ToIiifProvides(link.Role);
-        if (provides.HasText() && provides != "supplementing")
+        if (!alto && provides.HasText() && provides != "supplementing")
         {
             adjunct["provides"] = provides;
         }
+        SetContentVersion(adjunct, target, context);
         var conditions = AccessConditionsOf(target, context);
         if (conditions.Count > 0)
         {
@@ -393,6 +430,34 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             adjunct[AccessDiffersFromAssetProperty] = true;
         }
         return adjunct;
+    }
+
+    // The version a file's bytes were written in. A builder compares it with the manifest's
+    // objectVersion: equal means the content changed in this version, so IIIF-CS should ingest it
+    // again (until dlcs/iiif-presentation#727, by sending reingest).
+    private static void SetContentVersion(JObject assetOrAdjunct, WorkingFile file, ProjectionContext context)
+    {
+        var version = context.ContentVersion?.Invoke(file);
+        if (version.HasText())
+        {
+            assetOrAdjunct[ContentVersionProperty] = version;
+        }
+    }
+
+    /// <summary>
+    /// Whether a linked file is OCR: the METS said so (its fileGrp), or format identification did.
+    /// Its media type alone can't tell: it is just XML.
+    /// </summary>
+    private static bool IsAlto(FileLink link, WorkingFile target)
+    {
+        if (link.Profile?.Contains("alto", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+        var formatName = target.GetFileFormatMetadata()?.FormatName;
+        return formatName != null
+               && (formatName.Contains("ALTO", StringComparison.Ordinal)
+                   || formatName.Contains("Analyzed Layout and Text Object", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -697,6 +762,10 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             {
                 ["@id"] = iiif.ExtensionNamespace + FormerAssetsTerm,
                 ["@context"] = iiif.ExtensionContext
+            };
+            terms[ObjectVersionTerm] = new JObject
+            {
+                ["@id"] = iiif.ExtensionNamespace + ObjectVersionTerm
             };
         }
         manifest.Context = new List<object> { terms, Context.Presentation3Context };

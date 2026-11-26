@@ -140,6 +140,17 @@ public class ArchivalGroupManifestTests
     }
 
     [Fact]
+    public async Task Content_And_Object_Versions_Come_From_The_Storage_Map()
+    {
+        var json = await Json(ManifestKind.IiifCs);
+
+        json[ManifestProjection.ObjectVersionTerm]!.ToString().Should().Be("v3");
+        var painted = json[ManifestProjection.PaintedResourcesProperty]!;
+        painted[0]!["asset"]![ManifestProjection.ContentVersionProperty]!.ToString().Should().Be("v3", "a.tif was written in v3");
+        painted[1]!["asset"]![ManifestProjection.ContentVersionProperty]!.ToString().Should().Be("v1", "b.tif is unchanged since v1");
+    }
+
+    [Fact]
     public async Task Former_Assets_Are_The_Former_Files_Below_Objects()
     {
         var json = await Json(ManifestKind.IiifCs);

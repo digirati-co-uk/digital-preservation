@@ -13,6 +13,25 @@ public class FileLink
     [JsonPropertyName("role")]
     [JsonPropertyOrder(2)]
     public Uri? Role { get; set; }
+
+    /// <summary>
+    /// What kind of document the linked file is, when the METS says so and its media type doesn't:
+    /// <see cref="FileLinkProfiles.Alto"/> for a page's OCR, which METS marks only by its fileGrp
+    /// (issue #261). Read from the METS, never written to it.
+    /// </summary>
+    [JsonPropertyName("profile")]
+    [JsonPropertyOrder(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Profile { get; set; }
+}
+
+public static class FileLinkProfiles
+{
+    /// <summary>
+    /// ALTO OCR. As a IIIF seeAlso profile it is what text services (IIIF-CS's text pipeline among
+    /// them) look for: any profile containing "alto".
+    /// </summary>
+    public const string Alto = "http://www.loc.gov/standards/alto/";
 }
 
 
