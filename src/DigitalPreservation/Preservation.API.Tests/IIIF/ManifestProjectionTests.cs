@@ -245,14 +245,17 @@ public class ManifestProjectionTests
     }
 
     [Fact]
-    public void The_Manifest_Carries_The_Roots_Access_Conditions()
+    public void The_Manifest_Carries_The_Object_Level_Values_Recorded_On_Objects()
     {
         var mets = Mets([File("objects/a.tif", "image/tiff")]);
-        mets.PhysicalStructure!.EffectiveAccessRestrictions = ["Staff only"];
+        var objects = mets.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects");
+        objects.EffectiveAccessRestrictions = ["Staff only"];
+        objects.EffectiveRecordInfo = new RecordInfo { RecordIdentifiers = [new RecordIdentifier { Source = "EMu", Value = "MS 888" }] };
 
         var json = Project(mets, Vanilla());
 
         json[ManifestProjection.AccessConditionsTerm]![0]!["value"]!.ToString().Should().Be("Staff only");
+        Value(json, "Preservation: Record identifier (EMu)").Should().Be("MS 888");
     }
 
     [Fact]

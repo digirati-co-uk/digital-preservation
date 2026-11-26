@@ -116,10 +116,14 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             manifest.Structures.Add(folders);
         }
 
-        if (mets.PhysicalStructure != null)
+        // The object as a whole: the platform records object-level metadata on objects/ (the
+        // root is not editable), and objects/'s effective values include anything set on the root.
+        var objectLevel = mets.PhysicalStructure?.Directories.FirstOrDefault(d => d.LocalPath == FolderNames.Objects)
+                          ?? mets.PhysicalStructure;
+        if (objectLevel != null)
         {
-            SetAccessConditions(manifest, mets.PhysicalStructure, context);
-            AddRecordIdentifiers(manifest, mets.PhysicalStructure.EffectiveRecordInfo);
+            SetAccessConditions(manifest, objectLevel, context);
+            AddRecordIdentifiers(manifest, objectLevel.EffectiveRecordInfo);
         }
         if (context.Kind == ManifestKind.IiifCs)
         {
