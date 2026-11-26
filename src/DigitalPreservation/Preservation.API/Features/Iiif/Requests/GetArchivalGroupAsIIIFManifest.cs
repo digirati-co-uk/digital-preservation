@@ -30,6 +30,7 @@ public class GetArchivalGroupAsIIIFManifestHandler(
     IMediator mediator,
     IMetsParser metsParser,
     IDerivedAccessConditionResolver derivedResolver,
+    IAccessConditionProfileProvider profileProvider,
     ManifestProjection projection) : IRequestHandler<GetArchivalGroupAsIIIFManifest, Result<Manifest>>
 {
     public async Task<Result<Manifest>> Handle(GetArchivalGroupAsIIIFManifest request, CancellationToken cancellationToken)
@@ -74,7 +75,8 @@ public class GetArchivalGroupAsIIIFManifestHandler(
             Origin = request.Kind == ManifestKind.IiifCs && storageMap != null
                 ? file => storageMap.Files.TryGetValue(file.LocalPath, out var origin) ? S3Uri(storageMap, origin.FullPath) : null
                 : null,
-            DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken)
+            DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken),
+            Statements = (await profileProvider.GetProfileAsync(cancellationToken))?.Statements
         };
 
         var manifest = new Manifest

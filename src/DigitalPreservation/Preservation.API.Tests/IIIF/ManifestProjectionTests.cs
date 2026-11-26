@@ -245,6 +245,30 @@ public class ManifestProjectionTests
     }
 
     [Fact]
+    public void Without_A_Statement_There_Is_No_Required_Statement()
+    {
+        var leeds = DigitalPreservation.Common.Model.AccessConditions.AccessConditionProfile.FromJson(
+            System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "AccessConditionProfiles", "leeds.json")));
+        var file = File("objects/a.tif", "image/tiff");
+        file.EffectiveRightsStatement = new Uri("http://rightsstatements.org/vocab/InC-EDU/1.0/");
+
+        var context = new ProjectionContext
+        {
+            Kind = ManifestKind.Vanilla, IdBase = IdBase, PlaceholderBase = Placeholders, PathPrefix = AgPath,
+            Statements = leeds.Statements
+        };
+        var mets = Mets([file]);
+        mets.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects").EffectiveRightsStatement =
+            new Uri("http://rightsstatements.org/vocab/InC-EDU/1.0/");
+        var json = Project(mets, context);
+
+        json["items"]![0]!["rights"]!.ToString().Should().Be("http://rightsstatements.org/vocab/InC-EDU/1.0/",
+            "a rights statement from before the profile is still published as rights");
+        json["rights"]!.ToString().Should().Be("http://rightsstatements.org/vocab/InC-EDU/1.0/");
+        json["requiredStatement"].Should().BeNull();
+    }
+
+    [Fact]
     public void The_Manifest_Carries_The_Object_Level_Values_Recorded_On_Objects()
     {
         var mets = Mets([File("objects/a.tif", "image/tiff")]);

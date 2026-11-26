@@ -40,6 +40,7 @@ public class GetDepositAsIIIFManifestHandler(
     ResourceMutator resourceMutator,
     WorkspaceManagerFactory workspaceManagerFactory,
     IDerivedAccessConditionResolver derivedResolver,
+    IAccessConditionProfileProvider profileProvider,
     ManifestProjection projection) : 
     GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory, metsParser), IRequestHandler<GetDepositAsIIIFManifest, Result<Manifest>>
 {
@@ -81,7 +82,8 @@ public class GetDepositAsIIIFManifestHandler(
             PlaceholderBase = $"{request.Root}/placeholders/",
             // Ids as the files will have them once preserved, when the Deposit names its Archival Group.
             PathPrefix = deposit.ArchivalGroup?.GetPathUnderRoot() is { } agPath ? Uri.UnescapeDataString(agPath) : null,
-            DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken)
+            DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken),
+            Statements = (await profileProvider.GetProfileAsync(cancellationToken))?.Statements
         });
         return Result.OkNotNull(manifest);
     }

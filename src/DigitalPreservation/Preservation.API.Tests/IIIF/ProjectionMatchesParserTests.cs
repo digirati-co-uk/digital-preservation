@@ -5,6 +5,7 @@ using IIIF.Presentation.V3;
 using IIIF.Serialisation;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using DigitalPreservation.Common.Model.AccessConditions;
 using Newtonsoft.Json.Linq;
 using Preservation.API.IIIF;
 using DigitalPreservation.Mets.StorageImpl;
@@ -36,6 +37,7 @@ public class ProjectionMatchesParserTests
             """)}
           {Mods("DMD_b", """
             <mods:accessCondition type="restriction on access">PA3</mods:accessCondition>
+            <mods:accessCondition type="copyright statement">inc-low-risk-orphan</mods:accessCondition>
             <mods:accessCondition type="tier">3</mods:accessCondition>
             """)}
           {Mods("DMD_LOG_1", """
@@ -70,6 +72,10 @@ public class ProjectionMatchesParserTests
     private readonly MetsFileWrapper wrapper;
     private readonly JObject manifest;
 
+    // The Leeds profile as deployed, for what each statement publishes in IIIF.
+    private static readonly StatementProfile Statements = AccessConditionProfile.FromJson(
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AccessConditionProfiles", "leeds.json"))).Statements!;
+
     public ProjectionMatchesParserTests()
     {
         var parser = new MetsParser(new FileSystemMetsLoader(), NullLogger<MetsParser>.Instance);
@@ -84,7 +90,8 @@ public class ProjectionMatchesParserTests
             IdBase = "https://pres.example/iiif/ag/",
             PlaceholderBase = "https://pres.example/placeholders/",
             PathPrefix = "ag",
-            DerivedTypes = ["tier"]
+            DerivedTypes = ["tier"],
+            Statements = Statements
         });
         manifest = JObject.Parse(projected.AsJson());
     }
@@ -124,6 +131,31 @@ public class ProjectionMatchesParserTests
             .Where(p => p["label"]!["en"]![0]!.ToString().StartsWith(ManifestProjection.LabelPrefix + "Record identifier"))
             .Select(p => p["value"]!["none"]![0]!.ToString());
         recordIds.Should().Equal(file.EffectiveRecordInfo?.RecordIdentifiers.Select(r => r.Value) ?? []);
+
+        // The wording: the manifest's applies to the canvas, so a canvas has its own only where it differs.
+        var own = Statements.IiifRightsFor(file.EffectiveOtherAccessConditions.GetValueOrDefault(Statements.Type))?.RequiredStatement;
+        var objects = Statements.IiifRightsFor("inc-low-risk")!.RequiredStatement;
+        canvas["requiredStatement"]?["value"]?["en"]?[0]?.ToString().Should().Be(own == objects ? null : own);
+    }
+
+    [Fact]
+    public void Only_The_Canvas_Whose_Statement_Differs_Has_Its_Own_Wording()
+    {
+        CanvasFor("objects/a.tif")["requiredStatement"].Should().BeNull();
+        CanvasFor("objects/sub/c.tif")["requiredStatement"].Should().BeNull();
+        CanvasFor("objects/b.tif")["requiredStatement"]!["value"]!["en"]![0]!.ToString()
+            .Should().Be(Statements.IiifRightsFor("inc-low-risk-orphan")!.RequiredStatement);
+    }
+
+    [Fact]
+    public void The_Manifest_Has_The_Objects_Statement_Wording_Under_Its_Label()
+    {
+        // objects/ has inc-low-risk: what the access dialogue's "Preview IIIF rights" shows for it.
+        var entry = Statements.IiifRightsFor("inc-low-risk")!;
+        var required = manifest["requiredStatement"]!;
+
+        required["label"]!["en"]![0]!.ToString().Should().Be(entry.RequiredStatementLabel ?? Statements.Iiif!.RequiredStatementLabel);
+        required["value"]!["en"]![0]!.ToString().Should().Be(entry.RequiredStatement).And.StartWith("This material is in copyright");
     }
 
     [Fact]
@@ -137,6 +169,6 @@ public class ProjectionMatchesParserTests
             ("tier", "1", true));
         FromCanvas(CanvasFor("objects/b.tif")).Should().Contain(("restriction on access", "PA3", false))
             .And.Contain(("tier", "3", true))
-            .And.Contain(("copyright statement", "inc-low-risk", false));
+            .And.Contain(("copyright statement", "inc-low-risk-orphan", false));
     }
 }

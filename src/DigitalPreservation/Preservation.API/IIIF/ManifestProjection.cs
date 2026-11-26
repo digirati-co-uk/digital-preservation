@@ -9,6 +9,7 @@ using IIIF.Presentation.V3;
 using IIIF.Presentation.V3.Annotation;
 using IIIF.Presentation.V3.Content;
 using IIIF.Presentation.V3.Strings;
+using DigitalPreservation.Common.Model.AccessConditions;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using Range = IIIF.Presentation.V3.Range;
@@ -62,6 +63,18 @@ public sealed class ProjectionContext
 
     /// <summary>The access condition types the installation derives (the Leeds Access Tier).</summary>
     public IReadOnlyCollection<string> DerivedTypes { get; init; } = [];
+
+    /// <summary>
+    /// The installation's statement profile, when it has one: what each statement publishes in IIIF,
+    /// so a resource carries the same <c>requiredStatement</c> the access dialogue previews.
+    /// </summary>
+    public StatementProfile? Statements { get; init; }
+
+    /// <summary>
+    /// The object's own wording (its <c>requiredStatement</c>), worked out before anything else is
+    /// projected, so canvases and ranges inherit it and carry their own only where they differ.
+    /// </summary>
+    internal (string Label, string Text)? ObjectRequiredStatement { get; set; }
 }
 
 /// <summary>
@@ -86,6 +99,12 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         var linkTargets = mets.Files.SelectMany(f => f.Links.Select(l => l.To)).ToHashSet(StringComparer.Ordinal);
         var canvasIds = new Dictionary<string, string>(StringComparer.Ordinal);
         var paintedResources = new JArray();
+
+        // The object as a whole: the platform records object-level metadata on objects/ (the
+        // root is not editable), and objects/'s effective values include anything set on the root.
+        var objectLevel = mets.PhysicalStructure?.Directories.FirstOrDefault(d => d.LocalPath == FolderNames.Objects)
+                          ?? mets.PhysicalStructure;
+        context.ObjectRequiredStatement = objectLevel == null ? null : RequiredStatementFor(objectLevel, context);
 
         manifest.Items = [];
         foreach (var file in mets.Files)
@@ -116,10 +135,6 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             manifest.Structures.Add(folders);
         }
 
-        // The object as a whole: the platform records object-level metadata on objects/ (the
-        // root is not editable), and objects/'s effective values include anything set on the root.
-        var objectLevel = mets.PhysicalStructure?.Directories.FirstOrDefault(d => d.LocalPath == FolderNames.Objects)
-                          ?? mets.PhysicalStructure;
         if (objectLevel != null)
         {
             SetAccessConditions(manifest, objectLevel, context);
@@ -524,6 +539,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             conditions.Add(Condition(UseAndReproduction, source.EffectiveRightsStatement.ToString(), false));
             resource.Rights = source.EffectiveRightsStatement.ToString();
         }
+        SetRequiredStatement(resource, source, context);
         foreach (var (type, value) in source.EffectiveOtherAccessConditions)
         {
             conditions.Add(Condition(type, value, context.DerivedTypes.Contains(type)));
@@ -532,6 +548,41 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         {
             resource.AdditionalProperties[AccessConditionsTerm] = conditions;
         }
+    }
+
+    /// <summary>
+    /// The wording a public manifest shows for a resource's effective statement (for Leeds, its
+    /// copyright statement), from the statement's IIIF entry in the profile: what the access
+    /// dialogue's "Preview IIIF rights" shows. The manifest carries the object's. A canvas or range
+    /// carries its own only where it differs - IIIF applies the manifest's to everything in it - so
+    /// the wording, which is looked up and not what a builder decides access by, isn't repeated on
+    /// every canvas. A canvas's statement itself is always in its accessConditions.
+    /// </summary>
+    private static void SetRequiredStatement(IiifResource resource, PreservationResource source, ProjectionContext context)
+    {
+        var required = RequiredStatementFor(source, context);
+        if (required == null || (resource is not Manifest && required == context.ObjectRequiredStatement))
+        {
+            return;
+        }
+        resource.RequiredStatement = new LabelValuePair(
+            new LanguageMap(En, required.Value.Label), new LanguageMap(En, required.Value.Text));
+    }
+
+    /// <summary>Nothing when there is no statement, or the profile gives its entry no text.</summary>
+    private static (string Label, string Text)? RequiredStatementFor(PreservationResource source, ProjectionContext context)
+    {
+        var statements = context.Statements;
+        if (statements == null || !source.EffectiveOtherAccessConditions.TryGetValue(statements.Type, out var statement))
+        {
+            return null;
+        }
+        var entry = statements.IiifRightsFor(statement);
+        if (entry?.RequiredStatement is not { Length: > 0 } text)
+        {
+            return null;
+        }
+        return (entry.RequiredStatementLabel ?? statements.Iiif?.RequiredStatementLabel ?? "Rights", text);
     }
 
     private static JObject Condition(string type, string value, bool derived)

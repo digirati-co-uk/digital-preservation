@@ -94,6 +94,7 @@ public class ArchivalGroupManifestTests
     private async Task<Result<global::IIIF.Presentation.V3.Manifest>> Handle(ManifestKind kind, ArchivalGroup? group = null)
     {
         var handler = new GetArchivalGroupAsIIIFManifestHandler(mediator, metsParser, resolver,
+            A.Fake<IAccessConditionProfileProvider>(),
             new ManifestProjection(Options.Create(new IiifOptions())));
         return await handler.Handle(
             new GetArchivalGroupAsIIIFManifest(group ?? Group(), kind, $"{AgUri}?view=iiif", Root), CancellationToken.None);
