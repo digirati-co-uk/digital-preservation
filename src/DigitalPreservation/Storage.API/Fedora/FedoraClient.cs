@@ -264,6 +264,15 @@ internal class FedoraClient(
         return await GetArchivalGroupVersion(uri);
     }
 
+    public async Task<Result<int>> GetFedoraVersionCount(string? pathUnderFedoraRoot)
+    {
+        var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        var versions = await GetFedoraVersions(uri);
+        return versions == null
+            ? Result.FailNotNull<int>(ErrorCodes.NotFound, $"Fedora has no versions for {pathUnderFedoraRoot}")
+            : Result.OkNotNull(versions.Length);
+    }
+
 
     public async Task<Result<ArchivalGroup?>> GetValidatedArchivalGroupForImportJob(string pathUnderFedoraRoot, Transaction? transaction = null)
     {

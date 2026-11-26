@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -53,6 +53,8 @@ public class ExecuteImportJobRenameTests
 
     public ExecuteImportJobRenameTests()
     {
+        ImportFakes.AcceptsCommitRecord(importJobResultStore);
+        ImportFakes.FedoraAgreesWithS3(fedoraClient);
         A.CallTo(() => fedoraClient.BeginTransaction()).Returns(transaction);
         A.CallTo(() => fedoraClient.GetValidatedArchivalGroupForImportJob(ArchivalGroupPath, transaction))
             .Returns(Result.OkNotNull<ArchivalGroup?>(new ArchivalGroup

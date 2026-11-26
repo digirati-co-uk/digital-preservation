@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using Amazon.S3;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
@@ -31,6 +31,12 @@ public class ExecuteImportJobCommitVerificationTests
 
     private readonly IFedoraClient fedoraClient = A.Fake<IFedoraClient>();
     private readonly IImportJobResultStore importJobResultStore = A.Fake<IImportJobResultStore>();
+
+    public ExecuteImportJobCommitVerificationTests()
+    {
+        ImportFakes.AcceptsCommitRecord(importJobResultStore);
+        ImportFakes.FedoraAgreesWithS3(fedoraClient);
+    }
 
     /// <summary>
     /// An update to an existing Archival Group with nothing to add, patch or delete - the simplest
@@ -532,5 +538,77 @@ public class ExecuteImportJobCommitVerificationTests
         A.CallTo(() => fedoraClient.CommitTransaction(A<Transaction>._, A<CancellationToken>._)).MustNotHaveHappened();
         // The transaction is already gone; rolling it back is pointless and must not be attempted.
         A.CallTo(() => fedoraClient.RollbackTransaction(A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Commit_S3_Shows_But_Fedora_Does_Not_Gives_CompletedWithErrors_Pointing_At_The_Runbook()
+    {
+        // Issue #459: Fedora died after OCFL wrote the root inventory and before its own database
+        // committed, so S3 has v2 while Fedora still lists one version.
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new OperationCanceledException());
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v2", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+        A.CallTo(() => fedoraClient.GetFedoraVersionCount(ArchivalGroupPath)).Returns(Result.OkNotNull(1));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.CompletedWithErrors);
+        result.Value.Errors!.Single().Message.Should()
+            .Contain("S3 shows version v2").And.Contain("Fedora lists 1 version(s)").And.Contain("wedged-archival-group.md");
+        A.CallTo(() => fedoraClient.RollbackTransaction(A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Connection_Error_Where_S3_And_Fedora_Agree_Asks_Fedora_And_Gives_Completed()
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new HttpRequestException("connection reset"));
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v2", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.Completed);
+        A.CallTo(() => fedoraClient.GetFedoraVersionCount(ArchivalGroupPath)).MustHaveHappened();
+    }
+
+    [Fact]
+    public async Task The_Commit_Is_Recorded_With_Its_Transaction_Before_It_Is_Sent()
+    {
+        // Issue #444: if the importer dies during the commit, the record is what lets the job be
+        // reconciled instead of failed.
+        var transaction = GivenTheHappyPathToCommit();
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Invokes(() => transaction.CommitStatusCode = HttpStatusCode.NoContent)
+            .Returns(Task.CompletedTask);
+
+        await CreateHandler().Handle(new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        A.CallTo(() => importJobResultStore.RecordCommitStarted(
+                JobId, A<ImportJobResult>.That.Matches(r => r.SourceVersion == "v1"), TxLocation, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly()
+            .Then(A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._)).MustHaveHappenedOnceExactly());
+    }
+
+    [Fact]
+    public async Task A_Job_Reaped_Before_Its_Commit_Is_Rolled_Back_And_Never_Committed()
+    {
+        var transaction = GivenTheHappyPathToCommit();
+        A.CallTo(() => importJobResultStore.RecordCommitStarted(A<string>._, A<ImportJobResult>._, A<Uri>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(false));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.CompletedWithErrors);
+        result.Value.Errors!.Single().Message.Should().Contain("before its commit");
+        A.CallTo(() => fedoraClient.CommitTransaction(A<Transaction>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => fedoraClient.RollbackTransaction(transaction)).MustHaveHappenedOnceExactly();
     }
 }

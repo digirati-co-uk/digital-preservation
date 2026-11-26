@@ -71,6 +71,14 @@ namespace Storage.API.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("archival_group");
 
+                    b.Property<DateTime?>("CommitStarted")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("commit_started");
+
+                    b.Property<string>("CommitTransaction")
+                        .HasColumnType("text")
+                        .HasColumnName("commit_transaction");
+
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("end_time");

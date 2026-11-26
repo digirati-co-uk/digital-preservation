@@ -1,4 +1,4 @@
-# Deployment
+﻿# Deployment
 
 
 How the platform is built, what gets deployed, how it is configured, and how to run it on your own machine.
@@ -189,6 +189,12 @@ Either way the caller sees exactly the same thing: `201 Created` and an Import J
 Whichever mode runs a job, `ImportJobRunner` writes a `last_heartbeat` timestamp (the database's own clock) roughly every `ImportJobs:HeartbeatIntervalSeconds` (default 60) for as long as the job is actually executing. A job whose heartbeat has gone stale for longer than `ImportJobs:HeartbeatWindowMinutes` (default 10) - its processor crashed, or an ECS task was replaced mid-run - is **reaped**: a conditional `UPDATE` marks it inactive and records a `completedWithErrors` Import Job Result with a reason, so the Preservation API learns the job finished and the Archival Group stops being blocked. A job that has never sent a heartbeat (still queued) is never reaped by age - SQS retains a message for up to 14 days, so it may genuinely not have been picked up yet.
 
 Two things trigger a reap: queuing a new job for the same Archival Group (`GetActiveJobsForArchivalGroup`), and `ImportJobReapService`, a periodic sweep in the Storage API (`ImportJobs:ReapSweepIntervalMinutes`, default 5) that checks every Archival Group, not just one a caller happens to be touching right now - without it, a group whose only job was abandoned would stay blocked until a human intervened. The sweep's reap is idempotent, so it is safe to run on more than one Storage API instance at once.
+
+**A job that dies during its commit is reconciled, not reaped** (#444). Fedora finishes a commit even when the importer that sent it has gone, so failing such a job would put the deposit into Error while the Archival Group has a new version. Immediately before the commit `PUT`, `ExecuteImportJobHandler` records `commit_started` and `commit_transaction` on the job, and saves its result with the source version and the lists of what was added, patched, renamed and deleted. Neither reap path fails a stale job with that record:
+- the inline reap in `GetActiveJobsForArchivalGroup` runs inside an HTTP request and can't wait for a commit, so it leaves the job Active, still blocking the group;
+- the sweep hands it to `ImportJobCommitReconciler`. That asks Fedora about the transaction each sweep until it answers 404 or 410, then decides the outcome from S3 and Fedora together (`CommitOutcomeVerifier`, #459): S3's head version must have moved, Fedora must list the same number of versions, and one resource the job added must be there, or one it deleted gone. It records Completed with the new version, or `completedWithErrors` saying what happened. If S3 has the version and Fedora doesn't, the message points at the [wedged Archival Group runbook](./wedged-archival-group.md), state 3. A transaction still unfinished after `ImportJobs:CommitReconcileGiveUpMinutes` (default 720) is recorded as unconfirmed.
+
+Nothing reconciles at importer start-up: a new importer starts while the old one may still be committing. The same S3-then-Fedora check runs when the importer survives but can't trust the commit's own response (#383).
 
 Startup fails fast if `HeartbeatIntervalSeconds` is configured at or above `HeartbeatWindowMinutes × 60`, since that would let a live job's own gaps between heartbeats be mistaken for abandonment.
 

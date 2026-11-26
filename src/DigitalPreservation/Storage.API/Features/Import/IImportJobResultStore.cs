@@ -37,6 +37,34 @@ public interface IImportJobResultStore
     /// </summary>
     public Task<Result<bool>> SaveRunningImportJobResult(string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Issue #444: the executor's last write before it sends the commit. Saves the result - with its
+    /// source version and the lists of what was added, patched, renamed and deleted, which otherwise
+    /// live only in memory - and marks the commit as started, with its transaction, on the database's
+    /// clock. From then on the job is reconciled, not reaped, if its heartbeat goes stale. Conditional
+    /// on the row still being Active, like <see cref="SaveRunningImportJobResult"/>: false means the job
+    /// was reaped first, and the caller must not commit.
+    /// </summary>
+    public Task<Result<bool>> RecordCommitStarted(string jobIdentifier, ImportJobResult importJobResult, Uri transaction, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Active jobs whose commit had started (<see cref="RecordCommitStarted"/>) and whose heartbeat has
+    /// since gone stale: the importer died, or stalled, mid-commit. For <see cref="ImportJobCommitReconciler"/>.
+    /// </summary>
+    public Task<Result<List<StaleCommittingJob>>> GetStaleCommittingJobs(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The reconciler's final write for a job whose commit was interrupted. Conditional: only while the
+    /// row is still Active, the commit is recorded as started, and the heartbeat is still stale - so a
+    /// runner that was only paused, and has since written its own result or a fresh heartbeat, wins.
+    /// </summary>
+    public Task<Result<bool>> SaveReconciledImportJobResult(string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Active jobs for the group. Reaps stale ones as a side effect, except a job whose commit had
+    /// started: this runs inside an HTTP request and can't wait for a commit to finish, so that job stays
+    /// active, and keeps blocking the group, until the reconciler has decided its outcome (issue #444).
+    /// </summary>
     public Task<Result<List<string>>> GetActiveJobsForArchivalGroup(Uri? archivalGroup, CancellationToken cancellationToken);
 
     /// <summary>
