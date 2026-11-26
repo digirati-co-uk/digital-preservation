@@ -75,6 +75,9 @@ public sealed class ProjectionContext
     /// projected, so canvases and ranges inherit it and carry their own only where they differ.
     /// </summary>
     internal (string Label, string Text)? ObjectRequiredStatement { get; set; }
+
+    /// <summary>From <see cref="IiifOptions.RoleConditionTypes"/>: which conditions become role tokens.</summary>
+    internal IReadOnlyCollection<string> RoleConditionTypes { get; set; } = [];
 }
 
 /// <summary>
@@ -91,6 +94,17 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     public const string PaintedResourcesProperty = "paintedResources";
     public const string LabelPrefix = "Preservation: ";
 
+    /// <summary>
+    /// The prefix of the placeholder roles on IIIF-CS assets. Shaped like a URI, so IIIF-CS reads it
+    /// as a role, and plainly not one, so an unmapped token is refused rather than published.
+    /// </summary>
+    public const string RoleTokenPrefix = "urn:x-access-condition:";
+
+    /// <summary>The role token of an asset with none of the role-making conditions.</summary>
+    public const string NoConditionsRoleToken = RoleTokenPrefix + "none";
+
+    public const string AccessDiffersFromAssetProperty = "accessDiffersFromAsset";
+
     private const string En = "en";
     private const string None = "none";
 
@@ -105,6 +119,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         var objectLevel = mets.PhysicalStructure?.Directories.FirstOrDefault(d => d.LocalPath == FolderNames.Objects)
                           ?? mets.PhysicalStructure;
         context.ObjectRequiredStatement = objectLevel == null ? null : RequiredStatementFor(objectLevel, context);
+        context.RoleConditionTypes = options.Value.RoleConditionTypes;
 
         manifest.Items = [];
         foreach (var file in mets.Files)
@@ -255,12 +270,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
                 Id = $"{canvas.Id}/annotations/{items.Count}",
                 Body =
                 [
-                    new ExternalResource(GetDcType(target.ContentType))
-                    {
-                        Id = bodyId,
-                        Label = new LanguageMap(None, target.Name ?? target.LocalPath.GetSlug() ?? target.LocalPath),
-                        Format = target.ContentType
-                    }
+                    LinkedFileBody(target, bodyId, context)
                 ],
                 Target = new Canvas { Id = canvas.Id }
             };
@@ -274,6 +284,24 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         {
             canvas.Annotations = [new AnnotationPage { Id = $"{canvas.Id}/annotations", Items = items }];
         }
+    }
+
+    // A linked file needs access control as much as the file it belongs to, so it carries its own
+    // effective access conditions: usually the same, by inheritance, but not necessarily.
+    private static ExternalResource LinkedFileBody(WorkingFile target, string bodyId, ProjectionContext context)
+    {
+        var body = new ExternalResource(GetDcType(target.ContentType))
+        {
+            Id = bodyId,
+            Label = new LanguageMap(None, target.Name ?? target.LocalPath.GetSlug() ?? target.LocalPath),
+            Format = target.ContentType
+        };
+        var conditions = AccessConditionsOf(target, context);
+        if (conditions.Count > 0)
+        {
+            body.AdditionalProperties[AccessConditionsTerm] = conditions;
+        }
+        return body;
     }
 
     // ─── IIIF-CS ────────────────────────────────────────────────────────────────
@@ -294,13 +322,21 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         {
             asset["origin"] = origin;
         }
+        // The conditions beside the roles made from them, as on an adjunct, so a builder needn't go
+        // to the canvas to see why an asset has the tokens it has. The canvas keeps its copy.
+        var conditions = AccessConditionsOf(file, context);
+        if (conditions.Count > 0)
+        {
+            asset[AccessConditionsTerm] = conditions;
+        }
+        asset["roles"] = RoleTokens(conditions, context);
         var adjuncts = new JArray();
         foreach (var link in file.Links)
         {
             var target = mets.Files.FirstOrDefault(f => f.LocalPath == link.To);
             if (target != null)
             {
-                adjuncts.Add(MakeAdjunct(target, link, context));
+                adjuncts.Add(MakeAdjunct(target, link, conditions, context));
             }
         }
         if (adjuncts.Count > 0)
@@ -321,7 +357,11 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     // A linked file (a transcript, OCR) is an adjunct of the asset it belongs to, so IIIF-CS ingests
     // and serves it. "inlineAnnotation" with motivation "supplementing" is how IIIF-CS emits a
     // supplementing annotation whose body is the adjunct.
-    private static JObject MakeAdjunct(WorkingFile target, FileLink link, ProjectionContext context)
+    //
+    // It carries its own access conditions and placeholder roles. IIIF-CS gives an adjunct its
+    // asset's access today, so where they differ accessDiffersFromAsset says so, for the builder to
+    // deal with as it sees fit; if IIIF-CS comes to support roles on adjuncts, they are ready.
+    private static JObject MakeAdjunct(WorkingFile target, FileLink link, JArray assetConditions, ProjectionContext context)
     {
         var adjunct = new JObject
         {
@@ -342,7 +382,36 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         {
             adjunct["provides"] = provides;
         }
+        var conditions = AccessConditionsOf(target, context);
+        if (conditions.Count > 0)
+        {
+            adjunct[AccessConditionsTerm] = conditions;
+        }
+        adjunct["roles"] = RoleTokens(conditions, context);
+        if (!JToken.DeepEquals(conditions, assetConditions))
+        {
+            adjunct[AccessDiffersFromAssetProperty] = true;
+        }
         return adjunct;
+    }
+
+    /// <summary>
+    /// Placeholder roles for an asset or adjunct, from its access conditions: one
+    /// <c>urn:x-access-condition:{type}:{value}</c> per condition of the configured types (both parts
+    /// percent-encoded), or <see cref="NoConditionsRoleToken"/> when there is none. A builder maps each
+    /// token to a real IIIF-CS role URI, or drops it for open access. A token left unmapped is not a
+    /// role IIIF-CS knows, so it fails rather than publishing the file openly.
+    /// </summary>
+    private static JArray RoleTokens(JArray conditions, ProjectionContext context)
+    {
+        var types = context.RoleConditionTypes;
+        var tokens = conditions
+            .Select(c => (Type: c["type"]!.ToString(), Value: c["value"]!.ToString()))
+            .Where(c => types.Count > 0 ? types.Contains(c.Type) : c.Type != UseAndReproduction)
+            .Select(c => $"{RoleTokenPrefix}{Uri.EscapeDataString(c.Type)}:{Uri.EscapeDataString(c.Value)}")
+            .Distinct()
+            .ToList();
+        return tokens.Count > 0 ? new JArray(tokens) : new JArray(NoConditionsRoleToken);
     }
 
     // ─── ranges ─────────────────────────────────────────────────────────────────
@@ -529,6 +598,24 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     /// </summary>
     private static void SetAccessConditions(IiifResource resource, PreservationResource source, ProjectionContext context)
     {
+        if (source.EffectiveRightsStatement != null)
+        {
+            resource.Rights = source.EffectiveRightsStatement.ToString();
+        }
+        SetRequiredStatement(resource, source, context);
+        var conditions = AccessConditionsOf(source, context);
+        if (conditions.Count > 0)
+        {
+            resource.AdditionalProperties[AccessConditionsTerm] = conditions;
+        }
+    }
+
+    /// <summary>
+    /// A resource's effective access conditions, in one order everywhere they appear (canvases,
+    /// ranges, the manifest, linked files, adjuncts) and the same values the Preservation UI shows.
+    /// </summary>
+    private static JArray AccessConditionsOf(PreservationResource source, ProjectionContext context)
+    {
         var conditions = new JArray();
         foreach (var restriction in source.EffectiveAccessRestrictions)
         {
@@ -537,17 +624,12 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         if (source.EffectiveRightsStatement != null)
         {
             conditions.Add(Condition(UseAndReproduction, source.EffectiveRightsStatement.ToString(), false));
-            resource.Rights = source.EffectiveRightsStatement.ToString();
         }
-        SetRequiredStatement(resource, source, context);
         foreach (var (type, value) in source.EffectiveOtherAccessConditions)
         {
             conditions.Add(Condition(type, value, context.DerivedTypes.Contains(type)));
         }
-        if (conditions.Count > 0)
-        {
-            resource.AdditionalProperties[AccessConditionsTerm] = conditions;
-        }
+        return conditions;
     }
 
     /// <summary>
