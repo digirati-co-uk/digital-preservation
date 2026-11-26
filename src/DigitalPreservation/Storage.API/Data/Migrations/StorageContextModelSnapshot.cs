@@ -107,6 +107,11 @@ namespace Storage.API.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_import_jobs");
 
+                    b.HasIndex("ArchivalGroup")
+                        .IsUnique()
+                        .HasDatabaseName("ix_import_jobs_archival_group_one_active")
+                        .HasFilter("active");
+
                     b.ToTable("import_jobs", (string)null);
                 });
 #pragma warning restore 612, 618
