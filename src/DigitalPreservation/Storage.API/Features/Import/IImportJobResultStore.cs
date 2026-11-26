@@ -7,6 +7,11 @@ public interface IImportJobResultStore
 {
     public Task<Result<ImportJob?>> GetImportJob(string jobIdentifier, CancellationToken cancellationToken);
     public Task<Result<ImportJobResult?>> GetImportJobResult(string jobIdentifier, CancellationToken cancellationToken);
+    /// <summary>
+    /// Inserts a new, active job. Fails with Conflict if its Archival Group already has an active
+    /// job: a database index enforces one per group, so this holds even when two requests race
+    /// past the caller's own check (issue #460).
+    /// </summary>
     public Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken);
     public Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, bool active, bool ended, CancellationToken cancellationToken);
 

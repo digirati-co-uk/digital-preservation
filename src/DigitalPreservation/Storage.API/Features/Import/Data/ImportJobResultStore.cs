@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Storage.API.Data;
 using Storage.API.Fedora.Model;
 
@@ -463,11 +464,29 @@ public class ImportJobResultStore(
             await dbContext.SaveChangesAsync(cancellationToken);
             return Result.Ok();
         }
+        catch (DbUpdateException e) when (IsOneActiveJobPerArchivalGroupViolation(e))
+        {
+            // The caller's check for an active job raced another request for the same Archival
+            // Group, and that one inserted first (issue #460). Stop tracking the rejected row, so a
+            // later save on this context doesn't try to insert it again.
+            foreach (var entry in e.Entries)
+            {
+                entry.State = EntityState.Detached;
+            }
+            logger.LogWarning("Import job {JobId} for Archival Group {ArchivalGroup} lost a race to another active job",
+                jobIdentifier, importJob.ArchivalGroup);
+            return Result.Fail(ErrorCodes.Conflict,
+                $"There is already an active import job for Archival Group {importJob.ArchivalGroup}");
+        }
         catch (Exception e)
         {
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
     }
+
+    private static bool IsOneActiveJobPerArchivalGroupViolation(DbUpdateException e) =>
+        e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
+        && pg.ConstraintName == StorageContext.OneActiveImportJobPerArchivalGroupIndexName;
 
     public async Task<Result> SaveImportJobResult(
         string jobIdentifier, 

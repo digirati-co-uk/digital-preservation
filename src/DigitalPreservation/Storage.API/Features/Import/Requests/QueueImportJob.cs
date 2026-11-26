@@ -58,6 +58,13 @@ public class QueueImportJobHandler(
         // here on the saves and the queuing run to completion whether or not the caller is listening.
         cancellationToken.ThrowIfCancellationRequested();
         var saveJobResult = await importJobResultStore.SaveImportJob(jobIdentifier, request.ImportJob, CancellationToken.None);
+        if (saveJobResult.ErrorCode == ErrorCodes.Conflict)
+        {
+            // Another request for this Archival Group passed the check above at the same moment, and
+            // inserted first: the database's one-active-job index refused this one (issue #460).
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict,
+                saveJobResult.ErrorMessage ?? $"There is already an active import job for Archival Group {request.ImportJob.ArchivalGroup}");
+        }
         if (saveJobResult.Success)
         {
             var waitingResult = CreateWaitingResult(jobIdentifier, request.ImportJob);
