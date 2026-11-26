@@ -277,6 +277,14 @@ public class ImportJobResultStore(
     /// </summary>
     private async Task<bool> TryReapStaleRunningJob(ImportJobEntity job, CancellationToken cancellationToken)
     {
+        if (job.CommitStarted != null)
+        {
+            // Issue #444: Fedora may have finished this job's commit after its importer died, so it
+            // isn't failed here. ImportJobCommitReconciler decides its outcome; until then it stays
+            // Active and keeps blocking its Archival Group.
+            return false;
+        }
+
         var abandonedResult = BuildAbandonedResult(job, $"abandoned: no heartbeat since {job.LastHeartbeat:O}");
         if (abandonedResult == null)
         {
@@ -294,6 +302,7 @@ public class ImportJobResultStore(
                 import_job_result_uri = {abandonedResult.Id}
             WHERE id = {job.Id}
               AND active
+              AND commit_started IS NULL
               AND last_heartbeat < now() - {HeartbeatWindow}
             """, cancellationToken);
 
@@ -372,6 +381,100 @@ public class ImportJobResultStore(
         result.DateFinished = DateTime.UtcNow;
         result.Errors = [.. result.Errors ?? [], new Error { Message = reason }];
         return result;
+    }
+
+    public async Task<Result<bool>> RecordCommitStarted(
+        string jobIdentifier, ImportJobResult importJobResult, Uri transaction, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resultJson = JsonSerializer.Serialize(importJobResult);
+            var transactionUri = transaction.ToString();
+            // The database's own clock, as for the heartbeat.
+            var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE import_jobs
+                SET import_job_result_json = {resultJson},
+                    commit_started = now(),
+                    commit_transaction = {transactionUri}
+                WHERE id = {jobIdentifier} AND active
+                """, cancellationToken);
+            return Result.Ok(rowsAffected > 0);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<bool>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<StaleCommittingJob>>> GetStaleCommittingJobs(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // The staleness test is on the database's clock, like the reap's.
+            var staleIds = await dbContext.Database.SqlQuery<string>($"""
+                SELECT id AS "Value" FROM import_jobs
+                WHERE active
+                  AND commit_started IS NOT NULL
+                  AND last_heartbeat < now() - {HeartbeatWindow}
+                """).ToListAsync(cancellationToken);
+            if (staleIds.Count == 0)
+            {
+                return Result.OkNotNull(new List<StaleCommittingJob>());
+            }
+
+            // AsNoTracking: see the comment on the equivalent query in GetActiveJobsForArchivalGroup.
+            var entities = await dbContext.ImportJobs.AsNoTracking()
+                .Where(ij => staleIds.Contains(ij.Id))
+                .ToListAsync(cancellationToken);
+
+            var jobs = new List<StaleCommittingJob>();
+            foreach (var entity in entities)
+            {
+                var importJob = JsonSerializer.Deserialize<ImportJob>(entity.ImportJobJson);
+                var result = entity.ImportJobResultJson == null
+                    ? null
+                    : JsonSerializer.Deserialize<ImportJobResult>(entity.ImportJobResultJson);
+                if (importJob == null || result == null || entity.CommitStarted == null || entity.CommitTransaction == null)
+                {
+                    logger.LogError("Cannot reconcile import job {JobId}: its stored job, result or commit record is missing", entity.Id);
+                    continue;
+                }
+                jobs.Add(new StaleCommittingJob(entity.Id, importJob, result, entity.CommitStarted.Value, entity.CommitTransaction));
+            }
+            return Result.OkNotNull(jobs);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<StaleCommittingJob>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<bool>> SaveReconciledImportJobResult(
+        string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resultJson = JsonSerializer.Serialize(importJobResult);
+            var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE import_jobs
+                SET active = false,
+                    import_job_result_json = {resultJson},
+                    end_time = {importJobResult.DateFinished},
+                    import_job_result_uri = {importJobResult.Id}
+                WHERE id = {jobIdentifier}
+                  AND active
+                  AND commit_started IS NOT NULL
+                  AND last_heartbeat < now() - {HeartbeatWindow}
+                """, cancellationToken);
+            return Result.Ok(rowsAffected > 0);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<bool>(ErrorCodes.UnknownError, e.Message);
+        }
     }
 
     public async Task<Result> Heartbeat(string jobIdentifier, CancellationToken cancellationToken)
