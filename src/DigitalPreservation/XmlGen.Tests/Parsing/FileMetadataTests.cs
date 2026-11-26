@@ -561,6 +561,38 @@ public class FileMetadataTests : MetsParserTestBase
         extent.Duration.Should().BeApproximately(596.0, precision: 0.0001);
     }
 
+    [Theory]
+    [InlineData("12.34 s", 12.34)]           // ExifTool, under 30 s
+    [InlineData("0 s", 0)]
+    [InlineData("3:42", 222)]                // M:SS
+    [InlineData("75:00", 4500)]              // M:SS past an hour
+    [InlineData("1:02:03.5", 3723.5)]
+    [InlineData("1 days 2:03:04", 93784)]    // ExifTool, a day or more
+    [InlineData("0:35:09 (approx)", 2109)]   // ExifTool's estimate, e.g. a VBR MP3
+    [InlineData("12.34 s (approx)", 12.34)]
+    public void Duration_in_ExifTools_printed_forms_is_converted_to_seconds(string value, double expected)
+    {
+        var xml = FullMetsWithSigProps(SigProp("Duration", value));
+
+        var mets = Parse(xml);
+
+        var extent = mets.Files[0].Metadata.OfType<ExtentMetadata>().Single();
+        extent.Duration.Should().BeApproximately(expected, precision: 0.0001);
+    }
+
+    [Theory]
+    [InlineData("not-a-duration")]
+    [InlineData("1:60:00")]
+    [InlineData("0:09:60")]
+    [InlineData("-5")]
+    [InlineData("5 min")]
+    public void Duration_with_unrecognised_format_is_silently_ignored_too(string value)
+    {
+        var mets = Parse(FullMetsWithSigProps(SigProp("Duration", value)));
+
+        mets.Files[0].Metadata.OfType<ExtentMetadata>().Should().BeEmpty();
+    }
+
     [Fact]
     public void Duration_with_unrecognised_format_is_silently_ignored()
     {

@@ -873,11 +873,9 @@ public class MetsParser(
             var spValue = sp.Element(XNames.PremisSignificantPropertiesValue)?.Value;
             if (spType == "Duration")
             {
-                if (double.TryParse(spValue, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out var dur))
-                    duration = dur;
-                else if (spValue != null)
-                    try { duration = MetsTimeCode.ToSeconds(spValue); } catch (FormatException) { }
+                // Plain seconds as the platform writes it, or ExifTool's printed forms as the
+                // pipeline copies them in (12.34 s, 0:09:56, 1 days 2:03:04, ... (approx)).
+                duration = DurationValue.ToSeconds(spValue);
             }
             else if (spType == "ImageWidth" && int.TryParse(spValue, out var w))
                 pixelWidth = w;

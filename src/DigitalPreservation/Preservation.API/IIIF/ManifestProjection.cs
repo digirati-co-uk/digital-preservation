@@ -516,13 +516,16 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     private static string Fragment(FilePointer pointer)
     {
         var fragment = "";
-        if (pointer.BeginTime > 0)
+        // A part from the very start (BEGIN 00:00:00) is still a part: only a pointer with no
+        // times at all, or one from 0 with no end, is the whole file.
+        var begin = pointer.BeginTime ?? 0;
+        if (pointer.EndTime > begin)
         {
-            fragment = $"t={pointer.BeginTime.Value.ToString(CultureInfo.InvariantCulture)}";
-            if (pointer.EndTime > pointer.BeginTime)
-            {
-                fragment += $",{pointer.EndTime.Value.ToString(CultureInfo.InvariantCulture)}";
-            }
+            fragment = $"t={begin.ToString(CultureInfo.InvariantCulture)},{pointer.EndTime.Value.ToString(CultureInfo.InvariantCulture)}";
+        }
+        else if (begin > 0)
+        {
+            fragment = $"t={begin.ToString(CultureInfo.InvariantCulture)}";
         }
         if (pointer.Region != null)
         {

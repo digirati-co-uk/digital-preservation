@@ -342,6 +342,26 @@ public class ManifestProjectionTests
         json["structures"]!.Should().HaveCount(1, "objects/ is flat, so there is no folder range");
     }
 
+    [Theory]
+    [InlineData(0.0, 600.0, "#t=0,600")]      // from the very start: still a part, not the whole file
+    [InlineData(null, 600.0, "#t=0,600")]
+    [InlineData(30.0, null, "#t=30")]
+    [InlineData(0.0, null, "")]               // from 0 with no end: the whole file
+    [InlineData(null, null, "")]
+    public void A_Time_Range_Keeps_Its_Fragment_Whatever_It_Starts_At(double? begin, double? end, string fragment)
+    {
+        var range = new LogicalRange
+        {
+            Id = "LOG_1", Type = "Item", Name = "Interview",
+            Files = [new FilePointer { LocalPath = "objects/clip.mp4", BeginTime = begin, EndTime = end }]
+        };
+
+        var json = Project(Mets([File("objects/clip.mp4", "video/mp4", 640, 480, 3600)], [range]), Vanilla());
+
+        json["structures"]![0]!["items"]![0]!["id"]!.ToString()
+            .Should().Be($"{IdBase}canvases/{IdOf("objects/clip.mp4")}{fragment}");
+    }
+
     [Fact]
     public void Folders_Become_A_Range_When_Content_Sits_In_A_Subfolder_And_It_Is_Kept_Beside_Logical_Ranges()
     {
