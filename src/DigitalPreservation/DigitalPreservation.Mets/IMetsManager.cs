@@ -67,6 +67,9 @@ public interface IMetsManager
     Result SuppressRightsInheritanceByDivId(FullMets mets, string divId);
     Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
 
+    /// <summary>Sets, or with null clears, the extent a person entered for a file (issue #508).</summary>
+    Result SetEnteredExtentByPath(FullMets mets, string localPath, EnteredExtent? entered);
+
     /// <summary>
     /// The <c>@type</c> of the installation's chosen statement axis (issue #433), or null without
     /// one; a failure when the profile cannot be fetched.

@@ -1232,6 +1232,26 @@ public class MetsManager(
     }
 
 
+    /// <summary>
+    /// Sets, or with null clears, the extent a person entered for a file (issue #508). Files only:
+    /// a folder has no duration.
+    /// </summary>
+    public Result SetEnteredExtentByPath(FullMets mets, string localPath, EnteredExtent? entered)
+    {
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
+        // The platform writes a file's div as an Item, a folder's as a Directory.
+        if (string.Equals(div.Type, Constants.DirectoryType, StringComparison.OrdinalIgnoreCase) || div.Fptr.Count == 0)
+            return Result.Fail(ErrorCodes.BadRequest, $"{localPath} is not a file: only a file has an extent to enter");
+
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true, MetsCache.NormalisePathKey(localPath));
+        if (mods is null) return ModsUnavailable(div);
+        mods.SetEnteredExtent(entered);
+        ModsManager.SetModsForDiv(mets.Mets, div, mods);
+        return Result.Ok();
+    }
+
     public Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);

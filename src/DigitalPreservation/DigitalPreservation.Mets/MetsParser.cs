@@ -447,7 +447,7 @@ public class MetsParser(
         // to rely on the AMD premis:originalName as the local path.
         foreach (var div in parent.Elements(XNames.MetsDiv))
         {
-            var (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet, otherAccessConditions) = GetDmdForDiv(div, lookupMaps);
+            var (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet, otherAccessConditions, enteredExtent) = GetDmdForDiv(div, lookupMaps);
 
             var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
             var label = div.Attribute("LABEL")?.Value;
@@ -826,6 +826,7 @@ public class MetsParser(
                 file.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
                 file.OtherAccessConditions = otherAccessConditions;
                 file.RecordInfo = recordInfo;
+                file.EnteredExtent = enteredExtent;
 
                 mets.Files.Add(file);
 
@@ -911,9 +912,43 @@ public class MetsParser(
         Uri? RightsStatement,
         RecordInfo? RecordInfo,
         bool RightsExplicitlySet,
-        Dictionary<string, string>? OtherAccessConditions)
+        Dictionary<string, string>? OtherAccessConditions,
+        EnteredExtent? EnteredExtent = null)
     {
         public static readonly DmdInfo Empty = new(null, null, null, false, null);
+    }
+
+    /// <summary>
+    /// A file's extent as entered by a person (issue #508): <c>mods:physicalDescription/mods:extent</c>
+    /// elements marked <c>supplied="yes"</c>, in seconds or pixels. Null when there are none.
+    /// </summary>
+    private static EnteredExtent? ReadEnteredExtent(XElement dmd)
+    {
+        double? duration = null;
+        int? width = null;
+        int? height = null;
+        foreach (var extent in dmd.Descendants(XNames.ModsPhysicalDescription).Elements(XNames.ModsExtent))
+        {
+            if (extent.Attribute("supplied")?.Value != "yes")
+            {
+                continue;
+            }
+            var value = extent.Value.Trim();
+            switch (extent.Attribute("unit")?.Value)
+            {
+                case EnteredExtent.SecondsUnit:
+                    duration ??= DurationValue.ToSeconds(value);
+                    break;
+                case EnteredExtent.WidthUnit when int.TryParse(value, out var w) && w > 0:
+                    width ??= w;
+                    break;
+                case EnteredExtent.HeightUnit when int.TryParse(value, out var h) && h > 0:
+                    height ??= h;
+                    break;
+            }
+        }
+        var entered = new EnteredExtent { Duration = duration, PixelWidth = width, PixelHeight = height };
+        return entered.IsEmpty ? null : entered;
     }
 
     /// <summary>
@@ -1007,7 +1042,8 @@ public class MetsParser(
             }
         }
 
-        return new DmdInfo(accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet, otherAccessConditions);
+        return new DmdInfo(accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet, otherAccessConditions,
+            ReadEnteredExtent(dmd));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1227,7 +1263,7 @@ public class MetsParser(
         var label = div.Attribute("LABEL")?.Value;
         var name = GetNameFromDmd(div, lookupMaps) ?? label;
 
-        var (accessRestrictions, rightsStatement, recordInfo, _, otherAccessConditions) = GetDmdForDiv(div, lookupMaps);
+        var (accessRestrictions, rightsStatement, recordInfo, _, otherAccessConditions, _) = GetDmdForDiv(div, lookupMaps);
 
         var range = new LogicalRange
         {

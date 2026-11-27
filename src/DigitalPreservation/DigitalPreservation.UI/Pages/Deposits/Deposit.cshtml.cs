@@ -115,6 +115,31 @@ public class DepositModel(
     }
 
 
+    /// <summary>
+    /// Each time-based file's duration, measured or entered, and whether it was entered, for the
+    /// structure editor's warnings (issue #508): a part that ends after its file does, or a timed
+    /// part of a file with no duration. A file with no duration has <c>null</c>.
+    /// </summary>
+    public string PhysicalFileDurationsJson
+    {
+        get
+        {
+            var dict = new Dictionary<string, object?>();
+            foreach (var f in RootCombinedDirectory?.Flatten().Item2 ?? [])
+            {
+                var contentType = f.FileInMets?.ContentType ?? f.FileInDeposit?.ContentType ?? "";
+                if (f.LocalPath == null || !(contentType.StartsWith("audio/") || contentType.StartsWith("video/")))
+                {
+                    continue;
+                }
+                EffectiveExtent? extent = null;
+                try { extent = f.FileInMets?.GetEffectiveExtent(); } catch (MetadataException) { /* conflicting measurements: no duration */ }
+                dict[f.LocalPath] = extent?.Duration is { } duration ? new { duration, entered = extent.DurationEntered } : null;
+            }
+            return JsonSerializer.Serialize(dict);
+        }
+    }
+
     public record MismatchDisplay(string FilePath, string? Differences, string? ExifDifferences);
 
     public IEnumerable<MismatchDisplay> MismatchDisplayItems => FileMisMatches.Select(m =>
@@ -678,18 +703,56 @@ public class DepositModel(
                 catch { /* ignore malformed */ }
             }
 
+            // Issue #508: the extent a person entered, for a file the pipeline couldn't measure.
+            var (enteredExtent, extentError) = ReadEnteredExtent(form);
+            if (extentError != null)
+            {
+                TempData[TempDataKeys.Error] = extentError;
+                return RedirectToPage();
+            }
+
             var changes = new ModsChanges(
                 form.AccessRestrictions,
                 ReadRightsChoice(form),
                 string.IsNullOrEmpty(form.AccessStatement) ? null : form.AccessStatement,
                 form.RecordIdentifiers,
                 fileLinks,
-                form.StatementInForm);
+                form.StatementInForm,
+                ExtentInForm: form.ExtentInForm && form.ModsContextIsFile,
+                EnteredExtent: enteredExtent);
             var result = await WorkspaceManager.SetModsInformation(form.ModsContext, changes);
             ReportOutcome(result, "Metadata updated.", TempDataKeys.AccessConditionsUpdated);
         }
 
         return RedirectToPage();
+    }
+
+    /// <summary>
+    /// The extent entered in the dialogue (issue #508), null when none was or the form didn't offer
+    /// it; or what's wrong with the duration typed.
+    /// </summary>
+    internal static (EnteredExtent? Extent, string? Error) ReadEnteredExtent(SetRightsAndAccessFormModel form)
+    {
+        if (!form.ExtentInForm)
+        {
+            return (null, null);
+        }
+        double? duration = null;
+        if (form.EnteredDuration.HasText())
+        {
+            duration = DurationValue.ToSeconds(form.EnteredDuration);
+            if (duration is null or <= 0)
+            {
+                return (null, $"'{form.EnteredDuration}' is not a duration: give H:MM:SS, M:SS or a number of seconds.");
+            }
+        }
+        var extent = new EnteredExtent
+        {
+            Duration = duration,
+            PixelWidth = form.EnteredWidth is > 0 ? form.EnteredWidth : null,
+            PixelHeight = form.EnteredHeight is > 0 ? form.EnteredHeight : null
+        };
+        return (extent.IsEmpty ? null : extent, null);
     }
 
     /// <summary>
@@ -920,5 +983,11 @@ public class SetRightsAndAccessFormModel
     public bool StatementInForm { get; set; }
     public RecordIdentifier[] RecordIdentifiers { get; set; } = [];
     public string? FileLinksJson { get; set; }
+
+    /// <summary>Whether the dialogue offered the extent fields (issue #508): a file with something unmeasured.</summary>
+    public bool ExtentInForm { get; set; }
+    public string? EnteredDuration { get; set; }
+    public int? EnteredWidth { get; set; }
+    public int? EnteredHeight { get; set; }
 }
 

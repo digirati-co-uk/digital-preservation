@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using MediatR;
 
@@ -36,7 +37,9 @@ public record ModsChanges(
     string? AccessStatement,
     IEnumerable<RecordIdentifier>? RecordIdentifiers,
     List<FileLink>? FileLinks,
-    bool StatementInForm = true);
+    bool StatementInForm = true,
+    bool ExtentInForm = false,
+    EnteredExtent? EnteredExtent = null);
 
 /// <summary>The four things a form can say about a node's rights statement.</summary>
 public enum RightsAction
@@ -95,7 +98,10 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
             () => changes.RecordIdentifiers is null
                 ? Result.Ok()
                 : metsManager.SetRecordInfoByPath(mets, path,
-                    new RecordInfo { RecordIdentifiers = changes.RecordIdentifiers.ToList() })
+                    new RecordInfo { RecordIdentifiers = changes.RecordIdentifiers.ToList() }),
+            () => changes.ExtentInForm
+                ? metsManager.SetEnteredExtentByPath(mets, path, changes.EnteredExtent)
+                : Result.Ok()
         ];
         foreach (var step in steps)
         {

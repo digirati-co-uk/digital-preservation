@@ -37,6 +37,7 @@ public static class XNames
     public static readonly XName ModsRecordIdentifier = mods + "recordIdentifier";
     public static readonly XName ModsIdentifier = mods + "identifier";
     public static readonly XName ModsPhysicalDescription = mods + "physicalDescription";
+    public static readonly XName ModsExtent = mods + "extent";
     public static readonly XName ModsDisplayForm = mods + "displayForm";
     public static readonly XName ModsAccessCondition = mods + "accessCondition";
     public static readonly XName ModsNote = mods + "note";

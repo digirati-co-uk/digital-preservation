@@ -340,7 +340,9 @@ public class DepositsController(
             change.AccessStatement,
             RecordIdentifiers: null,
             FileLinks: null,
-            StatementInForm: change.AccessStatementSent);
+            StatementInForm: change.AccessStatementSent,
+            ExtentInForm: change.ExtentSent,
+            EnteredExtent: change.Extent);
         var result = await workspaceManager.SetModsInformation(change.Path, changes);
         return this.StatusResponseFromResult(result, 204);
     }

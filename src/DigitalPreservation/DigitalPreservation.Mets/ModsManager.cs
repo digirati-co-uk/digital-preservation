@@ -94,6 +94,52 @@ public static class ModsManager
         modsDefinition.TitleInfo.Add(titleInfo);
     }
 
+    /// <summary>
+    /// Replaces the extents a person entered (issue #508): the <c>supplied="yes"</c> extents in
+    /// seconds and pixels, which this platform writes, and nothing else in physicalDescription. A
+    /// physicalDescription left empty is removed.
+    /// </summary>
+    public static void SetEnteredExtent(this ModsDefinition modsDefinition, DigitalPreservation.Common.Model.Transit.EnteredExtent? entered)
+    {
+        string[] ours =
+        [
+            DigitalPreservation.Common.Model.Transit.EnteredExtent.SecondsUnit,
+            DigitalPreservation.Common.Model.Transit.EnteredExtent.WidthUnit,
+            DigitalPreservation.Common.Model.Transit.EnteredExtent.HeightUnit
+        ];
+        foreach (var description in modsDefinition.PhysicalDescription.ToList())
+        {
+            foreach (var extent in description.Extent.Where(e => e.Supplied == Yes.Yes && ours.Contains(e.Unit)).ToList())
+            {
+                description.Extent.Remove(extent);
+            }
+            if (description.Extent.Count == 0 && description.Form.Count == 0 && description.ReformattingQuality.Count == 0
+                && description.InternetMediaType.Count == 0 && description.DigitalOrigin.Count == 0 && description.Note.Count == 0)
+            {
+                modsDefinition.PhysicalDescription.Remove(description);
+            }
+        }
+        if (entered is null || entered.IsEmpty)
+        {
+            return;
+        }
+
+        var target = modsDefinition.PhysicalDescription.FirstOrDefault();
+        if (target is null)
+        {
+            target = new PhysicalDescriptionDefinition();
+            modsDefinition.PhysicalDescription.Add(target);
+        }
+        void Add(string unit, string value) =>
+            target.Extent.Add(new Extent { Unit = unit, Supplied = Yes.Yes, Value = value });
+        if (entered.Duration is { } duration)
+            Add(ours[0], duration.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        if (entered.PixelWidth is { } width)
+            Add(ours[1], width.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (entered.PixelHeight is { } height)
+            Add(ours[2], height.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     public static void SetRecordInfo(this ModsDefinition modsDefinition, RecordInfo recordInfo)
     {
         modsDefinition.RecordInfo.Clear();

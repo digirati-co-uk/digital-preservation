@@ -244,7 +244,8 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     // without the canvas changing. The placeholder has the same aspect ratio, within limits.
     private static void PaintPlaceholder(Canvas canvas, WorkingFile file, ProjectionContext context)
     {
-        var extents = file.Metadata.OfType<ExtentMetadata>().FirstOrDefault();
+        // Measured where there is a measurement, otherwise as a person entered it (issue #508).
+        var extents = file.GetEffectiveExtent();
         var size = Placeholders.SizeFor(extents?.PixelWidth, extents?.PixelHeight);
         canvas.Width = extents?.PixelWidth is > 0 && extents.PixelHeight is > 0 ? extents.PixelWidth : size.Width;
         canvas.Height = extents?.PixelWidth is > 0 && extents.PixelHeight is > 0 ? extents.PixelHeight : size.Height;
@@ -645,7 +646,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     {
         var format = file.GetFileFormatMetadata();
         var storage = file.Metadata.OfType<StorageMetadata>().FirstOrDefault();
-        var extents = file.Metadata.OfType<ExtentMetadata>().FirstOrDefault();
+        var extents = file.GetEffectiveExtent();
         var virus = file.Metadata.OfType<VirusScanMetadata>().FirstOrDefault();
 
         var pairs = new List<LabelValuePair>();
@@ -677,12 +678,12 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         }
         if (extents?.PixelWidth is > 0 && extents.PixelHeight is > 0)
         {
-            Add("Width", extents.PixelWidth.Value.ToString(CultureInfo.InvariantCulture));
-            Add("Height", extents.PixelHeight.Value.ToString(CultureInfo.InvariantCulture));
+            Add("Width", extents.PixelWidth.Value.ToString(CultureInfo.InvariantCulture) + (extents.PixelWidthEntered ? " (entered)" : ""));
+            Add("Height", extents.PixelHeight.Value.ToString(CultureInfo.InvariantCulture) + (extents.PixelHeightEntered ? " (entered)" : ""));
         }
         if (extents?.Duration is > 0)
         {
-            Add("Duration", $"{extents.Duration.Value.ToString(CultureInfo.InvariantCulture)} s");
+            Add("Duration", $"{extents.Duration.Value.ToString(CultureInfo.InvariantCulture)} s" + (extents.DurationEntered ? " (entered)" : ""));
         }
         return pairs;
     }

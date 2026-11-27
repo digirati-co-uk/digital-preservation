@@ -13,6 +13,23 @@
     var isFile = combinedFile != null;
     var fileLinks = combinedFile?.FileInMets?.Links ?? [];
     var fileLinksJson = JsonSerializer.Serialize(fileLinks.Select(l => new { to = l.To, role = l.Role?.AbsoluteUri }));
+    // Issue #508: what was measured, what was entered, and what kind of file it is, for the
+    // dialogue's extent fields - offered only where nothing was measured.
+    var contentType = combinedFile?.FileInMets?.ContentType ?? combinedFile?.FileInDeposit?.ContentType ?? "";
+    DigitalPreservation.Common.Model.Transit.Extensions.Metadata.ExtentMetadata? measured = null;
+    // Two tools disagreeing about a measurement must not break the page: offer nothing then.
+    try { measured = combinedFile?.FileInMets?.GetExtentMetadata(); }
+    catch (DigitalPreservation.Common.Model.Transit.MetadataException) { measured = null; }
+    var entered = combinedFile?.FileInMets?.EnteredExtent;
+    var extentJson = isFile
+        ? JsonSerializer.Serialize(new
+        {
+            timeBased = contentType.StartsWith("audio/") || contentType.StartsWith("video/"),
+            spatial = contentType.StartsWith("image/") || contentType.StartsWith("video/"),
+            measured = new { duration = measured?.Duration, width = measured?.PixelWidth, height = measured?.PixelHeight },
+            entered = new { duration = entered?.Duration, width = entered?.PixelWidth, height = entered?.PixelHeight }
+        })
+        : "";
     // Set by the Deposit page; absent (null) when this partial is rendered elsewhere (issue #433).
     var profile = ViewData[ModsMetadataDisplayBuilder.ProfileViewDataKey] as AccessConditionProfile;
 }
@@ -32,7 +49,8 @@
     data-recordinfo="@combinedBase.RecordInfo?.ToCompactString()"
     data-eff-recordinfo="@combinedBase.EffectiveRecordInfo?.ToCompactString()"
     data-is-file="@(isFile ? "true" : "false")"
-    data-links="@fileLinksJson">@display</button>
+    data-links="@fileLinksJson"
+    data-extent="@extentJson">@display</button>
 
 @{
     var items = ModsMetadataDisplayBuilder.GetDisplayItems(combinedBase, Logger, profile);
