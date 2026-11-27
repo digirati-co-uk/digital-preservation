@@ -16,5 +16,7 @@ public static class TempDataKeys
     public const string Context = "Context";
     public const string ContainerError = "ContainerError";
     public const string ContainerSuccess = "ContainerSuccess";
+    /// <summary>Built as HTML (a link to the new container), so rendered raw: see <see cref="Pages.BrowseModel.ContainerCreatedMessage"/>.</summary>
+    public const string ContainerCreated = "ContainerCreated";
     public const string CreateDepositFail = "CreateDepositFail";
 }

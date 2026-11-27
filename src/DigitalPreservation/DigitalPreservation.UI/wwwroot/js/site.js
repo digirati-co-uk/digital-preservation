@@ -13,6 +13,15 @@ if (stickyHeader) {
         '--dlip-header-height', stickyHeader.offsetHeight + 'px')).observe(stickyHeader);
 }
 
+// A dialogue for typing something in starts with its first field focused: the field marked
+// data-autofocus. Not the HTML autofocus attribute, which browsers act on at page load, while the
+// dialogue is still hidden. On shown, not show: nothing in a modal can take focus until it has
+// faded in. Bootstrap's modal events bubble, so this covers dialogues built later by script too.
+// Confirmations are deliberately left unmarked, so Enter can't confirm something destructive.
+document.addEventListener('shown.bs.modal', event => {
+    event.target.querySelector('[data-autofocus]')?.focus();
+});
+
 document.querySelectorAll('form.single-submit').forEach(form => {
     form.addEventListener('submit', function(event) {
         if (this.dataset.submitted && this.dataset.submitted === "submitted") {

@@ -11,6 +11,7 @@ using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
 using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.Utils;
+using System.Net;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -371,7 +372,7 @@ public class BrowseModel(
             var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle), cancellationToken);
             if(result is { Success: true, Value: not null })
             {
-                TempData[TempDataKeys.ContainerSuccess] = "Created Container " + result.Value;
+                TempData[TempDataKeys.ContainerCreated] = ContainerCreatedMessage(result.Value);
             }
             else
             {
@@ -382,6 +383,17 @@ public class BrowseModel(
 
         TempData[TempDataKeys.ContainerError] = slugValidResult.ErrorMessage;
         return Redirect(Request.Path);
+    }
+
+    /// <summary>
+    /// "Created Container", with the new container's name linking to it. HTML, rendered raw, so
+    /// everything that came from the caller is encoded here.
+    /// </summary>
+    public static string ContainerCreatedMessage(Container container)
+    {
+        var href = WebUtility.HtmlEncode($"/browse/{container.GetPathUnderRoot()}");
+        var name = WebUtility.HtmlEncode(container.Name ?? container.GetSlug() ?? "");
+        return $"Created Container {container.StringIcon} <a href=\"{href}\">{name}</a>";
     }
 
     private static Result ValidateNewContainerSlug(string slug)

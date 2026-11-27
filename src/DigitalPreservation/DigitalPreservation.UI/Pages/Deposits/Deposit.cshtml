@@ -542,7 +542,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="depositFile" class="form-label">Choose a file to upload</label>
-                        <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp" data-max-upload-bytes="@Model.MaxUploadBytes">
+                        <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp" data-max-upload-bytes="@Model.MaxUploadBytes" data-autofocus>
                         <div id="fileHelp" class="form-text">Checksum will be calculated locally and after upload.</div>
                     </div>
                     <div class="mb-3">
@@ -597,7 +597,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="newFolderName" class="form-label">New folder</label>
-                        <input type="text" class="form-control" id="newFolderName" name="newFolderName" aria-describedby="newFolderNameHelp">
+                        <input type="text" class="form-control" id="newFolderName" name="newFolderName" aria-describedby="newFolderNameHelp" data-autofocus>
                         <div id="newFolderNameHelp" class="form-text">Create a new folder in the digital object</div>
                     </div>
                 </div>
@@ -785,7 +785,7 @@
                         {
                             @* Single-select unless the profile allows several (issue #433). An empty choice
                                means "inherit from the parent", as clearing a multi-select always did. *@
-                            <select multiple="@profile.AllowMultipleRestrictions" id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
+                            <select multiple="@profile.AllowMultipleRestrictions" id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel" data-autofocus>
                                 @if (!profile.AllowMultipleRestrictions)
                                 {
                                     <!option value="">(inherit from parent)</!option>
