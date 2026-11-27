@@ -52,9 +52,12 @@ public class DepositFileSource(
             // Local development only: no mount on a laptop, so copy the deposit down instead.
             if (hostEnvironment.IsDevelopment())
             {
-                logger.LogInformation(
-                    "StorageOptions:CopyEveryDepositToScratch is on (local development): copying deposit {DepositSlug} from S3 rather than reading the mount",
-                    depositSlug);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "StorageOptions:CopyEveryDepositToScratch is on (local development): copying deposit {DepositSlug} from S3 rather than reading the mount",
+                        depositSlug);
+                }
                 return await CopyToScratch(s3Uri.Bucket, s3Uri.Key, depositSlug, cancellationToken);
             }
             logger.LogWarning(
