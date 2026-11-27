@@ -33,6 +33,16 @@ public class WorkingFile : WorkingBase
     [JsonPropertyName("links")]
     [JsonPropertyOrder(50)]
     public List<FileLink> Links { get; set; } = [];
+
+    /// <summary>
+    /// The extent a person entered for this file, from its MODS (issue #508); null when none was.
+    /// Kept apart from <see cref="Metadata"/>, which is what tools measured and what is written back
+    /// to the PREMIS: an entered value must never become a measured one.
+    /// </summary>
+    [JsonPropertyName("enteredExtent")]
+    [JsonPropertyOrder(51)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EnteredExtent? EnteredExtent { get; set; }
     
     public WorkingFile ToRootLayout()
     {
@@ -185,6 +195,27 @@ public class WorkingFile : WorkingBase
     public ExifMetadata? GetExifMetadata()
     {
         return Metadata.OfType<ExifMetadata>().SingleOrDefault();
+    }
+
+    /// <summary>
+    /// The file's extent: each value as measured when there is one, otherwise as entered by hand
+    /// (issue #508). Null when there is neither.
+    /// </summary>
+    public EffectiveExtent? GetEffectiveExtent()
+    {
+        var measured = GetExtentMetadata();
+        var entered = EnteredExtent;
+        var duration = measured?.Duration ?? entered?.Duration;
+        var width = measured?.PixelWidth ?? entered?.PixelWidth;
+        var height = measured?.PixelHeight ?? entered?.PixelHeight;
+        if (duration is null && width is null && height is null)
+        {
+            return null;
+        }
+        return new EffectiveExtent(duration, width, height,
+            DurationEntered: measured?.Duration is null && entered?.Duration is not null,
+            PixelWidthEntered: measured?.PixelWidth is null && entered?.PixelWidth is not null,
+            PixelHeightEntered: measured?.PixelHeight is null && entered?.PixelHeight is not null);
     }
 
     public ExtentMetadata? GetExtentMetadata()

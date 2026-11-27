@@ -84,6 +84,14 @@ function renderLogicalStructMap(structmapId) {
     container.appendChild(wrapper);
 }
 
+// Issue #508: the file's duration, for the warnings in time-segments.js.
+function fileDurationOf(localPath) {
+    if (typeof physicalFileDurations === 'undefined') return undefined;
+    return Object.prototype.hasOwnProperty.call(physicalFileDurations, localPath)
+        ? physicalFileDurations[localPath]   // { duration, entered } or null for none
+        : undefined;                         // not a time-based file
+}
+
 function formatTime(seconds) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -103,11 +111,20 @@ function fpAnnotation(fp) {
         const r = fp.region;
         parts.push({ prefix: '▭', label: 'Region', text: `${r.x1},${r.y1} – ${r.x2},${r.y2}` });
     }
+    const warning = timeSegmentWarning(fp, fileDurationOf(fp.localPath));
+    if (warning) parts.push({ prefix: '⚠', label: 'Warning', text: warning, warning: true });
     if (!parts.length) return null;
     const small = document.createElement('small');
     small.className = 'text-muted ms-3';
-    parts.forEach(({ prefix, label, text }, i) => {
+    parts.forEach(({ prefix, label, text, warning }, i) => {
         if (i > 0) small.appendChild(document.createTextNode('   '));
+        if (warning) {
+            const w = document.createElement('span');
+            w.className = 'text-warning-emphasis';
+            w.textContent = `${prefix} ${text}`;
+            small.appendChild(w);
+            return;
+        }
         const icon = document.createElement('span');
         icon.setAttribute('aria-hidden', 'true');
         icon.textContent = prefix;
@@ -947,6 +964,7 @@ function createEditFilePointerModal() {
                             <label class="form-check-label fw-semibold" for="editFpTimeEnabled">Time segment</label>
                         </div>
                         <div id="editFpTimeFields" class="mt-2 ms-4" style="display:none">
+                            <div class="form-text mb-1" id="editFpDuration"></div>
                             <div class="row g-2">
                                 <div class="col">
                                     <label for="editFpTimeStart" class="form-label small">Start</label>
@@ -1026,6 +1044,7 @@ function openEditFilePointerModal(fp, onConfirm) {
     const hasTime = fp.beginTime != null || fp.endTime != null;
     document.getElementById('editFpTimeEnabled').checked = hasTime;
     document.getElementById('editFpTimeFields').style.display = hasTime ? '' : 'none';
+    document.getElementById('editFpDuration').textContent = fileDurationNote(fileDurationOf(fp.localPath));
     document.getElementById('editFpTimeStart').value = fp.beginTime != null ? formatTimeForInput(fp.beginTime) : '';
     document.getElementById('editFpTimeEnd').value   = fp.endTime   != null ? formatTimeForInput(fp.endTime)   : '';
 

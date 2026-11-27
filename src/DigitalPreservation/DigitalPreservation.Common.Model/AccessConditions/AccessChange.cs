@@ -16,6 +16,7 @@ public class AccessChange
     private List<string>? accessRestrictions;
     private Uri? rightsStatement;
     private string? accessStatement;
+    private Transit.EnteredExtent? extent;
 
     /// <summary>The file or folder, as a path from the root of the deposit, e.g. <c>objects/thesis.pdf</c>.</summary>
     [JsonPropertyName("path")]
@@ -48,9 +49,22 @@ public class AccessChange
         set { accessStatement = value; AccessStatementSent = true; }
     }
 
+    /// <summary>
+    /// For a file the pipeline couldn't measure: its duration (seconds) and, for an image or video,
+    /// width and height (pixels), as a person states them (issue #508). Recorded apart from measured
+    /// values, which always win; null clears what was entered.
+    /// </summary>
+    [JsonPropertyName("extent")]
+    public Transit.EnteredExtent? Extent
+    {
+        get => extent;
+        set { extent = value; ExtentSent = true; }
+    }
+
     [JsonIgnore] public bool AccessRestrictionsSent { get; private set; }
     [JsonIgnore] public bool RightsStatementSent { get; private set; }
     [JsonIgnore] public bool AccessStatementSent { get; private set; }
+    [JsonIgnore] public bool ExtentSent { get; private set; }
 
     /// <summary>
     /// What is wrong with this request for an installation with this profile; empty if nothing is.
@@ -59,9 +73,17 @@ public class AccessChange
     public List<string> Problems(AccessConditionProfile profile)
     {
         var problems = new List<string>();
-        if (!AccessRestrictionsSent && !RightsStatementSent && !AccessStatementSent)
+        if (!AccessRestrictionsSent && !RightsStatementSent && !AccessStatementSent && !ExtentSent)
         {
-            problems.Add("Send at least one of accessRestrictions, rightsStatement and accessStatement.");
+            problems.Add("Send at least one of accessRestrictions, rightsStatement, accessStatement and extent.");
+        }
+        if (Extent is { Duration: <= 0 } || Extent?.Duration is double.NaN or double.PositiveInfinity)
+        {
+            problems.Add("An extent's duration must be a positive number of seconds.");
+        }
+        if (Extent is { PixelWidth: <= 0 } or { PixelHeight: <= 0 })
+        {
+            problems.Add("An extent's width and height must be positive numbers of pixels.");
         }
 
         var restrictions = AccessRestrictions ?? [];

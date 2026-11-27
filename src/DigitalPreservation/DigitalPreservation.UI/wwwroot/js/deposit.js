@@ -14,6 +14,7 @@ function populateModsModalFromAttributes(launcher){
     applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
+    applyExtentSection(launcher);
     // An installation with a statement profile (issue #433) also loads access-statements.js.
     if (typeof applyAccessStatementFields === 'function') {
         applyAccessStatementFields(launcher);
@@ -167,6 +168,55 @@ function applyRecordInfo(recordInfoCompact){
             nonEditableRecordInfo.innerHTML = recordInfoCompact;
         }
     }
+}
+
+// Issue #508: a file's extent - each value shown if measured, offered (pre-filled with what was
+// entered) if not. Only what applies to the kind of file: a duration for audio and video, width and
+// height for images and video.
+function formatSecondsForInput(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.round((seconds % 60) * 1000) / 1000;
+    const ss = (s < 10 ? '0' : '') + s;
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+function applyExtentSection(launcher){
+    const section = document.getElementById('extentSection');
+    const inForm = document.getElementById('extentInForm');
+    if (!section || !inForm) return;
+    let extent = null;
+    try { extent = launcher.dataset.extent ? JSON.parse(launcher.dataset.extent) : null; } catch { extent = null; }
+    const fields = [
+        { group: 'extentDurationGroup', input: 'enteredDuration', note: 'extentDurationMeasured', key: 'duration', applies: extent?.timeBased,
+          show: v => formatSecondsForInput(v) },
+        { group: 'extentWidthGroup', input: 'enteredWidth', note: 'extentWidthMeasured', key: 'width', applies: extent?.spatial, show: v => `${v}` },
+        { group: 'extentHeightGroup', input: 'enteredHeight', note: 'extentHeightMeasured', key: 'height', applies: extent?.spatial, show: v => `${v}` }
+    ];
+    let anyOffered = false;
+    let anyShown = false;
+    for (const f of fields) {
+        const group = document.getElementById(f.group);
+        const input = document.getElementById(f.input);
+        const note = document.getElementById(f.note);
+        const measured = extent?.measured?.[f.key];
+        const entered = extent?.entered?.[f.key];
+        group.style.display = f.applies ? '' : 'none';
+        if (!f.applies) { input.value = ''; input.disabled = true; continue; }
+        anyShown = true;
+        if (measured != null) {
+            input.value = f.show(measured);
+            input.disabled = true;
+            note.textContent = 'Measured';
+        } else {
+            input.value = entered != null ? f.show(entered) : '';
+            input.disabled = false;
+            note.textContent = entered != null ? 'Entered by hand' : 'Not measured';
+            anyOffered = true;
+        }
+    }
+    section.style.display = anyShown ? '' : 'none';
+    inForm.value = anyOffered ? 'true' : 'false';
 }
 
 function applyFileLinksSection(launcher){

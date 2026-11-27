@@ -865,12 +865,39 @@
                             <ul id="nonEditableFileLinks"><li><em>no file links</em></li></ul>
                         }
                     </div>
+                    <div class="mb-3" id="extentSection" style="display:none">
+                        @* Issue #508: for a file the pipeline couldn't measure. A measured value is shown, not offered. *@
+                        <div class="form-label">Extent</div>
+                        <div class="row g-2">
+                            <div class="col-sm-5" id="extentDurationGroup">
+                                <label for="enteredDuration" class="form-label small">Duration</label>
+                                <input type="text" class="form-control form-control-sm" id="enteredDuration" name="enteredDuration"
+                                       placeholder="H:MM:SS or seconds" aria-describedby="extentHelp">
+                                <div class="form-text" id="extentDurationMeasured"></div>
+                            </div>
+                            <div class="col-sm-3" id="extentWidthGroup">
+                                <label for="enteredWidth" class="form-label small">Width (px)</label>
+                                <input type="number" min="1" class="form-control form-control-sm" id="enteredWidth" name="enteredWidth">
+                                <div class="form-text" id="extentWidthMeasured"></div>
+                            </div>
+                            <div class="col-sm-3" id="extentHeightGroup">
+                                <label for="enteredHeight" class="form-label small">Height (px)</label>
+                                <input type="number" min="1" class="form-control form-control-sm" id="enteredHeight" name="enteredHeight">
+                                <div class="form-text" id="extentHeightMeasured"></div>
+                            </div>
+                        </div>
+                        <div class="form-text" id="extentHelp">
+                            Enter these only for a file the pipeline couldn't measure. They are recorded as entered by hand,
+                            and a value the pipeline measures later replaces them.
+                        </div>
+                    </div>
                     @if (profile.HasStatements)
                     {
                         <partial name="_AccessStatementMetsPreview" />
                     }
                 </div>
                 <div class="modal-footer">
+                    <input type="hidden" id="extentInForm" name="extentInForm" value="false">
                     <input type="hidden" id="modsContext" name="modsContext">
                     <input type="hidden" id="modsContextIsFile" name="modsContextIsFile">
                     <input type="hidden" id="fileLinksJson" name="fileLinksJson">
@@ -934,6 +961,7 @@
         const physicalFilePaths = @Html.Raw(Model.PhysicalFilePathsJson);
         const fileLinkRoles = @Html.Raw(Model.FileLinkRolesJson);
         const physicalFileLinksData = @Html.Raw(Model.PhysicalFileLinksDataJson);
+        const physicalFileDurations = @Html.Raw(Model.PhysicalFileDurationsJson);
         const recordInfoSources = @Html.Raw(Model.RecordInfoSourcesJson);
     </script>
     <script src="~/js/deposit.js" asp-append-version="true"></script>
@@ -941,6 +969,7 @@
     {
         <script src="~/js/access-statements.js" asp-append-version="true"></script>
     }
+    <script src="~/js/time-segments.js" asp-append-version="true"></script>
     <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
     <script src="~/js/file-links.js" asp-append-version="true"></script>
     @if (TempData[TempDataKeys.ActiveTab] != null)

@@ -40,6 +40,23 @@ public class AccessChangeTests
     }
 
     [Fact]
+    public void An_Extent_Alone_Is_A_Change_And_Is_Checked()
+    {
+        // Issue #508: a duration a person enters for a file the pipeline couldn't measure.
+        var change = Read("""{ "path": "objects/tape.mp3", "extent": { "duration": 2708.5 } }""");
+        change.ExtentSent.Should().BeTrue();
+        change.Extent!.Duration.Should().Be(2708.5);
+        change.Problems(Standard).Should().BeEmpty();
+
+        Read("""{ "path": "objects/tape.mp3", "extent": null }""").Problems(Standard)
+            .Should().BeEmpty("null clears what was entered");
+        Read("""{ "path": "objects/tape.mp3", "extent": { "duration": -5 } }""").Problems(Standard)
+            .Should().ContainSingle().Which.Should().Contain("positive number of seconds");
+        Read("""{ "path": "objects/tape.mp3", "extent": { "pixelWidth": 0, "pixelHeight": 480 } }""").Problems(Standard)
+            .Should().ContainSingle().Which.Should().Contain("positive numbers of pixels");
+    }
+
+    [Fact]
     public void A_Change_That_Sends_Nothing_To_Set_Is_A_Problem()
     {
         Read("""{ "path": "objects/thesis.pdf" }""").Problems(Standard)

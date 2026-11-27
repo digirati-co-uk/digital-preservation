@@ -517,4 +517,29 @@ public class ManifestProjectionTests
         json["structures"]![0]!["items"]![0]!["id"]!.ToString()
             .Should().Be($"{IdBase}canvases/{IdOf("objects/page.tif")}{fragment}");
     }
+
+    [Fact]
+    public void An_Entered_Duration_Gives_The_Canvas_Its_Duration_When_Nothing_Was_Measured()
+    {
+        // Issue #508: a file the pipeline couldn't measure, with a duration a person entered.
+        var tape = File("objects/tape.mp3", "audio/mpeg");
+        tape.EnteredExtent = new EnteredExtent { Duration = 2708 };
+
+        var canvas = Project(Mets([tape]), Vanilla())["items"]![0]!;
+
+        ((double)canvas["duration"]!).Should().Be(2708);
+        Value(canvas, "Preservation: Duration").Should().Be("2708 s (entered)");
+    }
+
+    [Fact]
+    public void A_Measured_Duration_Wins_Over_An_Entered_One_On_The_Canvas()
+    {
+        var tape = File("objects/tape.mp3", "audio/mpeg", null, null, 2641);
+        tape.EnteredExtent = new EnteredExtent { Duration = 2700 };
+
+        var canvas = Project(Mets([tape]), Vanilla())["items"]![0]!;
+
+        ((double)canvas["duration"]!).Should().Be(2641);
+        Value(canvas, "Preservation: Duration").Should().Be("2641 s");
+    }
 }
