@@ -75,6 +75,12 @@ public interface IPreservationApiClient
 
     Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken);
     Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The tokenised URL of a Deposit's IIIF Manifest: where GET /deposits/{id}/iiif redirects to.
+    /// It needs no token of its own, so a person can hand it to a IIIF viewer (issue #261).
+    /// </summary>
+    Task<Result<Uri>> GetIIIFManifestUri(string depositId, CancellationToken cancellationToken);
     
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
 

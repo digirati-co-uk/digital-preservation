@@ -37,6 +37,7 @@ function applyAccessStatementFields(launcher) {
         ownRightsSuppressed,
         // A rights statement from above: the effective one, when the node has none of its own.
         inheritsRights: !ownRights && !ownRightsSuppressed && !!launcher.dataset.effRights,
+        effectiveRightsLabel: launcher.dataset.effRights ?? '',
         ownOther: own,
         inheritedOther: parseJsonOrEmpty(launcher.dataset.inhOther),
         effectiveOther: parseJsonOrEmpty(launcher.dataset.effOther)
@@ -178,6 +179,31 @@ function updateStatementPreviews() {
     showDerivedValues(derived);
     showMetsPreview(statementNode, derived);
     showIiifPreview(statementNode);
+    showKeptRights(statementNode);
+}
+
+// A rights statement from before the profile - on this node, or inherited - has no place in the
+// statement dropdown, yet it is what the node's files carry, and what the IIIF projection says
+// (issue #261). Say so beside the dropdown, rather than only in the collapsed METS preview.
+function showKeptRights(node) {
+    const note = document.getElementById("keptRightsNote");
+    if (!note) return;
+    const chosen = statementAfterSave(node);
+    // Rights the node had before the profile, as opposed to rights written from its own statement
+    // (which come and go with that statement).
+    const legacyOwnRights = node.ownRights && !node.ownOther[accessStatements.type] ? node.ownRights : null;
+    let text = "";
+    if (chosen && legacyOwnRights) {
+        text = `Saving replaces this node's rights statement, ${legacyOwnRights}, with the one this copyright statement gives.`;
+    } else if (!chosen && effectiveStatement(node).value === null) {
+        if (legacyOwnRights) {
+            text = `Rights statement from before this profile: ${node.ownRights}. Kept when you save; choosing a copyright statement replaces it.`;
+        } else if (node.inheritsRights && node.effectiveRightsLabel) {
+            text = `Rights statement from before this profile, inherited: ${node.effectiveRightsLabel}. Choosing a copyright statement here replaces it for this node.`;
+        }
+    }
+    note.textContent = text;
+    note.hidden = text === "";
 }
 
 function showDerivedValues(derived) {

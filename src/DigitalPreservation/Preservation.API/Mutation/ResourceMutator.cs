@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
 using Microsoft.Extensions.Options;
@@ -17,11 +18,18 @@ namespace Preservation.API.Mutation;
 /// Changes PreservedResource URIs from Storage API to Preservation API
 /// </summary>
 /// <param name="options"></param>
+/// <param name="configuration">
+/// For the Deposit IIIF feature flag: a Deposit links to its IIIF view only when the route behind
+/// the link is switched on. Optional so tests can leave it out (the flag is then off).
+/// </param>
 public class ResourceMutator(
-    IOptions<MutatorOptions> options)
+    IOptions<MutatorOptions> options,
+    IConfiguration? configuration = null)
 {
     private readonly string storageHost = options.Value.Storage;
     private readonly string preservationHost = options.Value.Preservation;
+    private readonly bool depositIiif =
+        configuration?.GetValue<bool>($"{FeatureFlagOptions.FeatureFlags}:EnableIiifMediaEndpoints") ?? false;
 
     public Uri StorageUri { get; } = new(options.Value.Storage);
     public Uri PreservationUri { get; } = new(options.Value.Preservation);
@@ -31,6 +39,13 @@ public class ResourceMutator(
         if (storageResource == null) return null;
         
         MutateStorageBaseUris(storageResource);
+
+        if (storageResource is ArchivalGroup archivalGroup && archivalGroup.Id != null)
+        {
+            // Links to the two IIIF projections of the group (issue #261).
+            archivalGroup.Iiif = new Uri($"{archivalGroup.Id.AbsoluteUri}?view={ViewValues.Iiif}");
+            archivalGroup.IiifCs = new Uri($"{archivalGroup.Id.AbsoluteUri}?view={ViewValues.IiifCs}");
+        }
 
         if (storageResource is Binary binary)
         {
@@ -59,6 +74,13 @@ public class ResourceMutator(
         if (preservationResource == null) return null;
         
         MutatePreservationBaseUris(preservationResource);
+
+        if (preservationResource is ArchivalGroup archivalGroup)
+        {
+            // Preservation API links; they mean nothing to the Storage API.
+            archivalGroup.Iiif = null;
+            archivalGroup.IiifCs = null;
+        }
 
         if (preservationResource is Container container)
         {
@@ -171,6 +193,7 @@ public class ResourceMutator(
                 : null,
             ArchivalGroupName = entity.ArchivalGroupName,
             Files = entity.Files,
+            Iiif = depositIiif ? new Uri($"{GetDepositUri(entity.MintedId)}/iiif") : null,
             Active = entity.Active,
             Status = entity.Status,
             SubmissionText = entity.SubmissionText,

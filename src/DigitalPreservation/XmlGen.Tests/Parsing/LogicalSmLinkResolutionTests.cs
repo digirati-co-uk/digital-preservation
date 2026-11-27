@@ -151,5 +151,11 @@ public class LogicalSmLinkResolutionTests : MetsParserTestBase
         var part = mets.LogicalStructures[0].Ranges[0];
         part.Files.Should().HaveCount(1);
         part.Files[0].LocalPath.Should().Be("objects/page1.tif");
+
+        // The page links to its ALTO, marked as ALTO: the fileGrp is the only thing that says so,
+        // and the IIIF projection needs it to publish OCR as a seeAlso, not a transcript (#261).
+        var link = mets.Files.Single(f => f.LocalPath == "objects/page1.tif").Links.Single();
+        link.To.Should().Be("objects/page1.alto.xml");
+        link.Profile.Should().Be(DigitalPreservation.Common.Model.Transit.Extensions.FileLinkProfiles.Alto);
     }
 }

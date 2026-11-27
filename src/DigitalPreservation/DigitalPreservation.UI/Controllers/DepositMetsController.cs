@@ -1,4 +1,6 @@
 ﻿using DigitalPreservation.Core.Web;
+using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.Client;
 
@@ -47,6 +49,29 @@ public class DepositMetsController(
         return ControllerX.GetProblemObjectResult(parsedJsonResult);
     }
     
+    /// <summary>
+    /// Send the browser to the Deposit's IIIF Manifest at its tokenised address on the Preservation
+    /// API (issue #261), so the address bar holds a URL a IIIF viewer can load without signing in.
+    /// The Preservation API is on the private load balancer, so it only opens from the staff network.
+    /// </summary>
+    [Route("iiif-manifest")]
+    [HttpGet]
+    public async Task<IActionResult> GetIIIFManifest([FromRoute] string id, CancellationToken cancellationToken)
+    {
+        var uriResult = await preservationApiClient.GetIIIFManifestUri(id, cancellationToken);
+        if (uriResult.Success)
+        {
+            return Redirect(uriResult.Value!.AbsoluteUri);
+        }
+        if (uriResult.ErrorCode == ErrorCodes.NotFound)
+        {
+            // The feature flag answers 404 when the Deposit IIIF routes are switched off.
+            return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.NotFound,
+                "No IIIF Manifest is available for this deposit. The Deposit IIIF view may be switched off on this instance (EnableIiifMediaEndpoints)."));
+        }
+        return ControllerX.GetProblemObjectResult(uriResult);
+    }
+
     /// <summary>
     /// Get a vanilla IIIF representation of the Deposit, suitable for taking into a Manifest Editor
     /// (The enhanced IIIF-P model is only suitable for a preserved deposit)

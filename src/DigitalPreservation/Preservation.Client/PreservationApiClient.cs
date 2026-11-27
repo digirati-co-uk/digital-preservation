@@ -323,6 +323,34 @@ public class PreservationApiClient(
         return await ProxyStringFromPreservationApi(cancellationToken, relPath);
     }
 
+    public async Task<Result<Uri>> GetIIIFManifestUri(string depositId, CancellationToken cancellationToken)
+    {
+        // redirect=false: the tokenised URL itself, not a redirect to it. This client follows
+        // redirects, which would have the API build the whole manifest just to say where it is.
+        var relPath = $"/deposits/{depositId}/iiif?redirect=false";
+        try
+        {
+            using var response = await preservationHttpClient.GetAsync(new Uri(relPath, UriKind.Relative), cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var json = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                if (json.RootElement.TryGetProperty("id", out var id)
+                    && Uri.TryCreate(id.GetString(), UriKind.Absolute, out var manifestUri))
+                {
+                    return Result.OkNotNull(manifestUri);
+                }
+                return Result.FailNotNull<Uri>(ErrorCodes.UnknownError, $"No manifest address in the response to {relPath}");
+            }
+            return await response.ToFailNotNullResult<Uri>("Unable to GET " + relPath);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not GET {RelPath}", relPath);
+            return Result.FailNotNull<Uri>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     private async Task<Result<string>> ProxyStringFromPreservationApi(CancellationToken cancellationToken, string relPath)
     {
         try

@@ -5,15 +5,23 @@ using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Preservation.API.Mutation;
 using Preservation.API.Features.Repository.Requests;
 using DigitalPreservation.Mets;
+using IIIF.Serialisation;
+using Preservation.API.Features.Iiif.Requests;
+using Preservation.API.IIIF;
 
 namespace Preservation.API.Features.Repository;
 
 
 [Route(PreservedResource.BasePathElement + "/{*path}")]
 [ApiController]
-public class RepositoryController(IMediator mediator, IMetsParser metsParser) : ControllerBase
+public class RepositoryController(
+    IMediator mediator,
+    IMetsParser metsParser,
+    IOptions<MutatorOptions>? mutatorOptions = null) : ControllerBase
 {
     /// <summary>
     /// The name every METS this platform writes is given, and the one <see cref="TryStreamConventionalMets"/>
@@ -62,6 +70,13 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
         if ((view is ViewValues.Mets or ViewValues.ParsedMets) && result is { Success: true, Value: ArchivalGroup archivalGroup })
         {
             return await GetMetsResult(archivalGroup, view);
+        }
+
+        if (view is ViewValues.Iiif or ViewValues.IiifCs && result.Success)
+        {
+            return result.Value is ArchivalGroup ag
+                ? await GetIiifResult(ag, view)
+                : this.ProblemFor(ErrorCodes.NotFound, $"View {view} is only available for an Archival Group.", "Not an Archival Group");
         }
 
         // default 99.999% scenario:
@@ -157,6 +172,27 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
     private bool IsRepositoryRootRequest() =>
         (Request.Path.Value?.TrimEnd('/') ?? string.Empty)
             .Equals($"/{PreservedResource.BasePathElement}", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The Archival Group projected as a IIIF Manifest (issue #261). The manifest's id is the
+    /// request path with only the view parameter, on the configured host the Archival Group's own
+    /// id and its <c>iiif</c> links use, so the ids are the same whichever hostname was asked.
+    /// </summary>
+    private async Task<IActionResult> GetIiifResult(ArchivalGroup archivalGroup, string view)
+    {
+        var configured = mutatorOptions?.Value.Preservation;
+        var root = configured.HasText()
+            ? configured.TrimEnd('/')
+            : $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        var kind = view == ViewValues.IiifCs ? ManifestKind.IiifCs : ManifestKind.Vanilla;
+        var manifestId = $"{root}{Request.Path.ToUriComponent()}?view={view}";
+        var manifestResult = await mediator.Send(new GetArchivalGroupAsIIIFManifest(archivalGroup, kind, manifestId, root));
+        if (manifestResult is { Success: true, Value: not null })
+        {
+            return Content(manifestResult.Value.AsJson(), ManifestProjection.ManifestMediaType);
+        }
+        return this.StatusResponseFromResult(manifestResult);
+    }
 
     private async Task<IActionResult> GetMetsResult(ArchivalGroup archivalGroup, string view)
     {            

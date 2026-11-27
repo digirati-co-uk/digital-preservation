@@ -219,6 +219,40 @@ public class GetDepositAsIIIFManifestWithTokenTests
     }
 
     [Fact]
+    public void Without_A_Redirect_It_Answers_With_The_Tokenised_Address()
+    {
+        // The Preservation UI asks this way: its client would follow a redirect, and have the API
+        // build the whole manifest just to learn where it is.
+        var result = controller.GetDepositAsIIIF(DepositId, redirect: false);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var id = ok.Value!.GetType().GetProperty("id")!.GetValue(ok.Value)!.ToString()!;
+        id.Should().StartWith($"https://example.org/deposits/{DepositId}/iiif-token/");
+        var token = id[(id.LastIndexOf('/') + 1)..];
+        tokenService.IsValidForDeposit(token, DepositId).Should().BeTrue("it is a real token for this deposit");
+        A.CallTo(() => mediator.Send(A<GetDepositAsIIIFManifest>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public void By_Default_It_Redirects()
+    {
+        controller.GetDepositAsIIIF(DepositId).Should().BeOfType<RedirectToRouteResult>();
+    }
+
+    [Fact]
+    public async Task The_Manifest_Is_Served_As_Iiif_Presentation_3()
+    {
+        var token = tokenService.GetToken($"someuser/deposit/{DepositId}");
+        A.CallTo(() => mediator.Send(A<GetDepositAsIIIFManifest>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(new global::IIIF.Presentation.V3.Manifest { Id = "https://example.org/m" }));
+
+        var result = await controller.GetDepositAsIIIFManifestWithToken(DepositId, token);
+
+        Assert.IsType<ContentResult>(result).ContentType.Should()
+            .Be(Preservation.API.IIIF.ManifestProjection.ManifestMediaType).And.StartWith("application/ld+json");
+    }
+
+    [Fact]
     public async Task Returns401_WhenTokenNotInCache()
     {
         var result = await controller.GetDepositAsIIIFManifestWithToken(DepositId, "unknown-token");

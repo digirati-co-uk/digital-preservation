@@ -125,6 +125,9 @@ File is in both
                 @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
                     <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
+                    @* The deposit as IIIF (issue #261): rarely wanted, so a small link here rather than an action. *@
+                    <a class="ms-2" target="_blank" href="@(Context.Request.Path + "/iiif-manifest")"
+                       title="Open this deposit as a IIIF Manifest (from the staff network)"><img src="/img/iiif.png" alt="IIIF Manifest" style="height: 1em; margin-bottom: 0.2em"/></a>
                 }
                 else
                 {

@@ -63,6 +63,7 @@ function openDialogue({ editable = true, own = {}, inherited = {}, effectiveOthe
     if (editable) {
         elements.accessRestrictionsSelect = new Select(['', ...leeds.restrictionAxis.values.map(v => v.value)]);
         elements.accessStatementSelect = new Select(['', ...leeds.statements.values.map(v => v.value)]);
+        elements.keptRightsNote = new Element('div');
     } else {
         elements.nonEditableAccessStatement = new Element('p');
     }
@@ -109,7 +110,8 @@ function openDialogue({ editable = true, own = {}, inherited = {}, effectiveOthe
         },
         tier: () => tier.text,
         mets: () => elements.accessPreviewMets.children.map(line => line.textContent),
-        iiif: () => elements.accessPreviewIiif.text
+        iiif: () => elements.accessPreviewIiif.text,
+        keptRights: () => (elements.keptRightsNote && !elements.keptRightsNote.hidden ? elements.keptRightsNote.textContent : '')
     };
 }
 
@@ -361,4 +363,33 @@ test('a profile that allows several restrictions is left as it is', () => {
     allowSeveralRestrictions(select, false);
     assert.equal(select.multiple, true);
     assert.equal(help.hidden, false);
+});
+
+// ---- A rights statement from before the profile (issue #261) ------------------------------------
+// The dropdown can't show it, yet the node's files carry it and the IIIF projection says so.
+
+test('a rights statement kept from before the profile is shown beside the statement dropdown', () => {
+    const dialogue = openDialogue({ own: { restrictions: ['Restricted'], rights: 'InC-EDU' } });
+    assert.match(dialogue.keptRights(), /from before this profile: InC-EDU\. Kept when you save/);
+
+    dialogue.choose('PA1', 'inc-low-risk');
+    assert.match(dialogue.keptRights(), /replaces this node's rights statement, InC-EDU/);
+});
+
+test('an inherited rights statement from before the profile is shown too', () => {
+    const dialogue = openDialogue({ effectiveRights: 'InC-EDU' });
+    assert.match(dialogue.keptRights(), /inherited: InC-EDU/);
+
+    dialogue.choose(null, 'inc-low-risk');
+    assert.equal(dialogue.keptRights(), '');
+});
+
+test("rights written from the node's own statement are not called old, and nothing shows under a statement", () => {
+    const own = openDialogue({ own: { restrictions: ['PA1'], statement: 'out-of-copyright', rights: 'PDM' } });
+    assert.equal(own.keptRights(), '');
+    own.choose('PA1', null); // clearing the statement clears the rights written from it
+    assert.equal(own.keptRights(), '');
+
+    const inherited = openDialogue({ inherited: { statement: 'inc-low-risk' }, effectiveRights: 'InC' });
+    assert.equal(inherited.keptRights(), '');
 });

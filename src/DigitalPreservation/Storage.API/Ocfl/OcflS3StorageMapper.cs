@@ -43,6 +43,7 @@ public class OcflS3StorageMapper(
         var mapFiles = new Dictionary<string, OriginFile>();
         var hashes = new Dictionary<string, string>();
         var ocflVersion = inventory.Versions[objectVersion.OcflVersion!];
+        var contentVersions = ContentVersions.Of(inventory, objectVersion.OcflVersion!);
         foreach (var kvp in ocflVersion.State)
         {
             var files = kvp.Value.Where(f => !IsFedoraMetadata(f)).ToList();
@@ -50,15 +51,16 @@ public class OcflS3StorageMapper(
             {
                 var hash = kvp.Key;
                 var actualPath = inventory.Manifest[hash][0];// I don't think there'll ever be more than one entry in a Fedora instance - see https://ocfl.io/1.1/spec/#manifest 
-                var originFile = new OriginFile
-                {
-                    Hash = hash,
-                    FullPath = actualPath
-                };
                 hashes[hash] = actualPath;
                 foreach (var file in files)
                 {
-                    mapFiles[file] = originFile;
+                    // One per path: two paths with the same bytes can have changed in different versions.
+                    mapFiles[file] = new OriginFile
+                    {
+                        Hash = hash,
+                        FullPath = actualPath,
+                        ContentVersion = contentVersions.GetValueOrDefault(file)
+                    };
                 }
             }
         }
@@ -99,7 +101,8 @@ public class OcflS3StorageMapper(
                 ObjectPath = agOrigin!,
                 AllVersions = inventoryVersions.ToArray(),
                 Files = mapFiles,
-                Hashes = hashes
+                Hashes = hashes,
+                FormerFiles = FormerFiles.Of(inventory, objectVersion.OcflVersion!, IsFedoraMetadata)
             };
         }
         else

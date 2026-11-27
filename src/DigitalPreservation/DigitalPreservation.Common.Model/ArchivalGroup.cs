@@ -17,6 +17,24 @@ public class ArchivalGroup : Container
     [JsonPropertyOrder(20)]
     public ObjectVersion[]? Versions { get; set; }
 
+    /// <summary>
+    /// The Archival Group as a IIIF Manifest (<c>?view=iiif</c>, issue #261). Set by the
+    /// Preservation API; the Storage API leaves it out.
+    /// </summary>
+    [JsonPropertyName("iiif")]
+    [JsonPropertyOrder(30)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Uri? Iiif { get; set; }
+
+    /// <summary>
+    /// The Archival Group as a Manifest for IIIF Cloud Services, with <c>paintedResources</c>
+    /// (<c>?view=iiif-cs</c>, issue #261). Set by the Preservation API.
+    /// </summary>
+    [JsonPropertyName("iiifCs")]
+    [JsonPropertyOrder(31)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Uri? IiifCs { get; set; }
+
     [JsonPropertyName("storageMap")]
     [JsonPropertyOrder(101)]
     public StorageMap? StorageMap { get; set; }
