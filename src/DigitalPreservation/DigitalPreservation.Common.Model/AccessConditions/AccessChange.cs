@@ -77,14 +77,7 @@ public class AccessChange
         {
             problems.Add("Send at least one of accessRestrictions, rightsStatement, accessStatement and extent.");
         }
-        if (Extent is { Duration: <= 0 } || Extent?.Duration is double.NaN or double.PositiveInfinity)
-        {
-            problems.Add("An extent's duration must be a positive number of seconds.");
-        }
-        if (Extent is { PixelWidth: <= 0 } or { PixelHeight: <= 0 })
-        {
-            problems.Add("An extent's width and height must be positive numbers of pixels.");
-        }
+        problems.AddRange(ExtentProblems());
 
         var restrictions = AccessRestrictions ?? [];
         var known = profile.RestrictionAxis.Values.Select(restriction => restriction.Value).ToList();
@@ -114,5 +107,17 @@ public class AccessChange
         }
 
         return problems;
+    }
+
+    private IEnumerable<string> ExtentProblems()
+    {
+        if (Extent is { Duration: <= 0 } || Extent?.Duration is double.NaN or double.PositiveInfinity)
+        {
+            yield return "An extent's duration must be a positive number of seconds.";
+        }
+        if (Extent is { PixelWidth: <= 0 } or { PixelHeight: <= 0 })
+        {
+            yield return "An extent's width and height must be positive numbers of pixels.";
+        }
     }
 }

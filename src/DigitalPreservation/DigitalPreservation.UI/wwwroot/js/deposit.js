@@ -193,30 +193,32 @@ function applyExtentSection(launcher){
         { group: 'extentWidthGroup', input: 'enteredWidth', note: 'extentWidthMeasured', key: 'width', applies: extent?.spatial, show: v => `${v}` },
         { group: 'extentHeightGroup', input: 'enteredHeight', note: 'extentHeightMeasured', key: 'height', applies: extent?.spatial, show: v => `${v}` }
     ];
-    let anyOffered = false;
-    let anyShown = false;
-    for (const f of fields) {
-        const group = document.getElementById(f.group);
-        const input = document.getElementById(f.input);
-        const note = document.getElementById(f.note);
-        const measured = extent?.measured?.[f.key];
-        const entered = extent?.entered?.[f.key];
-        group.style.display = f.applies ? '' : 'none';
-        if (!f.applies) { input.value = ''; input.disabled = true; continue; }
-        anyShown = true;
-        if (measured != null) {
-            input.value = f.show(measured);
-            input.disabled = true;
-            note.textContent = 'Measured';
-        } else {
-            input.value = entered != null ? f.show(entered) : '';
-            input.disabled = false;
-            note.textContent = entered != null ? 'Entered by hand' : 'Not measured';
-            anyOffered = true;
-        }
+    const states = fields.map(f => applyExtentField(f, extent?.measured?.[f.key], extent?.entered?.[f.key]));
+    section.style.display = states.some(s => s !== 'hidden') ? '' : 'none';
+    inForm.value = states.includes('offered') ? 'true' : 'false';
+}
+
+// One extent field: hidden if it doesn't apply to this kind of file, shown if measured, offered if not.
+function applyExtentField(f, measured, entered) {
+    const group = document.getElementById(f.group);
+    const input = document.getElementById(f.input);
+    const note = document.getElementById(f.note);
+    group.style.display = f.applies ? '' : 'none';
+    if (!f.applies) {
+        input.value = '';
+        input.disabled = true;
+        return 'hidden';
     }
-    section.style.display = anyShown ? '' : 'none';
-    inForm.value = anyOffered ? 'true' : 'false';
+    if (measured != null) {
+        input.value = f.show(measured);
+        input.disabled = true;
+        note.textContent = 'Measured';
+        return 'shown';
+    }
+    input.value = entered != null ? f.show(entered) : '';
+    input.disabled = false;
+    note.textContent = entered != null ? 'Entered by hand' : 'Not measured';
+    return 'offered';
 }
 
 function applyFileLinksSection(launcher){

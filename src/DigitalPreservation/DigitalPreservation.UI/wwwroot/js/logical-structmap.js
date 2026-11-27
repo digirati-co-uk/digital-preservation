@@ -87,7 +87,7 @@ function renderLogicalStructMap(structmapId) {
 // Issue #508: the file's duration, for the warnings in time-segments.js.
 function fileDurationOf(localPath) {
     if (typeof physicalFileDurations === 'undefined') return undefined;
-    return Object.prototype.hasOwnProperty.call(physicalFileDurations, localPath)
+    return Object.hasOwn(physicalFileDurations, localPath)
         ? physicalFileDurations[localPath]   // { duration, entered } or null for none
         : undefined;                         // not a time-based file
 }

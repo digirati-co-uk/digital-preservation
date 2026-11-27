@@ -704,26 +704,11 @@ public class DepositModel(
             }
 
             // Issue #508: the extent a person entered, for a file the pipeline couldn't measure.
-            EnteredExtent? enteredExtent = null;
-            if (form.ExtentInForm)
+            var (enteredExtent, extentError) = ReadEnteredExtent(form);
+            if (extentError != null)
             {
-                double? duration = null;
-                if (form.EnteredDuration.HasText())
-                {
-                    duration = DurationValue.ToSeconds(form.EnteredDuration);
-                    if (duration is null or <= 0)
-                    {
-                        TempData[TempDataKeys.Error] = $"'{form.EnteredDuration}' is not a duration: give H:MM:SS, M:SS or a number of seconds.";
-                        return RedirectToPage();
-                    }
-                }
-                enteredExtent = new EnteredExtent
-                {
-                    Duration = duration,
-                    PixelWidth = form.EnteredWidth is > 0 ? form.EnteredWidth : null,
-                    PixelHeight = form.EnteredHeight is > 0 ? form.EnteredHeight : null
-                };
-                if (enteredExtent.IsEmpty) enteredExtent = null;
+                TempData[TempDataKeys.Error] = extentError;
+                return RedirectToPage();
             }
 
             var changes = new ModsChanges(
@@ -740,6 +725,34 @@ public class DepositModel(
         }
 
         return RedirectToPage();
+    }
+
+    /// <summary>
+    /// The extent entered in the dialogue (issue #508), null when none was or the form didn't offer
+    /// it; or what's wrong with the duration typed.
+    /// </summary>
+    internal static (EnteredExtent? Extent, string? Error) ReadEnteredExtent(SetRightsAndAccessFormModel form)
+    {
+        if (!form.ExtentInForm)
+        {
+            return (null, null);
+        }
+        double? duration = null;
+        if (form.EnteredDuration.HasText())
+        {
+            duration = DurationValue.ToSeconds(form.EnteredDuration);
+            if (duration is null or <= 0)
+            {
+                return (null, $"'{form.EnteredDuration}' is not a duration: give H:MM:SS, M:SS or a number of seconds.");
+            }
+        }
+        var extent = new EnteredExtent
+        {
+            Duration = duration,
+            PixelWidth = form.EnteredWidth is > 0 ? form.EnteredWidth : null,
+            PixelHeight = form.EnteredHeight is > 0 ? form.EnteredHeight : null
+        };
+        return (extent.IsEmpty ? null : extent, null);
     }
 
     /// <summary>
