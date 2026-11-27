@@ -65,7 +65,7 @@ public class GetDepositAsIIIFManifestHandler(
             {
                 Id = $"{request.Root}/deposits/{request.Id}/mets",
                 Format = "application/xml",
-                Profile = "http://www.loc.gov/METS/",
+                Profile = ManifestProjection.MetsProfile,
                 Label = new LanguageMap("en", "METS")
             },
             new ExternalResource("Dataset")

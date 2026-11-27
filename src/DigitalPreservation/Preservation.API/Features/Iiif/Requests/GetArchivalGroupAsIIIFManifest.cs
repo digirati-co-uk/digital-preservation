@@ -36,24 +36,7 @@ public class GetArchivalGroupAsIIIFManifestHandler(
     public async Task<Result<Manifest>> Handle(GetArchivalGroupAsIIIFManifest request, CancellationToken cancellationToken)
     {
         var archivalGroup = request.ArchivalGroup;
-        var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true))
-                   ?? archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, false));
-        if (mets is null)
-        {
-            return Result.FailNotNull<Manifest>(ErrorCodes.NotFound, "No METS file found in archival group");
-        }
-
-        var streamResult = await mediator.Send(new GetBinaryStream(mets.Id!.AbsolutePath), cancellationToken);
-        if (streamResult is not { Success: true, Value: not null })
-        {
-            return Result.FailNotNull<Manifest>(streamResult.ErrorCode ?? ErrorCodes.UnknownError, streamResult.ErrorMessage);
-        }
-        XDocument xMets;
-        await using (var stream = streamResult.Value)
-        {
-            xMets = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        }
-        var wrapperResult = metsParser.GetMetsFileWrapperFromXDocument(mets.Id, xMets);
+        var wrapperResult = await ReadMets(archivalGroup, cancellationToken);
         if (wrapperResult is not { Success: true, Value: not null })
         {
             return Result.FailNotNull<Manifest>(wrapperResult.ErrorCode ?? ErrorCodes.UnknownError, wrapperResult.ErrorMessage);
@@ -61,12 +44,71 @@ public class GetArchivalGroupAsIIIFManifestHandler(
 
         // Uri.UnescapeDataString, not GetPathUnderRoot's decode, which is form decoding and turns '+' into a space.
         var pathUnderRoot = Uri.UnescapeDataString(archivalGroup.Id!.GetPathUnderRoot()!);
+        var context = await MakeContext(request, pathUnderRoot, cancellationToken);
+        var storageMap = archivalGroup.StorageMap;
+
+        var manifest = new Manifest
+        {
+            Id = request.ManifestId,
+            Label = new LanguageMap("none", archivalGroup.Name ?? archivalGroup.GetSlug() ?? pathUnderRoot),
+            SeeAlso =
+            [
+                new ExternalResource("Dataset")
+                {
+                    Id = $"{archivalGroup.Id!.AbsoluteUri}?view={ViewValues.Mets}",
+                    Format = "application/xml",
+                    Profile = ManifestProjection.MetsProfile,
+                    Label = new LanguageMap("en", "METS")
+                },
+                new ExternalResource("Dataset")
+                {
+                    Id = archivalGroup.Id.AbsoluteUri,
+                    Format = "application/json",
+                    Label = new LanguageMap("en", "Archival Group")
+                }
+            ]
+        };
+        projection.Project(manifest, wrapperResult.Value, context);
+
+        if (request.Kind == ManifestKind.IiifCs && storageMap?.FormerFiles != null)
+        {
+            manifest.AdditionalProperties[ManifestProjection.FormerAssetsTerm] = FormerAssets(storageMap, context);
+        }
+        return Result.OkNotNull(manifest);
+    }
+
+    private async Task<Result<MetsFileWrapper>> ReadMets(ArchivalGroup archivalGroup, CancellationToken cancellationToken)
+    {
+        var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true))
+                   ?? archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, false));
+        if (mets is null)
+        {
+            return Result.FailNotNull<MetsFileWrapper>(ErrorCodes.NotFound, "No METS file found in archival group");
+        }
+
+        var streamResult = await mediator.Send(new GetBinaryStream(mets.Id!.AbsolutePath), cancellationToken);
+        if (streamResult is not { Success: true, Value: not null })
+        {
+            return Result.FailNotNull<MetsFileWrapper>(streamResult.ErrorCode ?? ErrorCodes.UnknownError, streamResult.ErrorMessage);
+        }
+        XDocument xMets;
+        await using (var stream = streamResult.Value)
+        {
+            xMets = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+        }
+        return metsParser.GetMetsFileWrapperFromXDocument(mets.Id, xMets)!;
+    }
+
+    private async Task<ProjectionContext> MakeContext(GetArchivalGroupAsIIIFManifest request, string pathUnderRoot,
+        CancellationToken cancellationToken)
+    {
+        var archivalGroup = request.ArchivalGroup;
         var binaryUris = BinaryUris(archivalGroup);
         var storageMap = archivalGroup.StorageMap;
         // The storage map is keyed by Fedora's spelling of each path, escaped (a space is "%20", a
         // '#' is "-_-percent-23-_-"); METS paths are not. Unescape once, as WorkspaceManager does.
         var originFiles = storageMap == null ? null : Unescaped(storageMap.Files);
-        var context = new ProjectionContext
+        return new ProjectionContext
         {
             Kind = request.Kind,
             IdBase = $"{request.Root}/iiif/{pathUnderRoot.EscapePathElements()}/",
@@ -89,35 +131,6 @@ public class GetArchivalGroupAsIIIFManifestHandler(
             DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken),
             Statements = (await profileProvider.GetProfileAsync(cancellationToken))?.Statements
         };
-
-        var manifest = new Manifest
-        {
-            Id = request.ManifestId,
-            Label = new LanguageMap("none", archivalGroup.Name ?? archivalGroup.GetSlug() ?? pathUnderRoot),
-            SeeAlso =
-            [
-                new ExternalResource("Dataset")
-                {
-                    Id = $"{archivalGroup.Id!.AbsoluteUri}?view={ViewValues.Mets}",
-                    Format = "application/xml",
-                    Profile = "http://www.loc.gov/METS/",
-                    Label = new LanguageMap("en", "METS")
-                },
-                new ExternalResource("Dataset")
-                {
-                    Id = archivalGroup.Id.AbsoluteUri,
-                    Format = "application/json",
-                    Label = new LanguageMap("en", "Archival Group")
-                }
-            ]
-        };
-        projection.Project(manifest, wrapperResult.Value, context);
-
-        if (request.Kind == ManifestKind.IiifCs && storageMap?.FormerFiles != null)
-        {
-            manifest.AdditionalProperties[ManifestProjection.FormerAssetsTerm] = FormerAssets(storageMap, context);
-        }
-        return Result.OkNotNull(manifest);
     }
 
     /// <summary>

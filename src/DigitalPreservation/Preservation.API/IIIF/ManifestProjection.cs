@@ -108,6 +108,9 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     /// <summary>The media type IIIF Presentation 3 asks a manifest to be served with.</summary>
     public const string ManifestMediaType = "application/ld+json; profile=\"http://iiif.io/api/presentation/3/context.json\"";
 
+    /// <summary>The profile of a METS document in a <c>seeAlso</c>: the METS namespace URI.</summary>
+    public const string MetsProfile = "http://www.loc.gov/METS/"; // NOSONAR: S5332 - a namespace name, spelt as the METS standard defines it; nothing connects to it
+
     public const string AccessConditionsTerm = "accessConditions";
     public const string FormerAssetsTerm = "formerAssets";
     public const string PaintedResourcesProperty = "paintedResources";

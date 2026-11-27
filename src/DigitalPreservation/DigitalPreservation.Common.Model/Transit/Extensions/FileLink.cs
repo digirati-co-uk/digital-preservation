@@ -31,7 +31,7 @@ public static class FileLinkProfiles
     /// ALTO OCR. As a IIIF seeAlso profile it is what text services (IIIF-CS's text pipeline among
     /// them) look for: any profile containing "alto".
     /// </summary>
-    public const string Alto = "http://www.loc.gov/standards/alto/";
+    public const string Alto = "http://www.loc.gov/standards/alto/"; // NOSONAR: S5332 - an identifier, spelt as the ALTO standard defines it; nothing connects to it
 }
 
 
