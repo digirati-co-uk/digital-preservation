@@ -4,6 +4,7 @@ using Amazon.S3.Model;
 using DigitalPreservation.Common.Model;
 using FakeItEasy;
 using FluentAssertions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
@@ -42,18 +43,24 @@ public sealed class DepositFileSourceTests : IDisposable
     }
 
     private DepositFileSource Source(bool allowCallerBuckets = true, long maxBytes = 1024 * 1024, string? scratch = "<default>",
-        string? defaultBucket = DefaultBucket) =>
-        new(NullLogger<DepositFileSource>.Instance,
+        string? defaultBucket = DefaultBucket, bool copyEveryDeposit = false, string environment = "Production")
+    {
+        var host = A.Fake<IHostEnvironment>();
+        A.CallTo(() => host.EnvironmentName).Returns(environment);
+        return new(NullLogger<DepositFileSource>.Instance,
             s3,
             Options.Create(new StorageOptions
             {
                 FileMountPath = mountPath,
                 ScratchCopyPath = scratch == "<default>" ? scratchPath : scratch,
-                ScratchCopyMaxBytes = maxBytes
+                ScratchCopyMaxBytes = maxBytes,
+                CopyEveryDepositToScratch = copyEveryDeposit
             }),
             Options.Create(new AwsStorageOptions { DefaultWorkingBucket = defaultBucket! }),
             Options.Create(new PipelineToolOptions { DirectorySeparator = Path.DirectorySeparatorChar.ToString() }),
-            Options.Create(new PipelineFeatureFlags { AllowPipelineForCallerBuckets = allowCallerBuckets }));
+            Options.Create(new PipelineFeatureFlags { AllowPipelineForCallerBuckets = allowCallerBuckets }),
+            host);
+    }
 
     private void GivenObjects(string bucket, params (string Key, string Content)[] objects)
     {
@@ -93,6 +100,51 @@ public sealed class DepositFileSourceTests : IDisposable
 
         result.Success.Should().BeTrue(result.ErrorMessage);
         result.Value!.Path.Should().Be(mountPath + Path.DirectorySeparatorChar + "dep-1");
+        A.CallTo(s3).MustNotHaveHappened();
+    }
+
+    // --- CopyEveryDepositToScratch: running the pipeline locally ---
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Locally_A_Default_Bucket_Deposit_Can_Be_Copied_Down_Instead_Of_Read_From_A_Mount(bool allowCallerBuckets)
+    {
+        // A laptop has no S3 mount. With the switch on in Development, the deposit is copied to
+        // scratch as a caller-bucket deposit would be, whatever the caller-bucket flag says, and
+        // deleted when the job ends.
+        Directory.Delete(mountPath);
+        GivenObjects(DefaultBucket,
+            ("deposits/dep-1/mets.xml", "<mets/>"),
+            ("deposits/dep-1/objects/tape1side1.wav", "RIFF"));
+        var source = Source(allowCallerBuckets, copyEveryDeposit: true, environment: Environments.Development);
+
+        var result = await source.PrepareAsync(new Uri($"s3://{DefaultBucket}/deposits/dep-1/"), "dep-1", TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeTrue(result.ErrorMessage);
+        var copy = result.Value!.Path;
+        copy.Should().Be(Path.Combine(scratchPath, "dep-1"));
+        result.Value.ScratchCopy.Should().Be(copy, "the copy is deleted when the job ends");
+        (await File.ReadAllTextAsync(Path.Combine(copy, "objects", "tape1side1.wav"), TestContext.Current.CancellationToken)).Should().Be("RIFF");
+
+        source.Release(result.Value);
+        Directory.Exists(copy).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("DEV")]                      // the deployed dev environment is DEV, not Development
+    [InlineData("TEST")]
+    [InlineData("PROD")]
+    [InlineData("Testing")]
+    public async Task Outside_Development_The_Switch_Is_Ignored_And_The_Mount_Is_Read(string environment)
+    {
+        var result = await Source(copyEveryDeposit: true, environment: environment)
+            .PrepareAsync(new Uri($"s3://{DefaultBucket}/deposits/dep-1/"), "dep-1", TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeTrue(result.ErrorMessage);
+        result.Value!.Path.Should().Be(mountPath + Path.DirectorySeparatorChar + "dep-1");
+        result.Value.ScratchCopy.Should().BeNull();
         A.CallTo(s3).MustNotHaveHappened();
     }
 

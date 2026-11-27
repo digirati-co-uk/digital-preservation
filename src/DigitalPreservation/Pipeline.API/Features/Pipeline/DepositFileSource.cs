@@ -36,7 +36,8 @@ public class DepositFileSource(
     IOptions<StorageOptions> storageOptions,
     IOptions<AwsStorageOptions> awsStorageOptions,
     IOptions<PipelineToolOptions> pipelineToolOptions,
-    IOptions<PipelineFeatureFlags> featureFlags) : IDepositFileSource
+    IOptions<PipelineFeatureFlags> featureFlags,
+    IHostEnvironment hostEnvironment) : IDepositFileSource
 {
     public async Task<Result<DepositRoot>> PrepareAsync(Uri? depositFiles, string depositSlug, CancellationToken cancellationToken)
     {
@@ -44,6 +45,25 @@ public class DepositFileSource(
         {
             return Result.FailNotNull<DepositRoot>(ErrorCodes.BadRequest,
                 $"Deposit {depositSlug} has no S3 location for its files.");
+        }
+
+        if (storageOptions.Value.CopyEveryDepositToScratch)
+        {
+            // Local development only: no mount on a laptop, so copy the deposit down instead.
+            if (hostEnvironment.IsDevelopment())
+            {
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "StorageOptions:CopyEveryDepositToScratch is on (local development): copying deposit {DepositSlug} from S3 rather than reading the mount",
+                        depositSlug);
+                }
+                return await CopyToScratch(s3Uri.Bucket, s3Uri.Key, depositSlug, cancellationToken);
+            }
+            logger.LogWarning(
+                "StorageOptions:CopyEveryDepositToScratch is set but ignored: it is for running the pipeline locally, " +
+                "and only applies in the Development environment, not {Environment}",
+                hostEnvironment.EnvironmentName);
         }
 
         var defaultBucket = awsStorageOptions.Value.DefaultWorkingBucket;
