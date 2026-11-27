@@ -325,15 +325,22 @@ public class PreservationApiClient(
 
     public async Task<Result<Uri>> GetIIIFManifestUri(string depositId, CancellationToken cancellationToken)
     {
-        var relPath = $"/deposits/{depositId}/iiif";
+        // redirect=false: the tokenised URL itself, not a redirect to it. This client follows
+        // redirects, which would have the API build the whole manifest just to say where it is.
+        var relPath = $"/deposits/{depositId}/iiif?redirect=false";
         try
         {
-            // The client follows the redirect to the tokenised URL; the request it ended on says where that was.
-            var response = await preservationHttpClient.GetAsync(new Uri(relPath, UriKind.Relative),
-                HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (response.IsSuccessStatusCode && response.RequestMessage?.RequestUri is { IsAbsoluteUri: true } manifestUri)
+            using var response = await preservationHttpClient.GetAsync(new Uri(relPath, UriKind.Relative), cancellationToken);
+            if (response.IsSuccessStatusCode)
             {
-                return Result.OkNotNull(manifestUri);
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var json = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                if (json.RootElement.TryGetProperty("id", out var id)
+                    && Uri.TryCreate(id.GetString(), UriKind.Absolute, out var manifestUri))
+                {
+                    return Result.OkNotNull(manifestUri);
+                }
+                return Result.FailNotNull<Uri>(ErrorCodes.UnknownError, $"No manifest address in the response to {relPath}");
             }
             return await response.ToFailNotNullResult<Uri>("Unable to GET " + relPath);
         }

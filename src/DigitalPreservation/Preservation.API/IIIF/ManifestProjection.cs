@@ -105,6 +105,9 @@ public sealed class ProjectionContext
 /// </summary>
 public class ManifestProjection(IOptions<IiifOptions> options)
 {
+    /// <summary>The media type IIIF Presentation 3 asks a manifest to be served with.</summary>
+    public const string ManifestMediaType = "application/ld+json; profile=\"http://iiif.io/api/presentation/3/context.json\"";
+
     public const string AccessConditionsTerm = "accessConditions";
     public const string FormerAssetsTerm = "formerAssets";
     public const string PaintedResourcesProperty = "paintedResources";
@@ -448,7 +451,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             adjunct[AccessConditionsTerm] = conditions;
         }
         adjunct["roles"] = RoleTokens(conditions, context);
-        if (!JToken.DeepEquals(conditions, assetConditions))
+        if (!SameConditions(conditions, assetConditions))
         {
             adjunct[AccessDiffersFromAssetProperty] = true;
         }
@@ -465,6 +468,15 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         {
             assetOrAdjunct[ContentVersionProperty] = version;
         }
+    }
+
+    // The same conditions, in any order: inheritance can reach the same set by different routes,
+    // in a different order, and that is not a difference a builder needs to act on.
+    private static bool SameConditions(JArray a, JArray b)
+    {
+        static HashSet<string> Set(JArray conditions) =>
+            conditions.Select(c => c.ToString(Newtonsoft.Json.Formatting.None)).ToHashSet(StringComparer.Ordinal);
+        return Set(a).SetEquals(Set(b));
     }
 
     /// <summary>
@@ -544,26 +556,33 @@ public class ManifestProjection(IOptions<IiifOptions> options)
 
     private static string Fragment(FilePointer pointer)
     {
-        var fragment = "";
+        var parts = new List<string>(2);
         // A part from the very start (BEGIN 00:00:00) is still a part: only a pointer with no
-        // times at all, or one from 0 with no end, is the whole file.
+        // times at all, or one from 0 with no end, is the whole file. An end at or before the
+        // begin makes no sense, so no time fragment is given rather than a wrong one.
         var begin = pointer.BeginTime ?? 0;
-        if (pointer.EndTime > begin)
+        if (begin >= 0 && pointer.EndTime.HasValue)
         {
-            fragment = $"t={begin.ToString(CultureInfo.InvariantCulture)},{pointer.EndTime.Value.ToString(CultureInfo.InvariantCulture)}";
+            if (pointer.EndTime > begin)
+            {
+                parts.Add($"t={Seconds(begin)},{Seconds(pointer.EndTime.Value)}");
+            }
         }
         else if (begin > 0)
         {
-            fragment = $"t={begin.ToString(CultureInfo.InvariantCulture)}";
+            parts.Add($"t={Seconds(begin)}");
         }
-        if (pointer.Region != null)
+        // Likewise a region whose corners are the wrong way round, or that has no area.
+        if (pointer.Region is { } r && r.X1 >= 0 && r.Y1 >= 0 && r.X2 > r.X1 && r.Y2 > r.Y1)
         {
-            if (fragment.HasText()) fragment += "&";
-            var r = pointer.Region;
-            fragment += $"xywh={r.X1},{r.Y1},{r.X2 - r.X1},{r.Y2 - r.Y1}";
+            parts.Add($"xywh={r.X1},{r.Y1},{r.X2 - r.X1},{r.Y2 - r.Y1}");
         }
-        return fragment.HasText() ? $"#{fragment}" : "";
+        return parts.Count > 0 ? "#" + string.Join("&", parts) : "";
     }
+
+    // Plain decimal, never an exponent (a double prints 0.00001 as 1E-05), to the millisecond.
+    private static string Seconds(double value) =>
+        Math.Round(value, 3).ToString("0.###", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The original arrangement of the files below objects/, as a Range - only when there is one:

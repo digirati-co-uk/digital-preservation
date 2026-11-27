@@ -128,15 +128,21 @@ public class DepositsController(
     
     /// <summary>
     /// Access-controlled request for IIIF Manifest
-    /// Will redirect to a tokenised URL for the Manifest
+    /// Will redirect to a tokenised URL for the Manifest. With <c>?redirect=false</c> it answers
+    /// with that URL instead, as <c>{ "id": ... }</c>: for a caller (the Preservation UI) whose
+    /// HTTP client would otherwise follow the redirect, and have the whole manifest built only to
+    /// learn where it is.
     /// </summary>
-    /// <param name="id"></param>
-    /// <returns></returns>
     [RequireFeatureFlag("EnableIiifMediaEndpoints")]
     [HttpGet("{id}/iiif", Name = "GetDepositAsIIIFManifest")]
-    public IActionResult GetDepositAsIIIF([FromRoute] string id)
+    public IActionResult GetDepositAsIIIF([FromRoute] string id, [FromQuery] bool redirect = true)
     {
         var token = tokenService.GetToken($"{User.GetCallerIdentity()}/deposit/{id}");
+        if (!redirect)
+        {
+            var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            return Ok(new { id = $"{root}/deposits/{Uri.EscapeDataString(id)}/iiif-token/{token}" });
+        }
         return RedirectToRoute("GetDepositAsIIIFManifestWithToken", new { id, token });
     }
 
@@ -158,7 +164,7 @@ public class DepositsController(
         var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, manifestUrl, iiifBaseUrl, root));
         if (manifestResult is { Success: true, Value: not null })
         {
-            return Content(manifestResult.Value.AsJson(), "application/json");
+            return Content(manifestResult.Value.AsJson(), ManifestProjection.ManifestMediaType);
         }
         return this.StatusResponseFromResult(manifestResult);
     }

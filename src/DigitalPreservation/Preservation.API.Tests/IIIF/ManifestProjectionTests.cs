@@ -348,6 +348,10 @@ public class ManifestProjectionTests
     [InlineData(30.0, null, "#t=30")]
     [InlineData(0.0, null, "")]               // from 0 with no end: the whole file
     [InlineData(null, null, "")]
+    [InlineData(30.0, 20.0, "")]              // an end before the begin: no fragment rather than a wrong one
+    [InlineData(30.0, 30.0, "")]
+    [InlineData(0.00001, 1.5, "#t=0,1.5")]    // plain decimals, to the millisecond, never "1E-05"
+    [InlineData(1250.12345, 1900.0, "#t=1250.123,1900")]
     public void A_Time_Range_Keeps_Its_Fragment_Whatever_It_Starts_At(double? begin, double? end, string fragment)
     {
         var range = new LogicalRange
@@ -494,5 +498,23 @@ public class ManifestProjectionTests
 
         json["structures"]!.Should().HaveCount(1, "LOG_1 contains only the empty LOG_2, so neither is emitted");
         json["structures"]![0]!["id"]!.ToString().Should().EndWith("ranges/LOG_3");
+    }
+
+    [Theory]
+    [InlineData(10, 20, 110, 220, "#xywh=10,20,100,200")]
+    [InlineData(110, 20, 10, 220, "")]          // corners the wrong way round: a negative width
+    [InlineData(10, 20, 10, 220, "")]           // no area
+    public void A_Region_Fragment_Is_Only_Given_When_It_Makes_Sense(int x1, int y1, int x2, int y2, string fragment)
+    {
+        var range = new LogicalRange
+        {
+            Id = "LOG_1", Type = "Figure", Name = "Detail",
+            Files = [new FilePointer { LocalPath = "objects/page.tif", Region = new Rectangle { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 } }]
+        };
+
+        var json = Project(Mets([File("objects/page.tif", "image/tiff", 1000, 1000)], [range]), Vanilla());
+
+        json["structures"]![0]!["items"]![0]!["id"]!.ToString()
+            .Should().Be($"{IdBase}canvases/{IdOf("objects/page.tif")}{fragment}");
     }
 }

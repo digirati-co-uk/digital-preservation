@@ -189,7 +189,7 @@ public class RepositoryController(
         var manifestResult = await mediator.Send(new GetArchivalGroupAsIIIFManifest(archivalGroup, kind, manifestId, root));
         if (manifestResult is { Success: true, Value: not null })
         {
-            return Content(manifestResult.Value.AsJson(), "application/json");
+            return Content(manifestResult.Value.AsJson(), ManifestProjection.ManifestMediaType);
         }
         return this.StatusResponseFromResult(manifestResult);
     }

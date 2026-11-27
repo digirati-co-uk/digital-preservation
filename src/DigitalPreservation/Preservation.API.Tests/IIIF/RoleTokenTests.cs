@@ -130,6 +130,24 @@ public class RoleTokenTests
     }
 
     [Fact]
+    public void The_Same_Conditions_In_A_Different_Order_Are_Not_A_Difference()
+    {
+        // Inheritance can reach the same set by different routes, in a different order.
+        var audio = File("objects/talk.mp3", "audio/mpeg", restriction: "PA1", tier: "1", statement: "inc-low-risk");
+        audio.Links.Add(new FileLink { To = "objects/talk.txt", Role = FileLinkRoles.FromIiifProvides("transcript") });
+        var transcript = File("objects/talk.txt", "text/plain", restriction: "PA1");
+        transcript.EffectiveOtherAccessConditions = new Dictionary<string, string>
+        {
+            ["tier"] = "1",
+            ["copyright statement"] = "inc-low-risk"     // the other way round from the audio's
+        };
+
+        var adjunct = Asset(Project(Mets(audio, transcript), ManifestKind.IiifCs, "tier"))["adjuncts"]![0]!;
+
+        adjunct[ManifestProjection.AccessDiffersFromAssetProperty].Should().BeNull();
+    }
+
+    [Fact]
     public void A_Value_That_Needs_It_Is_Percent_Encoded()
     {
         var json = Project(Mets(File("objects/a.tif", "image/tiff", restriction: "Staff only: 50% & more")), ManifestKind.IiifCs);
