@@ -20,6 +20,9 @@ public class MetadataReader : IMetadataReader
     private SiegfriedOutput? siegfriedSiegfriedOutput;
     private SiegfriedOutput? brunnhildeSiegfriedOutput;
     private List<VirusModel> infectedFiles = [];
+    // Whether ClamAV's log shows a scan that actually ran (issue #507). Until it does, no file gets a
+    // virus check: a file absent from the list of hits is clean only if something looked.
+    private bool clamScanRan;
     private List<ExifModel> exifMetadataList = [];
     
     private readonly Dictionary<string, List<Metadata>> metadataByFiles =  new();
@@ -204,7 +207,10 @@ public class MetadataReader : IMetadataReader
             ? brunnhildeAVResult.Value.LastModified
             : default);
 
-        if (brunnhildeAVResult.Success)
+        // Only when the log shows ClamAV actually scanned (issue #507): every file not among its hits
+        // is recorded as clean, so a log with no scan in it - ClamAV missing, or with no signatures to
+        // scan with - would otherwise pass everything.
+        if (brunnhildeAVResult.Success && clamScanRan)
             AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", virusScanTimestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
@@ -390,6 +396,7 @@ public class MetadataReader : IMetadataReader
     private async Task<List<VirusModel>> ReadInfectedFilePaths(Stream stream)
     {
         var result = await GetClamScanOutput(stream);
+        clamScanRan = ScanRan(result);
         var model = new List<VirusModel>();
 
         foreach (var fileVirus in result.Hits)
@@ -414,6 +421,31 @@ public class MetadataReader : IMetadataReader
         var txt = await GetTextFromStream(stream);
         var result = ConvertClamResultStringToJson(txt);
         return result;
+    }
+
+    /// <summary>
+    /// Whether a ClamAV log (Brunnhilde's viruscheck-log.txt) shows a scan that actually ran: it has
+    /// a scan summary with an <c>Infected files</c> count, which clamscan and clamdscan both write
+    /// after scanning, and does not say it scanned with no signatures (<c>Known viruses: 0</c>).
+    /// A log with no summary is what Brunnhilde leaves when ClamAV is missing or fails to start
+    /// (issue #507).
+    /// </summary>
+    public static bool ScanRan(string clamLog) => ScanRan(ConvertClamResultStringToJson(clamLog));
+
+    private static bool ScanRan(ClamScanResult result)
+    {
+        string? Value(string name) => result.Summary
+            .Select(line => line.Split(':', 2))
+            .Where(parts => parts.Length == 2 && parts[0].Trim().Equals(name, StringComparison.OrdinalIgnoreCase))
+            .Select(parts => parts[1].Trim())
+            .FirstOrDefault();
+
+        if (Value("Infected files") is null)
+        {
+            return false;
+        }
+        var knownViruses = Value("Known viruses");
+        return knownViruses is null || (long.TryParse(knownViruses, out var count) && count > 0);
     }
 
     public static ClamScanResult ConvertClamResultStringToJson(string clamResultStr)
@@ -551,7 +583,12 @@ public class MetadataReader : IMetadataReader
                 engineVersion = summaryStringSplit[1];
         }
 
-        return $"ClamAV {engineVersion} Known viruses {knownViruses} ";
+        // Only what the log actually says: clamdscan's summary can lack both values, and a
+        // definition of "ClamAV  Known viruses  " says nothing while looking like something.
+        var parts = new List<string> { "ClamAV" };
+        if (engineVersion.Trim().Length > 0) parts.Add(engineVersion.Trim());
+        if (knownViruses.Trim().Length > 0) parts.Add($"Known viruses {knownViruses.Trim()}");
+        return string.Join(" ", parts);
     }
 
     private async Task<List<ExifModel>> GetExifOutputForAllFiles()

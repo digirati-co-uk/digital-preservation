@@ -674,11 +674,21 @@ public class ProcessPipelineJobHandler(
             }
 
             var virusDefinition = await GetVirusDefinition();
-            //add virus definition file to metadata folder
-            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition{pipelineToolOptions.Value.DirectorySeparator}virus-definition.txt";
-
-            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition");
-            await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
+            // Add the virus definition file to the metadata folder - only if there is one (issue #507).
+            // An empty file says nothing, and the import diff refuses a file of size 0, so writing one
+            // left the deposit impossible to preserve.
+            if (virusDefinition.Trim().Length > 0)
+            {
+                var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition{pipelineToolOptions.Value.DirectorySeparator}virus-definition.txt";
+                Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition");
+                await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Pipeline job run {JobIdentifier} for {DepositId}: clamscan --version said nothing, so no virus definition is recorded. Is ClamAV installed, and is PathToClamScan right?",
+                    request.JobIdentifier, request.DepositId);
+            }
 
             // Join the Exif task kicked off alongside Brunnhilde earlier - its output needs to be on
             // disk before we upload the metadata folder below, but it has likely already finished
@@ -787,6 +797,23 @@ public class ProcessPipelineJobHandler(
                             Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} could not add its outputs to the METS: {metsResult.ErrorMessage}"
                         }
                     ],
+                    CleanupProcessJob = false
+                };
+            }
+
+            // Issue #507: everything else is recorded, but a virus check that didn't happen must not
+            // pass quietly. The METS has no virus check for any file (MetadataReader records one only
+            // for a scan that ran), and the run says why.
+            var virusCheckProblem = VirusCheckProblem(
+                $"{metadataProcessPath}{pipelineToolOptions.Value.DirectorySeparator}logs{pipelineToolOptions.Value.DirectorySeparator}viruscheck-log.txt");
+            if (virusCheckProblem != null)
+            {
+                logger.LogError("Pipeline job run {JobIdentifier} for deposit {DepositId}: {Problem}",
+                    request.JobIdentifier, request.DepositId, virusCheckProblem);
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId}: {virusCheckProblem}" }],
                     CleanupProcessJob = false
                 };
             }
@@ -1335,6 +1362,23 @@ public class ProcessPipelineJobHandler(
     internal static bool HasSignatureDatabaseVersion(string virusDefinition) =>
         VirusDefinitionWithSignatureDatabaseVersion.IsMatch(virusDefinition);
 
+    /// <summary>
+    /// Null when Brunnhilde's ClamAV log shows a scan that ran; otherwise what went wrong, for the
+    /// run's errors (issue #507).
+    /// </summary>
+    internal static string? VirusCheckProblem(string clamLogPath)
+    {
+        if (!File.Exists(clamLogPath))
+        {
+            return "the virus check didn't run: ClamAV left no log, so no file has a virus check recorded. " +
+                   "Check that ClamAV is installed and has its signature database.";
+        }
+        return MetadataReader.ScanRan(File.ReadAllText(clamLogPath))
+            ? null
+            : "the virus check didn't run: ClamAV's log has no scan in it, so no file has a virus check recorded. " +
+              "Check that ClamAV is installed and has its signature database.";
+    }
+
     private async Task<string> GetVirusDefinition()
     {
         try
@@ -1373,8 +1417,10 @@ public class ProcessPipelineJobHandler(
             }
             return result;
         }
-        catch
+        catch (Exception e)
         {
+            // Not silently: an empty definition used to become an empty file (issue #507).
+            logger.LogWarning(e, "Could not run clamscan --version for the virus definition");
             return string.Empty;
         }
 
