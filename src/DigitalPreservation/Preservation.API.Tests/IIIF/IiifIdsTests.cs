@@ -79,4 +79,25 @@ public class IiifIdsTests
     {
         IiifIds.ForPath("objects/résumé.pdf").Should().Be(IiifIds.ForPath("objects/résumé.pdf"));
     }
+
+    [Fact]
+    public void With_Hash_Ids_That_Differ_Only_By_Case_Differ_Beyond_Case()
+    {
+        // IIIF-CS compares canvas ids ignoring case; the projection asks for the hash on such paths.
+        var upper = IiifIds.ForPath("ag/objects/A.tif", withHash: true);
+        var lower = IiifIds.ForPath("ag/objects/a.tif", withHash: true);
+
+        upper.Should().StartWith(IiifIds.ForPath("ag/objects/A.tif")).And.MatchRegex("_h[0-9a-f]{12}$");
+        upper.Equals(lower, StringComparison.OrdinalIgnoreCase).Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_Malformed_Path_Gets_An_Id_Instead_Of_Throwing()
+    {
+        // A lone surrogate, which string.Normalize refuses.
+        var id = IiifIds.ForPath("ag/objects/bad\uD800name.tif");
+
+        id.Should().MatchRegex("_h[0-9a-f]{12}$");
+        id.All(char.IsAscii).Should().BeTrue();
+    }
 }

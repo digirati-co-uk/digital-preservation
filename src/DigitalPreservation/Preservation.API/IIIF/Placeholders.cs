@@ -1,6 +1,6 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Caching.Memory;
 using NetVips;
 
 namespace Preservation.API.IIIF;
@@ -95,12 +95,17 @@ public static partial class Placeholders
         return ("application", "octet-stream");
     }
 
-    public static bool IsValidPronom(string prefix, int number) => prefix is "fmt" or "x-fmt" && number >= 0;
+    // PRONOM numbers are in the low thousands; the cap keeps the space of valid keys finite.
+    public const int MaxPronomNumber = 99999;
+
+    public static bool IsValidPronom(string prefix, int number) =>
+        prefix is "fmt" or "x-fmt" && number is >= 0 and <= MaxPronomNumber;
 
     public static bool IsValidMediaTypePart(string part) => MediaTypePart().IsMatch(part);
 
-    // RFC 6838 restricted-name characters, which is all a registered type uses.
-    [GeneratedRegex("^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$")]
+    // RFC 6838 restricted-name characters, which is all a registered type uses. 64 characters is
+    // longer than any registered type or subtype needs; RFC 6838 allows 127.
+    [GeneratedRegex("^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$")]
     private static partial Regex MediaTypePart();
 
     // --- rendering ---
@@ -113,10 +118,10 @@ public static partial class Placeholders
     private static readonly double[] Ink = [52, 58, 64];
     private static readonly double[] Quiet = [108, 117, 125];
 
-    // The inputs are validated and few, so the cache is small; the cap only stops a client asking
-    // for every combination from growing it without limit.
+    // Anyone can ask for any valid key, so the cache is bounded and evicts the least recently used:
+    // junk requests can push entries out, but can't stop the real ones being cached again.
     private const int CacheCap = 2048;
-    private static readonly ConcurrentDictionary<string, byte[]> Cache = new();
+    private static readonly MemoryCache Cache = new(new MemoryCacheOptions { SizeLimit = CacheCap, CompactionPercentage = 0.25 });
 
     public static byte[] RenderCanvas(PlaceholderSize size, string prefix, int number, string main, string sub)
     {
@@ -140,15 +145,12 @@ public static partial class Placeholders
 
     private static byte[] Cached(string key, Func<byte[]> render)
     {
-        if (Cache.TryGetValue(key, out var png))
+        if (Cache.TryGetValue(key, out byte[]? png) && png != null)
         {
             return png;
         }
         png = render();
-        if (Cache.Count < CacheCap)
-        {
-            Cache.TryAdd(key, png);
-        }
+        Cache.Set(key, png, new MemoryCacheEntryOptions { Size = 1, SlidingExpiration = TimeSpan.FromDays(1) });
         return png;
     }
 

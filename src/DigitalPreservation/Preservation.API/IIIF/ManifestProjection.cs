@@ -87,6 +87,13 @@ public sealed class ProjectionContext
 
     /// <summary>From <see cref="IiifOptions.RoleConditionTypes"/>: which conditions become role tokens.</summary>
     internal IReadOnlyCollection<string> RoleConditionTypes { get; set; } = [];
+
+    /// <summary>
+    /// Files whose ids would differ from another file's only by case (<c>A.tif</c>, <c>a.tif</c>).
+    /// IIIF-CS matches canvas ids ignoring case and refuses a manifest with two such ids, so these
+    /// get the hash suffix.
+    /// </summary>
+    internal HashSet<string> CaseCollisions { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>
@@ -104,8 +111,10 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     public const string LabelPrefix = "Preservation: ";
 
     /// <summary>
-    /// The prefix of the placeholder roles on IIIF-CS assets. Shaped like a URI, so IIIF-CS reads it
-    /// as a role, and plainly not one, so an unmapped token is refused rather than published.
+    /// The prefix of the placeholder roles on IIIF-CS assets. Shaped like a URI, as IIIF-CS roles
+    /// are, and plainly not a real one: IIIF-CS doesn't check a role exists when it is assigned, so
+    /// an unmapped token is stored, and the asset is then refused to everyone at delivery, rather
+    /// than published openly.
     /// </summary>
     public const string RoleTokenPrefix = "urn:x-access-condition:";
 
@@ -131,6 +140,12 @@ public class ManifestProjection(IOptions<IiifOptions> options)
                           ?? mets.PhysicalStructure;
         context.ObjectRequiredStatement = objectLevel == null ? null : RequiredStatementFor(objectLevel, context);
         context.RoleConditionTypes = options.Value.RoleConditionTypes;
+        context.CaseCollisions = mets.Files
+            .Select(f => f.LocalPath)
+            .GroupBy(path => IdFor(path, context).ToLowerInvariant(), StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .SelectMany(g => g)
+            .ToHashSet(StringComparer.Ordinal);
 
         manifest.Items = [];
         foreach (var file in mets.Files)
@@ -151,8 +166,12 @@ public class ManifestProjection(IOptions<IiifOptions> options)
 
         foreach (var logicalRange in mets.LogicalStructures)
         {
-            manifest.Structures ??= [];
-            manifest.Structures.Add(MakeRange(logicalRange, canvasIds, context));
+            var range = MakeRange(logicalRange, canvasIds, context);
+            if (range != null)
+            {
+                manifest.Structures ??= [];
+                manifest.Structures.Add(range);
+            }
         }
         var folders = MakeFolderRange(mets, canvasIds, context);
         if (folders != null)
@@ -177,9 +196,13 @@ public class ManifestProjection(IOptions<IiifOptions> options)
         SetContext(manifest, context.Kind);
     }
 
-    /// <summary>The canvas or asset id of a file: <see cref="IiifIds.ForPath"/> of its full path.</summary>
+    /// <summary>
+    /// The canvas or asset id of a file: <see cref="IiifIds.ForPath"/> of its full path, with the
+    /// hash suffix when its id would otherwise differ from another file's only by case.
+    /// </summary>
     public static string IdFor(string localPath, ProjectionContext context) =>
-        IiifIds.ForPath(context.PathPrefix.HasText() ? $"{context.PathPrefix.TrimEnd('/')}/{localPath}" : localPath);
+        IiifIds.ForPath(context.PathPrefix.HasText() ? $"{context.PathPrefix.TrimEnd('/')}/{localPath}" : localPath,
+            withHash: context.CaseCollisions.Contains(localPath));
 
     private static bool IsCanvasFile(WorkingFile file, HashSet<string> linkTargets) =>
         file.LocalPath.StartsWith($"{FolderNames.Objects}/")
@@ -464,8 +487,8 @@ public class ManifestProjection(IOptions<IiifOptions> options)
     /// Placeholder roles for an asset or adjunct, from its access conditions: one
     /// <c>urn:x-access-condition:{type}:{value}</c> per condition of the configured types (both parts
     /// percent-encoded), or <see cref="NoConditionsRoleToken"/> when there is none. A builder maps each
-    /// token to a real IIIF-CS role URI, or drops it for open access. A token left unmapped is not a
-    /// role IIIF-CS knows, so it fails rather than publishing the file openly.
+    /// token to a real IIIF-CS role URI, or drops it for open access. A token left unmapped is stored
+    /// as a role no one has, so the file is refused at delivery rather than published openly.
     /// </summary>
     private static JArray RoleTokens(JArray conditions, ProjectionContext context)
     {
@@ -481,7 +504,9 @@ public class ManifestProjection(IOptions<IiifOptions> options)
 
     // ─── ranges ─────────────────────────────────────────────────────────────────
 
-    private Range MakeRange(LogicalRange logicalRange, Dictionary<string, string> canvasIds, ProjectionContext context)
+    // Null when nothing in the range resolves to a canvas (its files are all linked files, have no
+    // media type, or aren't there): a Range must have items.
+    private Range? MakeRange(LogicalRange logicalRange, Dictionary<string, string> canvasIds, ProjectionContext context)
     {
         var range = new Range
         {
@@ -498,8 +523,12 @@ public class ManifestProjection(IOptions<IiifOptions> options)
 
         foreach (var child in logicalRange.Ranges)
         {
-            range.Items ??= [];
-            range.Items.Add(MakeRange(child, canvasIds, context));
+            var childRange = MakeRange(child, canvasIds, context);
+            if (childRange != null)
+            {
+                range.Items ??= [];
+                range.Items.Add(childRange);
+            }
         }
         foreach (var pointer in logicalRange.Files)
         {
@@ -510,7 +539,7 @@ public class ManifestProjection(IOptions<IiifOptions> options)
             range.Items ??= [];
             range.Items.Add(new Canvas { Id = canvasId + Fragment(pointer) });
         }
-        return range;
+        return range.Items is { Count: > 0 } ? range : null;
     }
 
     private static string Fragment(FilePointer pointer)

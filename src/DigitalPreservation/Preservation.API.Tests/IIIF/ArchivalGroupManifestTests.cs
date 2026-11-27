@@ -39,7 +39,8 @@ public class ArchivalGroupManifestTests
                 Files =
                 [
                     new WorkingFile { LocalPath = "objects/a.tif", ContentType = "image/tiff" },
-                    new WorkingFile { LocalPath = "objects/sub dir/b.tif", ContentType = "image/tiff" }
+                    new WorkingFile { LocalPath = "objects/sub dir/b.tif", ContentType = "image/tiff" },
+                    new WorkingFile { LocalPath = "objects/c#1.tif", ContentType = "image/tiff" }
                 ],
                 PhysicalStructure = new WorkingDirectory { LocalPath = "" }
             }));
@@ -56,7 +57,12 @@ public class ArchivalGroupManifestTests
         var objects = new Container
         {
             Id = new Uri($"{AgUri}/objects"),
-            Binaries = [new Binary { Id = new Uri($"{AgUri}/objects/a.tif") }],
+            Binaries =
+            [
+                new Binary { Id = new Uri($"{AgUri}/objects/a.tif") },
+                // Fedora's spelling of '#' in a path (EscapeForUriNoHashes).
+                new Binary { Id = new Uri($"{AgUri}/objects/c-_-percent-23-_-1.tif") }
+            ],
             Containers = [subDir]
         };
         var version = new ObjectVersion { OcflVersion = "v3", MementoTimestamp = "20260101000000", MementoDateTime = DateTime.UtcNow };
@@ -76,15 +82,20 @@ public class ArchivalGroupManifestTests
                 ObjectPath = "fedora/ab/cd/library/ms-1",
                 ArchivalGroup = new Uri(AgUri),
                 Hashes = [],
+                // Keyed, and content paths spelt, as Fedora writes them into the inventory: a space is
+                // a literal "%20", a '#' is "-_-percent-23-_-". METS paths are unescaped.
                 Files = new Dictionary<string, OriginFile>
                 {
                     ["objects/a.tif"] = new() { Hash = "1", FullPath = "v3/content/objects/a.tif" },
-                    ["objects/sub dir/b.tif"] = new() { Hash = "2", FullPath = "v1/content/objects/sub dir/b.tif" },
+                    ["objects/sub%20dir/b.tif"] = new() { Hash = "2", FullPath = "v1/content/objects/sub%20dir/b.tif" },
+                    ["objects/c-_-percent-23-_-1.tif"] = new()
+                        { Hash = "6", FullPath = "v1/content/objects/c-_-percent-23-_-1.tif", ContentVersion = "v3" },
                     ["mets.xml"] = new() { Hash = "3", FullPath = "v3/content/mets.xml" }
                 },
                 FormerFiles = new Dictionary<string, FormerOriginFile>
                 {
                     ["objects/gone.tif"] = new() { Hash = "4", FullPath = "v1/content/objects/gone.tif", LastVersion = "v2" },
+                    ["objects/old%20page.tif"] = new() { Hash = "7", FullPath = "v1/content/objects/old%20page.tif", LastVersion = "v2" },
                     ["old-mets.xml"] = new() { Hash = "5", FullPath = "v1/content/old-mets.xml", LastVersion = "v1" }
                 }
             }
@@ -113,6 +124,8 @@ public class ArchivalGroupManifestTests
         var json = await Json(ManifestKind.Vanilla);
 
         json["items"]![1]!["rendering"]![0]!["id"]!.ToString().Should().Be($"{AgUri}/objects/sub%20dir/b.tif");
+        json["items"]![2]!["rendering"]![0]!["id"]!.ToString().Should().Be($"{AgUri}/objects/c-_-percent-23-_-1.tif",
+            "a file with '#' in its name is found under Fedora's spelling of it");
         json.ToString().Should().NotContain("s3://", "the vanilla manifest names no storage location");
         json[ManifestProjection.PaintedResourcesProperty].Should().BeNull();
         json[ManifestProjection.FormerAssetsTerm].Should().BeNull();
@@ -135,8 +148,12 @@ public class ArchivalGroupManifestTests
 
         painted[0]!["asset"]!["origin"]!.ToString().Should().Be("s3://ocfl-bucket/fedora/ab/cd/library/ms-1/v3/content/objects/a.tif");
         painted[1]!["asset"]!["origin"]!.ToString().Should()
-            .Be("s3://ocfl-bucket/fedora/ab/cd/library/ms-1/v1/content/objects/sub dir/b.tif",
-                "an unchanged file keeps the content path of the version it was added in");
+            .Be("s3://ocfl-bucket/fedora/ab/cd/library/ms-1/v1/content/objects/sub%20dir/b.tif",
+                "an unchanged file keeps the content path of the version it was added in, spelt as the S3 key is");
+        painted[2]!["asset"]!["origin"]!.ToString().Should()
+            .Be("s3://ocfl-bucket/fedora/ab/cd/library/ms-1/v1/content/objects/c-_-percent-23-_-1.tif");
+        painted.Select(p => p["asset"]!["origin"]).Should().OnlyContain(o => o != null,
+            "every file is found in the storage map, however Fedora escaped its path");
     }
 
     [Fact]
@@ -148,6 +165,8 @@ public class ArchivalGroupManifestTests
         var painted = json[ManifestProjection.PaintedResourcesProperty]!;
         painted[0]!["asset"]![ManifestProjection.ContentVersionProperty]!.ToString().Should().Be("v3", "a.tif was written in v3");
         painted[1]!["asset"]![ManifestProjection.ContentVersionProperty]!.ToString().Should().Be("v1", "b.tif is unchanged since v1");
+        painted[2]!["asset"]![ManifestProjection.ContentVersionProperty]!.ToString().Should().Be("v3",
+            "c#1.tif changed back to bytes first stored in v1: its content path is v1's, but it changed in v3");
     }
 
     [Fact]
@@ -161,9 +180,14 @@ public class ArchivalGroupManifestTests
                 "id": "{{IiifIds.ForPath("library/ms-1/objects/gone.tif")}}",
                 "lastVersion": "v2",
                 "origin": "s3://ocfl-bucket/fedora/ab/cd/library/ms-1/v1/content/objects/gone.tif"
+              },
+              {
+                "id": "{{IiifIds.ForPath("library/ms-1/objects/old page.tif")}}",
+                "lastVersion": "v2",
+                "origin": "s3://ocfl-bucket/fedora/ab/cd/library/ms-1/v1/content/objects/old%20page.tif"
               }
             ]
-            """));
+            """), "a former asset's id is the one its asset had, from the unescaped path");
     }
 
     [Fact]

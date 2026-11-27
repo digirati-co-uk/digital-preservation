@@ -5,6 +5,8 @@ using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Preservation.API.Mutation;
 using Preservation.API.Features.Repository.Requests;
 using DigitalPreservation.Mets;
 using IIIF.Serialisation;
@@ -16,7 +18,10 @@ namespace Preservation.API.Features.Repository;
 
 [Route(PreservedResource.BasePathElement + "/{*path}")]
 [ApiController]
-public class RepositoryController(IMediator mediator, IMetsParser metsParser) : ControllerBase
+public class RepositoryController(
+    IMediator mediator,
+    IMetsParser metsParser,
+    IOptions<MutatorOptions>? mutatorOptions = null) : ControllerBase
 {
     /// <summary>
     /// The name every METS this platform writes is given, and the one <see cref="TryStreamConventionalMets"/>
@@ -170,11 +175,15 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
 
     /// <summary>
     /// The Archival Group projected as a IIIF Manifest (issue #261). The manifest's id is the
-    /// request URI with only the view parameter, so it is the same however it was asked for.
+    /// request path with only the view parameter, on the configured host the Archival Group's own
+    /// id and its <c>iiif</c> links use, so the ids are the same whichever hostname was asked.
     /// </summary>
     private async Task<IActionResult> GetIiifResult(ArchivalGroup archivalGroup, string view)
     {
-        var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        var configured = mutatorOptions?.Value.Preservation;
+        var root = configured.HasText()
+            ? configured.TrimEnd('/')
+            : $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var kind = view == ViewValues.IiifCs ? ManifestKind.IiifCs : ManifestKind.Vanilla;
         var manifestId = $"{root}{Request.Path.ToUriComponent()}?view={view}";
         var manifestResult = await mediator.Send(new GetArchivalGroupAsIIIFManifest(archivalGroup, kind, manifestId, root));

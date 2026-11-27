@@ -46,14 +46,29 @@ public static class IiifIds
     private const string HashMarker = "_h";
     private const int HashLength = 12;
 
-    public static string ForPath(string path)
+    /// <param name="path">The file's full path under <c>/repository</c>.</param>
+    /// <param name="withHash">
+    /// Append the hash even when nothing was lost: for a path whose id would otherwise differ from
+    /// another's only by case, which IIIF-CS, comparing canvas ids case-insensitively, refuses.
+    /// </param>
+    public static string ForPath(string path, bool withHash = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        var folded = FoldDiacritics(path);
+        string folded;
+        try
+        {
+            folded = FoldDiacritics(path);
+        }
+        catch (ArgumentException)
+        {
+            // Normalize refuses a malformed string (a lone surrogate): treat it as lossy, so the hash
+            // of the original keeps it unique.
+            folded = new string(path.Select(c => char.IsSurrogate(c) ? '_' : c).ToArray());
+        }
         var encoded = EscapeNonAscii(folded.ToMetsId());
 
-        var lossy = !string.Equals(folded, path, StringComparison.Ordinal);
+        var lossy = withHash || !string.Equals(folded, path, StringComparison.Ordinal);
         if (!lossy && encoded.Length <= MaxLength)
         {
             return encoded;
@@ -102,6 +117,8 @@ public static class IiifIds
         return sb.ToString();
     }
 
+    // UTF-8 replaces a lone surrogate with U+FFFD, so two malformed paths can share a hash only if
+    // they differ in nothing else.
     private static string HashOf(string path) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(path)))[..HashLength];
 }

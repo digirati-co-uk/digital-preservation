@@ -82,4 +82,23 @@ public class PlaceholdersTests
         image.Height.Should().Be(Placeholders.ThumbnailSize.Height);
         image.Deviate().Should().BeGreaterThan(0);
     }
+
+    [Theory]
+    [InlineData("fmt", 353, true)]
+    [InlineData("x-fmt", 0, true)]
+    [InlineData("fmt", Placeholders.MaxPronomNumber, true)]
+    [InlineData("fmt", Placeholders.MaxPronomNumber + 1, false)]   // keeps the space of valid keys finite
+    [InlineData("fmt", -1, false)]
+    [InlineData("other", 1, false)]
+    public void Pronom_Keys_Are_Bounded(string prefix, int number, bool valid)
+    {
+        Placeholders.IsValidPronom(prefix, number).Should().Be(valid);
+    }
+
+    [Fact]
+    public void Media_Type_Parts_Are_Bounded()
+    {
+        Placeholders.IsValidMediaTypePart(new string('a', 64)).Should().BeTrue();
+        Placeholders.IsValidMediaTypePart(new string('a', 65)).Should().BeFalse();
+    }
 }

@@ -47,6 +47,6 @@ public static class FormerFiles
 
     // OCFL version names are "v" and a number, possibly zero-padded ("v1", "v0003"); compare the
     // numbers, not the strings, so v10 comes after v9.
-    private static int VersionNumber(string name) =>
+    internal static int VersionNumber(string name) =>
         int.TryParse(name.AsSpan(1), out var number) ? number : int.MaxValue;
 }

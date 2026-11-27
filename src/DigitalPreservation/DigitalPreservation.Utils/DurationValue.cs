@@ -39,27 +39,35 @@ public static partial class DurationValue
         {
             return null;
         }
-        var days = clock.Groups["d"].Success ? int.Parse(clock.Groups["d"].Value, CultureInfo.InvariantCulture) : 0;
-        var hours = clock.Groups["h"].Success ? int.Parse(clock.Groups["h"].Value, CultureInfo.InvariantCulture) : 0;
-        var minutes = int.Parse(clock.Groups["m"].Value, CultureInfo.InvariantCulture);
+        // TryParse throughout: a value too big for an int is not a duration, and must not throw
+        // out of the METS parser.
+        var days = 0;
+        var hours = 0;
+        if ((clock.Groups["d"].Success && !int.TryParse(clock.Groups["d"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out days))
+            || (clock.Groups["h"].Success && !int.TryParse(clock.Groups["h"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out hours))
+            || !int.TryParse(clock.Groups["m"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes))
+        {
+            return null;
+        }
         var secs = Number(clock.Groups["s"].Value);
         // With hours given, minutes are a clock's; M:SS alone may run past an hour (75:00).
         if ((clock.Groups["h"].Success && minutes > 59) || secs is null or >= 60)
         {
             return null;
         }
-        return days * 86400 + hours * 3600 + minutes * 60 + secs;
+        return days * 86400.0 + hours * 3600.0 + minutes * 60.0 + secs;
     }
 
     private static double? Number(string s) =>
-        double.TryParse(s, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var d) ? d : null;
+        double.TryParse(s, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var d) && double.IsFinite(d) ? d : null;
 
     [GeneratedRegex(@"\s*\(approx\)$", RegexOptions.IgnoreCase)]
     private static partial Regex Approx();
 
-    [GeneratedRegex(@"^(?<s>\d+(\.\d+)?)(\s*s)?$", RegexOptions.IgnoreCase)]
+    // [0-9], not \d: \d matches any Unicode digit (Arabic-Indic and so on), which parsing then refuses.
+    [GeneratedRegex(@"^(?<s>[0-9]+(\.[0-9]+)?)(\s*s)?$", RegexOptions.IgnoreCase)]
     private static partial Regex PlainSeconds();
 
-    [GeneratedRegex(@"^((?<d>\d+)\s+days?\s+)?((?<h>\d+):)?(?<m>\d+):(?<s>\d+(\.\d+)?)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^((?<d>[0-9]+)\s+days?\s+)?((?<h>[0-9]+):)?(?<m>[0-9]+):(?<s>[0-9]+(\.[0-9]+)?)$", RegexOptions.IgnoreCase)]
     private static partial Regex Clock();
 }

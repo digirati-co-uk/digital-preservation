@@ -365,7 +365,7 @@ public class ManifestProjectionTests
     [Fact]
     public void Folders_Become_A_Range_When_Content_Sits_In_A_Subfolder_And_It_Is_Kept_Beside_Logical_Ranges()
     {
-        var logical = new LogicalRange { Id = "LOG_1", Type = "Book" };
+        var logical = new LogicalRange { Id = "LOG_1", Type = "Book", Files = [new FilePointer { LocalPath = "objects/cover.tif" }] };
         var json = Project(Mets(
         [
             File("objects/cover.tif", "image/tiff"),
@@ -453,5 +453,46 @@ public class ManifestProjectionTests
         var json = Project(Mets([File("objects/a.tif", "image/tiff")], [range]), IiifCs());
 
         json["structures"]![0]!["items"]![0]!["id"]!.ToString().Should().Be(IdOf("objects/a.tif"));
+    }
+
+    // --- issue #261 review: ids differing only by case, and empty ranges ---
+
+    [Fact]
+    public void Files_Whose_Ids_Differ_Only_By_Case_Get_The_Hash_And_Others_Do_Not()
+    {
+        // IIIF-CS matches canvas ids ignoring case and refuses a manifest with two that differ only
+        // by case. Fedora and S3 are case-sensitive, so A.tif and a.tif can both be preserved.
+        var json = Project(Mets([File("objects/A.tif", "image/tiff"), File("objects/a.tif", "image/tiff"), File("objects/b.tif", "image/tiff")]),
+            IiifCs());
+        var ids = json["items"]!.Select(c => c["id"]!.ToString()).ToList();
+
+        ids.Distinct(StringComparer.OrdinalIgnoreCase).Should().HaveCount(3);
+        ids[0].Should().MatchRegex("_h[0-9a-f]{12}$");
+        ids[1].Should().MatchRegex("_h[0-9a-f]{12}$");
+        ids[2].Should().Be(IdOf("objects/b.tif"), "a file with no case twin keeps its plain id");
+        json["paintedResources"]!.Select(p => p["asset"]!["id"]!.ToString()).Should().Equal(ids);
+    }
+
+    [Fact]
+    public void A_Logical_Range_With_Nothing_That_Is_A_Canvas_Is_Left_Out()
+    {
+        // A Range must have items. The METS range's only file has no media type, so it has no canvas.
+        var empty = new LogicalRange
+        {
+            Id = "LOG_2", Type = "Chapter", Name = "Nothing here",
+            Files = [new FilePointer { LocalPath = "objects/untyped.bin" }]
+        };
+        var parent = new LogicalRange { Id = "LOG_1", Type = "Book", Name = "Book", Ranges = [empty] };
+        var full = new LogicalRange
+        {
+            Id = "LOG_3", Type = "Chapter", Name = "One",
+            Files = [new FilePointer { LocalPath = "objects/a.tif" }]
+        };
+        var untyped = new WorkingFile { LocalPath = "objects/untyped.bin" };
+
+        var json = Project(Mets([File("objects/a.tif", "image/tiff"), untyped], [parent, full]), Vanilla());
+
+        json["structures"]!.Should().HaveCount(1, "LOG_1 contains only the empty LOG_2, so neither is emitted");
+        json["structures"]![0]!["id"]!.ToString().Should().EndWith("ranges/LOG_3");
     }
 }

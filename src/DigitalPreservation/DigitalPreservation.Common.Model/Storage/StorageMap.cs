@@ -70,6 +70,17 @@ public class OriginFile
     [JsonPropertyOrder(2)]
     public required string FullPath { get; set; }
 
+    /// <summary>
+    /// The version in which this path last got the content it has now, e.g. <c>v3</c>. Usually the
+    /// version in <see cref="FullPath"/>, but not when content returns to bytes stored before: OCFL
+    /// stores identical bytes once, so a file that was X in v1, Y in v2 and X again in v3 has a v1
+    /// content path and a <c>contentVersion</c> of v3 (issue #261). Not set on a former file.
+    /// </summary>
+    [JsonPropertyName("contentVersion")]
+    [JsonPropertyOrder(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ContentVersion { get; set; }
+
     public override string ToString()
     {
         return FullPath;
@@ -80,6 +91,6 @@ public class FormerOriginFile : OriginFile
 {
     /// <summary>The last version the file was in, e.g. <c>v3</c>.</summary>
     [JsonPropertyName("lastVersion")]
-    [JsonPropertyOrder(3)]
+    [JsonPropertyOrder(4)]
     public required string LastVersion { get; set; }
 }

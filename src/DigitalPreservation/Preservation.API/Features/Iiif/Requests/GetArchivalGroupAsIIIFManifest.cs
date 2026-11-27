@@ -63,6 +63,9 @@ public class GetArchivalGroupAsIIIFManifestHandler(
         var pathUnderRoot = Uri.UnescapeDataString(archivalGroup.Id!.GetPathUnderRoot()!);
         var binaryUris = BinaryUris(archivalGroup);
         var storageMap = archivalGroup.StorageMap;
+        // The storage map is keyed by Fedora's spelling of each path, escaped (a space is "%20", a
+        // '#' is "-_-percent-23-_-"); METS paths are not. Unescape once, as WorkspaceManager does.
+        var originFiles = storageMap == null ? null : Unescaped(storageMap.Files);
         var context = new ProjectionContext
         {
             Kind = request.Kind,
@@ -73,11 +76,14 @@ public class GetArchivalGroupAsIIIFManifestHandler(
                 ? file => binaryUris.GetValueOrDefault(file.LocalPath)
                 : null,
             Origin = request.Kind == ManifestKind.IiifCs && storageMap != null
-                ? file => storageMap.Files.TryGetValue(file.LocalPath, out var origin) ? S3Uri(storageMap, origin.FullPath) : null
+                ? file => originFiles!.TryGetValue(file.LocalPath, out var origin) ? S3Uri(storageMap, origin.FullPath) : null
                 : null,
-            // OCFL content paths start with the version they were written in: v1/content/...
+            // The version the path last changed in. Not the version in its content path, which can be
+            // older: OCFL stores identical bytes once, so reverted content points back at the old copy.
             ContentVersion = request.Kind == ManifestKind.IiifCs && storageMap != null
-                ? file => storageMap.Files.TryGetValue(file.LocalPath, out var origin) ? origin.FullPath.Split('/')[0] : null
+                ? file => originFiles!.TryGetValue(file.LocalPath, out var origin)
+                    ? origin.ContentVersion ?? origin.FullPath.Split('/')[0]
+                    : null
                 : null,
             ObjectVersion = request.Kind == ManifestKind.IiifCs ? storageMap?.Version.OcflVersion : null,
             DerivedTypes = await derivedResolver.GetManagedTypesAsync(cancellationToken),
@@ -92,7 +98,7 @@ public class GetArchivalGroupAsIIIFManifestHandler(
             [
                 new ExternalResource("Dataset")
                 {
-                    Id = $"{archivalGroup.Id.AbsoluteUri}?view={ViewValues.Mets}",
+                    Id = $"{archivalGroup.Id!.AbsoluteUri}?view={ViewValues.Mets}",
                     Format = "application/xml",
                     Profile = "http://www.loc.gov/METS/",
                     Label = new LanguageMap("en", "METS")
@@ -123,7 +129,7 @@ public class GetArchivalGroupAsIIIFManifestHandler(
     private static JArray FormerAssets(DigitalPreservation.Common.Model.Storage.StorageMap storageMap, ProjectionContext context)
     {
         var former = new JArray();
-        foreach (var (path, file) in storageMap.FormerFiles!.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
+        foreach (var (path, file) in Unescaped(storageMap.FormerFiles!).OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
         {
             if (!path.StartsWith($"{FolderNames.Objects}/"))
             {
@@ -139,6 +145,18 @@ public class GetArchivalGroupAsIIIFManifestHandler(
         return former;
     }
 
+    private static Dictionary<string, T> Unescaped<T>(Dictionary<string, T> byFedoraPath)
+    {
+        var result = new Dictionary<string, T>(StringComparer.Ordinal);
+        foreach (var (path, value) in byFedoraPath)
+        {
+            result[path.UnEscapePathElementsNoHashes()] = value;
+        }
+        return result;
+    }
+
+    // The content path exactly as stored, escapes and all: it is the S3 key, and IIIF-CS takes the
+    // key from an s3:// origin literally.
     private static string S3Uri(DigitalPreservation.Common.Model.Storage.StorageMap storageMap, string fullPath) =>
         $"s3://{storageMap.Root}/{storageMap.ObjectPath.Trim('/')}/{fullPath}";
 
@@ -153,7 +171,8 @@ public class GetArchivalGroupAsIIIFManifestHandler(
             var relative = id?.AbsoluteUri.RemoveStart(prefix);
             if (relative != null)
             {
-                result[Uri.UnescapeDataString(relative)] = id!.AbsoluteUri;
+                // Fedora's '#' replacement as well as percent-escapes, to match the METS path.
+                result[relative.UnEscapePathElementsNoHashes()] = id!.AbsoluteUri;
             }
         }
         return result;

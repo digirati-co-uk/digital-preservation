@@ -586,6 +586,9 @@ public class FileMetadataTests : MetsParserTestBase
     [InlineData("0:09:60")]
     [InlineData("-5")]
     [InlineData("5 min")]
+    [InlineData("12345678901:00")]             // too big for an int: must not throw out of the parser
+    [InlineData("99999999999 days 1:00:00")]
+    [InlineData("٣:٤٢")]        // Arabic-Indic digits, which \d matches and parsing refuses
     public void Duration_with_unrecognised_format_is_silently_ignored_too(string value)
     {
         var mets = Parse(FullMetsWithSigProps(SigProp("Duration", value)));
